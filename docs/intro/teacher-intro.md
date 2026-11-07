@@ -3,7 +3,7 @@
 같은 보석을 맞추면 원소 스킬이 깨어나는 퍼즐 게임이에요. 한 판은 2분, 링크 하나로 바로 시작해요.
 초등학생 이상 · 설치·로그인 없음 · PC·태블릿·휴대폰
 
-게임 열기: https://eversunk2-tech.github.io/jewel-play/
+게임 열기: https://eversunk2-tech.github.io/jewel-play/apps/element-gems/
 (PC·태블릿에서는 가로 화면으로 열어 보세요.)
 
 ## 퍼즐 — 맞추고, 터뜨리고, 이어 가요
