@@ -35,6 +35,14 @@
 - **초기 라이벌 10명**: 사용자 결정 — 일반 플레이어처럼 보이게 낮은 기록(1위 별 점수 약 18, 10위 약 3)으로 등록. 서버 공개 후 공개 API(`/api/sync`)로 등록, pid는 git 밖 로컬 파일에 저장(삭제용), 실행 직전 사용자 확인.
 - **동점 기준 확정**: 별 점수 → 남은 시간 합계 → 먼저 달성 → id (점수 도전 모드는 2차 후보).
 
+- **서버 공개 완료(2026-11-07)**: Cloudflare D1 `element-gems-db`(스키마 적용) + Worker `element-gems-ranking`(`DB` 바인딩, `ALLOWED_ORIGINS`, Secret `IP_SALT`·`ADMIN_KEY`). 주소 `https://element-gems-ranking.sunkyboy.workers.dev`(게임이 뒤에서만 호출). **공유할 게임 주소는 GitHub Pages `https://eversunk2-tech.github.io/jewel-play/`**(Vercel 안 씀). `CONFIG.ranking.apiBase`에 서버 주소 설정, 푸시·Pages 배포 확인(`1ef9e3c`).
+- **배포 사이트 확인**: 프로필 만들기·닉네임 검사·시작 화면 칩·명예의 전당 화면 확인. 기록 제출은 사용자가 직접 한 판 클리어해서 확인 예정(가짜 기록 주입은 하지 않음).
+- **초기 라이벌 10명(사용자 결정: 일반 플레이어처럼)**: `server/tools/seed-hall.js`로 공개 API 등록(1위 별 점수 18 ~ 10위 3). 비밀 번호표는 저장소 밖 `~/.element-gems/seed-pids.json`(권한 600). 지우려면 `node apps/element-gems/server/tools/seed-hall.js --api <서버주소> --delete`.
+- **관리자 키**: 등록·확인 완료(`/api/admin/search`·`moderate`, `Authorization: Bearer`). 터미널 입력창은 `read`로 키를 받을 수 없어 **`$(pbpaste)`로 클립보드에서 전달**. 키는 비밀번호 관리자에 보관, 틀린 키로 10분 안에 5번 넘게 호출하면 429 잠금.
+- **시험 프로필 `달빛토끼`**(내장 브라우저 탭에서 만든 별 0개 프로필)가 서버에 남아 있음 — 순위에는 안 보임, 관리자 키로 삭제 가능.
+- **안내서 개선 후보**: `schema.sql`을 대시보드 Console에 붙이면 줄바꿈이 사라져 `--` 주석이 뒤를 삼킴 → 주석 없는 한 줄 버전(`schema-oneline.sql`)을 함께 제공.
+- **금칙어 보강 진행**: `agents/build-wordlist-element-gems.md`(Review §11-5 공백 + 오탐 `달빛시험`·`Shiitake`). 끝나면 `dist/worker.js`를 Worker에 다시 붙여넣어 배포(사용자가 직접).
+
 ### (이전 기록) Build 진행 때 표
 | 담당 | 지침 파일 | 소유 파일 | 목표 |
 |---|---|---|---|
