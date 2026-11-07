@@ -102,3 +102,9 @@ apps/element-gems/
   assets/  bg-jungle title-logo gems/ cutin/ avatars/(16) sfx/(26 wav) music/bgm.mp3
   [진행 중·미커밋] nickname.js nick-words.js ranking.js ranking-ui.js server/ test/
 ```
+
+## 10. 와이드 레이아웃(태블릿·PC) — 진행 기록 (2026-11-07)
+- Plan 완료(spec §20): 폭 800px 이상·높이 501px 이상 가로 화면에서 왼쪽 큰 보드 + 오른쪽 패널, 시작·프로필·명예의 전당 2열, 세로 태블릿 보드 상한 680/840px. 1366×768에서 보드 466 → 712px. 휴대폰 4개 해상도는 전후 동일.
+- 사용자 승인: 열린 질문 5개 권장안 + **추가 요청(§20.14)** — 와이드 게임 화면에서 원소 게이지를 세로 한 줄로 나열하고 보석 옆에 스킬 이름·간단한 설명 표시(휴대폰은 그대로).
+- Build 진행 중: `agents/build-widescreen-element-gems.md`. 끝나면 별도 Review → 커밋 → 푸시(확인 후) → 최종 배포본에서 **선생님용 소개 페이지(Artifact, 비공개)** 와 캡처 제작(PC·태블릿·휴대폰 화면 포함).
+- 서버 상태: 금칙어 보강본 `dist/worker.js` 재배포 완료(`관리인` 거절로 확인). 시험 프로필 `달빛토끼`는 서버에 남아 있음(순위 비노출).
