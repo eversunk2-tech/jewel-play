@@ -55,8 +55,33 @@ test('실제 금칙어 목록이 막아야 하는 말과 변형(base64 벡터)',
   assert.deepEqual(misses.map((s) => Buffer.from(s).toString('base64')), [], '못 잡은 항목(base64)');
 });
 
+test('금칙어 보강 벡터(철자 변형·1/I→l·한글 변형·전화번호·한글 숫자 반·연락 유도·사칭): 기대한 코드로 막힘', () => {
+  assert.ok(V.WORDLIST_V2.length >= 100, '벡터 수 ' + V.WORDLIST_V2.length);
+  const bad = V.WORDLIST_V2.map(([s, code]) => [s, codeOf(s), code]).filter(([, got, want]) => got !== want)
+    .map(([s, got, want]) => Buffer.from(s).toString('base64') + ':' + got + '!=' + want);
+  assert.deepEqual(bad, []);
+  // 대소문자·앞뒤 숫자를 붙여도 같은 결과(영문 항목)
+  for (const [s, code] of V.WORDLIST_V2) {
+    if (!/^[a-z]{3,6}$/.test(s) || code !== 'nick_blocked') continue;
+    assert.equal(N.validateNick(s.toUpperCase()).ok, false, '대문자 ' + s.toUpperCase());
+    assert.equal(N.validateNick(s + '9').ok, false, '숫자 ' + s + '9');
+  }
+});
+
+test('오탐 수정: 달빛시험·빛시계·별시계·불씨·심바·Shiitake 와 같은 원인의 말은 통과, 같은 말을 앞에 붙인 시발·병신류는 계속 막힘', () => {
+  for (const s of ['달빛시험', '빛시험', '빛시', '빛시계', '별시계', '벽시계', '불씨', '별씨앗', '심바', '신박', '시험', '시험왕', 'Shiitake', 'SHIITAKE', 'Instant', 'Rapping', 'Thorny']) {
+    assert.equal(N.validateNick(s).ok, true, '통과해야 함: ' + s);
+  }
+  const dec = (b) => Buffer.from(b, 'base64').toString();
+  const must = ['빛시' + dec('67Cc'), '달빛' + dec('7Iuc67Cc'), '달빛' + dec('67OR7Iug'), dec('7Iuc67Cc'), dec('67OR7Iug'), dec('7JSo7Y6E')];   // 빛시+발, 달빛+시발, 달빛+병신, 시발, 병신, 씨팔
+  for (const s of must) assert.equal(N.validateNick(s).ok, false, '막혀야 함(base64 ' + Buffer.from(s).toString('base64') + ')');
+  // _explain 은 어느 목록에 걸렸는지 알려 준다
+  assert.equal(N._explain('달빛시험'), null);
+  assert.equal(N._explain(dec('7Iuc67Cc')).list, 'block');
+});
+
 test('오탐 방지: 정상 닉네임 목록은 전부 통과', () => {
-  assert.ok(V.LEGIT.length >= 300, '정상 이름 수 ' + V.LEGIT.length);
+  assert.ok(V.LEGIT.length >= 450, '정상 이름 수 ' + V.LEGIT.length);
   const bad = V.LEGIT.map((s) => [s, N.validateNick(s)]).filter(([, r]) => !r.ok).map(([s, r]) => s + ':' + r.code);
   assert.deepEqual(bad, []);
 });
@@ -144,7 +169,7 @@ test('브라우저 전역 방식으로 로드해도 같은 결과(서버·클라
   vm.runInContext(fs.readFileSync(path.join(__dirname, '..', '..', 'nickname.js'), 'utf8'), sandbox);
   const G = sandbox.ElementGemsNick;
   assert.equal(typeof G.validateNick, 'function');
-  const samples = [].concat(V.LEGIT.slice(0, 80), V.REAL_B64.slice(0, 60), V.PII.map((x) => x[0]), V.FORMAT.map((x) => x[0]), V.BYPASS_EXTRA);
+  const samples = [].concat(V.LEGIT.slice(0, 80), V.LEGIT.slice(-120), V.REAL_B64.slice(0, 60), V.WORDLIST_V2.map((x) => x[0]), V.PII.map((x) => x[0]), V.FORMAT.map((x) => x[0]), V.BYPASS_EXTRA);
   for (const s of samples) {
     const a = JSON.stringify(N.validateNick(s, V.EXTRA));
     const b = JSON.stringify(G.validateNick(s, V.EXTRA));

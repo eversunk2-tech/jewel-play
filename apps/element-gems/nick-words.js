@@ -7,6 +7,7 @@
  *             node apps/element-gems/server/tools/print-wordlist.js --counts   (개수만)
  * - 추가하는 법: node apps/element-gems/server/tools/encode-word.js "단어"  -> 나온 base64를 해당 분류 배열에 붙여 넣는다.
  *   바꾼 뒤에는 node apps/element-gems/server/build.js 로 서버 dist/worker.js를 다시 만들고 서버를 재배포한다.
+ * - allow 분류: 한글 항목은 개인정보·금칙어 검사 전에 입력에서 지우고, 영문 항목(소문자, 예: shiitake)은 영문 뷰에서 그 부분만 '#'으로 바꿔 가린다(앞뒤 글자와 이어지지 않음).
  * - 이 파일의 목록은 사용자 검수 대상이다. 오탐(괜찮은 이름이 막힘)과 누락(막혀야 하는 이름이 통과)을 발견하면 알려 주세요.
  */
 (function (root, factory) {
@@ -17,7 +18,7 @@
   'use strict';
   return {
     version: 1,
-    // 사칭 예약어 (운영자·게임 캐릭터 이름) - 35개
+    // 사칭 예약어 (운영자·게임 캐릭터 이름) - 53개
     reserved: [
       '6rSA66as7J6Q', '7Jq07JiB7J6Q', '7Jq07JiB', '6rO17Iud',
       '7ISg7IOd64uY', '7ISg7IOd', '6rWQ7IKs', '7Ja065Oc66+8',
@@ -27,7 +28,12 @@
       'PeyngOyXoA==', 'PeqzteyngA==', 'YWRtaW4=', 'YWRtaW5pc3RyYXRvcg==',
       'PW1vZA==', 'bW9kZXJhdG9y', 'PWdt', 'c3RhZmY=',
       'c3lzdGVt', 'b2ZmaWNpYWw=', 'dGVhY2hlcg==', 'c3VwcG9ydA==',
-      'ZWxlbWVudGdlbXM=', 'ZGV2ZWxvcGVy', 'c3lzb3A='
+      'ZWxlbWVudGdlbXM=', 'ZGV2ZWxvcGVy', 'c3lzb3A=', '6rSA66as7J24',
+      '6rSA66as7JuQ', '6rSA66as7YyA', '7Iqk7YOc7ZSE', '7Iqk7YOt',
+      '66qo642U66CI7J207YSw', '66qo642w66CI7J207YSw', '7Yuw7LKY', '7Yuw7LOQ',
+      '6rCQ64+F6rSA', '66ek64uI7KCA', '6rKM7J6E66eI7Iqk7YSw', 'aWduaXM=',
+      'PWtub3g=', 'PWx1bWk=', 'PWFxdWE=', 'bWFuYWdlcg==',
+      'Z2FtZW1hc3Rlcg=='
     ],
     // 개인정보 (학교·학년·연락처 표현) - 30개
     pii: [
@@ -40,7 +46,7 @@
       '7Iuk66qF', '6rOo67GF7J20', '64u37Lu0', 'ZG90Y29t',
       'aHR0cA==', 'd3d3'
     ],
-    // 연락 유도 (메신저·SNS 서비스 이름) - 45개
+    // 연락 유도 (메신저·SNS 서비스 이름) - 62개
     contact: [
       '7Lm07Yah', '6rmM65iR', '7Lm065iR', '7Lm07Lm07Jik',
       '7Lm07Lm07Jik7Yah', '7Jik7ZSI7LGE7YyF', '7Jik7ZSI7Lm07Yah', '7Jik7ZSI7Yah',
@@ -53,14 +59,20 @@
       'aW5zdGE=', 'aW5zdGFncmFt', 'ZGlzY29yZA==', 'dGVsZWdyYW0=',
       'dGlrdG9r', 'ZmFjZWJvb2s=', 'dHdpdHRlcg==', 'c25hcGNoYXQ=',
       'd2hhdHNhcHA=', 'd2VjaGF0', 'b3BlbmNoYXQ=', 'Z21haWw=',
-      'aGFubWFpbA=='
+      'aGFubWFpbA==', '64Sk7J2067KE', 'bmF2ZXI=', '64+E7Yq47Lu0',
+      '64+E7Yq47LyA7J207JWM', '64u37LyA7J207JWM', 'ZG90a3I=', 'ZG90bmV0',
+      '64u364S3', 'ZGF1bQ==', '64uk7J2M66mU7J28', 'aG90bWFpbA==',
+      'aWNsb3Vk', 'c2t5cGU=', '7Iqk7Lm07J207ZSE', '65SU7Jeg7KO87IS47JqU',
+      '7KCE7ZmU7KO87IS47JqU', '66y47J6Q7KO87IS47JqU'
     ],
-    // 오탐 방지 예외 (개인정보 검사에서 먼저 지우는 단어) - 6개
+    // 오탐 방지 예외 (한글: 먼저 지우는 단어 / 영문: 영문 검사에서 가려 두는 단어) - 16개
     allow: [
       '6rOg65Ox7Ja0', '7Iug67Cc', '7Iug67CU656M', '7Iuc67CU6rKs',
-      '7KG4652866eo', '66mU6rCI66Gc'
+      '7KG4652866eo', '66mU6rCI66Gc', 'c2hpaXRha2U=', 'aW5zdGFudA==',
+      'aW5zdGFsbA==', 'aW5zdGFuY2U=', 'dGhvcm55', 'cmFwcGluZw==',
+      'd3JhcHBpbmc=', 'dHJhcHBpbmc=', 'c2NyYXBpbmc=', 'c3RyYXBwaW5n'
     ],
-    // 한국어 금칙어 (욕설·성적·혐오·폭력·약물/도박) - 173개
+    // 한국어 금칙어 (욕설·성적·혐오·폭력·약물/도박) - 183개
     ko: [
       '7Iuc67Cc', '7Iuc7YyU', '7Iuc7Y6E', 'KuyLnOuyjA==',
       'KuyUqOuyjA==', '7Iuc67aA656E', '7JSo67aA65+0', '67OR7Iug',
@@ -105,9 +117,11 @@
       'Ku2ZmOqwgQ==', 'KuuPhOuwlQ==', 'Kuy5tOyngOuFuA==', 'KuuwlOy5tOudvA==',
       'KuyKrOuhr+uouOyLoA==', 'KuqyveuniA==', 'KuuyoO2MhQ==', 'Ku2ZgOuNpA==',
       'Kuu2iOuyleuPhOuwlQ==', 'Ku2GoO2GoOyCrOydtO2KuA==', 'KuuLtOuwsA==', 'Ku2doeyXsA==',
-      'KuuLiOy9lO2LtA=='
+      'KuuLiOy9lO2LtA==', 'PeyLnOu2iA==', 'PeyUqOu2iA==', 'PeyLnOu4lA==',
+      'PeyUqOu4lA==', 'PeuwnOyLnA==', 'PeuwnOyUqA==', 'Pe2MlOyLnA==',
+      'Pe2MlOyUqA==', 'PeuyjOyLnA==', 'PeuyjOyUqA=='
     ],
-    // 영어 금칙어 - 124개
+    // 영어 금칙어 - 171개
     en: [
       'ZnVjaw==', 'ZnVr', 'ZmNr', 'ZnZjaw==',
       'cGh1Y2s=', 'ZnVja2Vy', 'bW90aGVyZnVja2Vy', 'c2hpdA==',
@@ -139,7 +153,19 @@
       'Y29jYWluZQ==', 'PWhlcm9pbg==', 'PW1ldGg=', 'bWV0aGFtcGhldGFtaW5l',
       'bWFyaWp1YW5h', 'Y2FubmFiaXM=', 'PXdlZWQ=', 'PWxzZA==',
       'ZWNzdGFzeQ==', 'b3BpdW0=', 'Z2FtYmxl', 'Z2FtYmxpbmc=',
-      'Y2FzaW5v', 'YmV0dGluZw==', 'dmFwZQ==', 'Y2lnYXJldHRl'
+      'Y2FzaW5v', 'YmV0dGluZw==', 'dmFwZQ==', 'Y2lnYXJldHRl',
+      'PWZ1cQ==', 'PWZ4Y2s=', 'PWZjdWs=', 'PWZ1a2s=',
+      'PWZ1Y2M=', 'PWZ1dWs=', 'PWZ1Yw==', 'PWZ1eGs=',
+      'PXBodWs=', 'PXBodXE=', 'PWZ1a2luZw==', 'PWZja2luZw==',
+      'PWZraW5n', 'PXNoeXQ=', 'PXNoZXQ=', 'PXNoZWl0',
+      'PXNoaWV0', 'PXNoeXRl', 'PWJ5dGNo', 'PWJpdGM=',
+      'PWJpb3RjaA==', 'PWJlYXRjaA==', 'PWJ0Y2g=', 'PWRpaw==',
+      'PWRpa2s=', 'PWNvaw==', 'PXB1c3k=', 'PXB1c3Np',
+      'PXByb24=', 'PXJldHJk', 'PXRhcmQ=', 'PXNlZXg=',
+      'PXNleHg=', 'PXNla3M=', 'PXNlY2tz', 'PXNleGk=',
+      'PWt5cw==', 'PWttcw==', 'PWhvZQ==', 'PWhvZXM=',
+      'PWJhc3RlcmQ=', 'PWJhc3RyZA==', 'PW5pYmJh', 'PW5pcXFh',
+      'PWZhZ2c=', 'PWFzc2hhdA==', 'PWFzc3dpcGU='
     ],
     // 한국어 욕설을 알파벳으로 쓴 표현 - 34개
     rom: [

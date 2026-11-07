@@ -13,7 +13,10 @@
  *   2) 새로 생긴 은어·신조어·외국어 욕설(목록에 없으면 통과). 긴급하면 서버 변수 EXTRA_BLOCK 에 쉼표로 추가하고, 평소에는 nick-words.js 를 갱신한다.
  *   3) 실명·별명 구분: 3음절 이름(성+이름)은 별명과 구분할 수 없어 막지 않는다(spec §19.3.3). 신고·숨김으로 보완한다.
  *   4) 소리나는 대로 바꾼 은어(예: 신발 같은 순한 말로 돌려 쓰는 표현)는 오탐 방지를 위해 일부러 허용한다(nick-words.js 의 allow 목록).
- *   5) 소프트 키가 받침을 지우기 때문에 소리가 같은 정상 단어가 막힐 수 있다(오탐 허용, 보수적).
+ *   5) 소프트 키가 받침을 지우기 때문에 소리가 같은 정상 단어가 막힐 수 있다(오탐 허용, 보수적). 단 2음절 금칙어(시발·병신류)는 받침까지 한 번 더 보므로
+ *      별시계·불씨·심바·빛시험 같은 정상 말은 통과한다(nickname.js 머리 주석).
+ *   6) 한글 앞뒤 순서를 뒤집는 우회(발시)는 일반 규칙으로 막지 않는다(뒤집으면 일상 단어가 되는 금칙어가 있어 오탐이 크다). 널리 쓰는 몇 개만 `=` 전체 일치로 목록에 넣었다.
+ *   7) 영문 오탐(shiitake·instant·rapping 등)은 allow 목록의 영문 항목으로 예외 처리한다.
  */
 'use strict';
 
@@ -93,8 +96,8 @@ const PII = [
   ['관a리자', 'nick_reserved']
 ];
 
-/** 통과해야 하는 정상 닉네임 (오탐 방지) */
-const LEGIT = [
+/** 통과해야 하는 정상 닉네임 (오탐 방지) - 기본 목록 */
+const LEGIT_V1 = [
   '별빛냥', '달토끼', '반달곰', '초코우유', '초코', '하늘이', '구름빵', '파랑새', '솜사탕', '딸기우유', '바나나킥', '곰돌이', '토끼똥', '고양이', '강아지', '햄찌', '햄스터', '펭귄',
   '북극곰', '사자왕', '호랑이', '용사', '마법사', '기사단', '별똥별', '은하수', '무지개', '번개맨', '불꽃', '물방울', '풀잎', '빛나리', '나무늘보', '도토리', '밤송이', '감자칩',
   '떡볶이', '라면왕', '치킨', '피자', '콜라', '사이다', '젤리', '마카롱', '쿠키', '초코칩', '딸기잼', '포도알', '사과', '수박', '참외', '복숭아', '레몬', '오렌지', '키위', '망고',
@@ -116,6 +119,74 @@ const LEGIT = [
   '별빛냥2', '달토끼9', 'Star7', '곰돌이12', '라인업', '초코송이', '고구마', '꼬마', '아이', '이슬', '여름', '가을', '겨울', '봄이', '하나', '두리', '세찌', '네모', '다섯'
 ];
 
+/** 정상 닉네임 추가분(금칙어 보강 작업): 빛시·시험·별시·불씨·심바처럼 소프트 키에 걸리던 말, 동물·색·음식·학교생활·이름·영어 단어, 1·I가 든 영어 이름 */
+const LEGIT_V2 = [
+  '달빛시험', '빛시험', '빛시계', '빛시', '빛시간', '빛시장', '빛시작', '시험', '시험왕', '수학시험',
+  '시험지', '시험공부', '시험기간', '별시계', '별시', '벽시계', '별씨앗', '불씨', '불시착', '불새',
+  '불곰', '심바', '신박', '신박해', '시방새', '씨방', '신방', '신판', '시판', '벚꽃잎',
+  '법씨', '벚씨', '부시맨', '비시', '붕어', '하마', '치타', '표범', '알파카', '오리너구리',
+  '아르마딜로', '카멜레온', '미어캣', '펠리컨', '갈매기', '바다표범', '해파리', '가오리', '잉어', '금붕어',
+  '올챙이', '도마뱀', '사마귀', '메뚜기', '빨강', '주황', '노랑', '초록', '하늘색', '보라색',
+  '분홍', '연두', '남색', '은빛', '금빛', '자주색', '김밥', '비빔밥', '떡국', '만두',
+  '호빵', '곶감', '약과', '단팥빵', '크림빵', '소시지', '햄버거', '샌드위치', '짜장면', '우동',
+  '오므라이스', '팝콘', '요거트', '바나나우유', '시간표', '시계탑', '쉬는시간', '점심시간', '운동장', '체육관',
+  '도서관', '숙제왕', '받아쓰기', '구구단', '소풍', '방학', '부반장', '반장', '일등', '청소당번',
+  '칠판', '분필', '연필', '지우개', '필통', '색연필', '알림장', '수학왕', '과학왕', '민서',
+  '서윤', '지민', '현우', '도현', '지훈', '수아', '하은', '예린', '가온', '나래',
+  '다솜', '보람', '새롬', '아름', '한결', '이든', '시현', '시윤', '채은', '유나',
+  '하린', '은우', '서진', '시후', '지아', '김민준', '박서연', 'Hello', 'Polo', 'Solo',
+  'Island', 'Illness', 'Gill', 'Color', 'Kilo', 'Milo', 'Lily', 'Ellie', 'Willow', 'Pillow',
+  'Tulip', 'Violet', 'Hazel', 'Peach', 'Mango', 'Cherry', 'Berry', 'Honey', 'Bubble', 'Cookie',
+  'Muffin', 'Pixel', 'Rocket', 'Comet', 'Galaxy', 'Planet', 'Meteor', 'Thunder', 'Shadow', 'Flame',
+  'Frost', 'Breeze', 'Instant', 'Install', 'Rapping', 'Wrapping', 'Thorny', 'Scraping', 'Shiitake', 'Shoe',
+  'Shop', 'Ship', 'Sheep', 'Shine', 'Shiny', 'Whale', 'Spicy', 'Kiwi', 'Titan', 'Pixel1',
+  'Star1', 'Gem1', 'Milo1', 'Hello1', 'Cool1', 'Gill1', 'Jill1', 'Billy1', 'Ice1', 'Alice1',
+  'Lily1', 'Ellie2', 'Fire1', 'Wil1', 'Kiwi1', 'Zelda1', 'Bell1'
+];
+const LEGIT = LEGIT_V1.concat(LEGIT_V2);
+
+/** 금칙어 보강으로 새로 막아야 하는 우회 벡터: [입력, 기대 코드]. 입력은 base64로 저장한다(저장소에서 욕설이 그대로 읽히지 않게).
+ *  철자 변형(f·shit·bitch·dick·cock·pussy·porn·retard·sex·kys 계열)·1/I→l 치환·한글 변형·숫자 낀 전화번호·한글 숫자 반·연락 유도·사칭 예약어 */
+const WORDLIST_V2 = [
+  ['ZnVx','b'], ['Znhjaw==','b'], ['ZmN1aw==','b'], ['ZnVraw==','b'],
+  ['ZnVjYw==','b'], ['ZnV1aw==','b'], ['ZnVj','b'], ['ZnV4aw==','b'],
+  ['cGh1aw==','b'], ['cGh1cQ==','b'], ['ZnVraW5n','b'], ['ZmNraW5n','b'],
+  ['Zmtpbmc=','b'], ['c2h5dA==','b'], ['c2hldA==','b'], ['c2hlaXQ=','b'],
+  ['c2hpZXQ=','b'], ['c2h5dGU=','b'], ['Ynl0Y2g=','b'], ['Yml0Yw==','b'],
+  ['YmlvdGNo','b'], ['YmVhdGNo','b'], ['YnRjaA==','b'], ['ZGlr','b'],
+  ['ZGlraw==','b'], ['Y29r','b'], ['cHVzeQ==','b'], ['cHVzc2k=','b'],
+  ['cHJvbg==','b'], ['cmV0cmQ=','b'], ['dGFyZA==','b'], ['c2VleA==','b'],
+  ['c2V4eA==','b'], ['c2Vrcw==','b'], ['c2Vja3M=','b'], ['c2V4aQ==','b'],
+  ['a3lz','b'], ['a21z','b'], ['aG9l','b'], ['aG9lcw==','b'],
+  ['YmFzdGVyZA==','b'], ['YmFzdHJk','b'], ['bmliYmE=','b'], ['bmlxcWE=','b'],
+  ['ZmFnZw==','b'], ['YXNzaGF0','b'], ['YXNzd2lwZQ==','b'], ['RlVR','b'],
+  ['Rnhjaw==','b'], ['RmNVaw==','b'], ['U2gzdA==','b'], ['Ynl0NGNo','b'],
+  ['RDFr','b'], ['UHU1eQ==','b'], ['cHIwbg==','b'], ['UjN0cmQ=','b'],
+  ['S1lT','b'], ['SDBl','b'], ['UzMzeA==','b'], ['ZjBjaw==','b'],
+  ['czF1dA==','b'], ['c0l1dA==','b'], ['UzFVVA==','b'], ['aGl0SWVy','b'],
+  ['SDF0bGVy','b'], ['c2V4dWEx','b'], ['YW5hMQ==','b'], ['ZGkxZG8=','b'],
+  ['Z2FtYjFpbmc=','b'], ['bW8xZXN0','b'], ['7Iuc67aI','b'], ['7JSo67aI','b'],
+  ['7Iuc67iU','b'], ['7JSo67iU','b'], ['67Cc7Iuc','b'], ['67Cc7JSo','b'],
+  ['7YyU7Iuc','b'], ['7YyU7JSo','b'], ['67KM7Iuc','b'], ['67KM7JSo','b'],
+  ['7IucMeu2iA==','b'], ['67CcYeyLnA==','b'], ['7IucYeu2iA==','b'], ['7Iut67Cc','b'],
+  ['7Iuv7YyU','b'], ['7JSo7J207YyU','b'], ['7Iuc7J2067Cc','b'], ['67ORMeyLoA==','b'],
+  ['67iF7Iug','b'], ['67mb7Iuc67Cc','b'], ['64us67mb7Iuc67Cc','b'], ['64us67mb67OR7Iug','b'],
+  ['6rO1MeqztQ==','p'], ['6rO17J28MA==','p'], ['7JiBMeyYgQ==','p'], ['6rO1MeydvA==','p'],
+  ['MGExYjA=','p'], ['7IK867CY','p'], ['7IKs67CY','p'], ['7Jik67CY','p'],
+  ['7YyU67CY','p'], ['7Iut67CY','p'], ['7IK867CYMw==','p'], ['ZWxl7IK867CY','p'],
+  ['7J207ZWZ64WE','p'], ['64Sk7J2067KE','p'], ['bmF2ZXI=','p'], ['TkFWRVI=','p'],
+  ['ZG90a3I=','p'], ['64+E7Yq47Lu0','p'], ['64+E7Yq47LyA7J207JWM','p'], ['64u37LyA7J207JWM','p'],
+  ['ZG90bmV0','p'], ['64u364S3','p'], ['ZGF1bQ==','p'], ['64uk7J2M66mU7J28','p'],
+  ['aG90bWFpbA==','p'], ['aWNsb3Vk','p'], ['c2t5cGU=','p'], ['7Iqk7Lm07J207ZSE','p'],
+  ['65SU7Jeg7KO87IS47JqU','p'], ['7KCE7ZmU7KO87IS47JqU','p'], ['66y47J6Q7KO87IS47JqU','p'], ['6rSA66as7J24','r'],
+  ['6rSA66as7JuQ','r'], ['6rSA66as7YyA','r'], ['7Iqk7YOc7ZSE','r'], ['7Iqk7YOt','r'],
+  ['66qo642U66CI7J207YSw','r'], ['66qo642w66CI7J207YSw','r'], ['7Yuw7LKY','r'], ['7Yuw7LOQ','r'],
+  ['6rCQ64+F6rSA','r'], ['66ek64uI7KCA','r'], ['6rKM7J6E66eI7Iqk7YSw','r'], ['SWduaXM=','r'],
+  ['SUdOSVM=','r'], ['aWduaXMx','r'], ['S25veA==','r'], ['THVtaQ==','r'],
+  ['QXF1YQ==','r'], ['bWFuYWdlcg==','r'], ['7J206re464uI7Iqk','r'], ['6rSAYeumrOyduA==','r'],
+  ['6rSA66asMeybkA==','r']
+].map(([s, c]) => [b64(s), { b: 'nick_blocked', p: 'nick_pii', r: 'nick_reserved' }[c]]);
+
 /** 못 잡는 것으로 알려진 우회: [입력, 설명]. 통과해도 시험 실패가 아니다(extraBlock 에 거북이 지정 기준). */
 const KNOWN_LIMITS = [
   ['거가북이', '자음이 있는 다른 음절을 사이에 끼움'],
@@ -125,8 +196,8 @@ const KNOWN_LIMITS = [
 /** 영문 부분 일치 때문에 정상 단어가 막히는 알려진 오탐(보수적으로 허용): [입력, 이유] */
 const KNOWN_FALSE_POSITIVES = [
   ['Scunthor', "'cunt' 가 들어 있어 막힘(유명한 Scunthorpe 문제)"],
-  ['shiitake', "'shit' 로 접혀 막힘"],
+  ['플라밍고', "'○○고' 로 끝나는 세 글자 이상은 학교 이름으로 보아 개인정보 안내로 막힘(spec §19.3.3 학교 규칙, 알려진 오탐)"],
   ['고등학교', '학교·고등 표현이라 개인정보 안내로 막힘']
 ];
 
-module.exports = { EXTRA, BYPASS_EXTRA, SPEC_EXAMPLES, REAL_B64, FORMAT, PII, LEGIT, KNOWN_LIMITS, KNOWN_FALSE_POSITIVES };
+module.exports = { EXTRA, BYPASS_EXTRA, SPEC_EXAMPLES, REAL_B64, WORDLIST_V2, FORMAT, PII, LEGIT, KNOWN_LIMITS, KNOWN_FALSE_POSITIVES };

@@ -24,6 +24,7 @@ __mods['nick-words'] = function (module, exports, require) {
    *             node apps/element-gems/server/tools/print-wordlist.js --counts   (개수만)
    * - 추가하는 법: node apps/element-gems/server/tools/encode-word.js "단어"  -> 나온 base64를 해당 분류 배열에 붙여 넣는다.
    *   바꾼 뒤에는 node apps/element-gems/server/build.js 로 서버 dist/worker.js를 다시 만들고 서버를 재배포한다.
+   * - allow 분류: 한글 항목은 개인정보·금칙어 검사 전에 입력에서 지우고, 영문 항목(소문자, 예: shiitake)은 영문 뷰에서 그 부분만 '#'으로 바꿔 가린다(앞뒤 글자와 이어지지 않음).
    * - 이 파일의 목록은 사용자 검수 대상이다. 오탐(괜찮은 이름이 막힘)과 누락(막혀야 하는 이름이 통과)을 발견하면 알려 주세요.
    */
   (function (root, factory) {
@@ -34,7 +35,7 @@ __mods['nick-words'] = function (module, exports, require) {
     'use strict';
     return {
       version: 1,
-      // 사칭 예약어 (운영자·게임 캐릭터 이름) - 35개
+      // 사칭 예약어 (운영자·게임 캐릭터 이름) - 53개
       reserved: [
         '6rSA66as7J6Q', '7Jq07JiB7J6Q', '7Jq07JiB', '6rO17Iud',
         '7ISg7IOd64uY', '7ISg7IOd', '6rWQ7IKs', '7Ja065Oc66+8',
@@ -44,7 +45,12 @@ __mods['nick-words'] = function (module, exports, require) {
         'PeyngOyXoA==', 'PeqzteyngA==', 'YWRtaW4=', 'YWRtaW5pc3RyYXRvcg==',
         'PW1vZA==', 'bW9kZXJhdG9y', 'PWdt', 'c3RhZmY=',
         'c3lzdGVt', 'b2ZmaWNpYWw=', 'dGVhY2hlcg==', 'c3VwcG9ydA==',
-        'ZWxlbWVudGdlbXM=', 'ZGV2ZWxvcGVy', 'c3lzb3A='
+        'ZWxlbWVudGdlbXM=', 'ZGV2ZWxvcGVy', 'c3lzb3A=', '6rSA66as7J24',
+        '6rSA66as7JuQ', '6rSA66as7YyA', '7Iqk7YOc7ZSE', '7Iqk7YOt',
+        '66qo642U66CI7J207YSw', '66qo642w66CI7J207YSw', '7Yuw7LKY', '7Yuw7LOQ',
+        '6rCQ64+F6rSA', '66ek64uI7KCA', '6rKM7J6E66eI7Iqk7YSw', 'aWduaXM=',
+        'PWtub3g=', 'PWx1bWk=', 'PWFxdWE=', 'bWFuYWdlcg==',
+        'Z2FtZW1hc3Rlcg=='
       ],
       // 개인정보 (학교·학년·연락처 표현) - 30개
       pii: [
@@ -57,7 +63,7 @@ __mods['nick-words'] = function (module, exports, require) {
         '7Iuk66qF', '6rOo67GF7J20', '64u37Lu0', 'ZG90Y29t',
         'aHR0cA==', 'd3d3'
       ],
-      // 연락 유도 (메신저·SNS 서비스 이름) - 45개
+      // 연락 유도 (메신저·SNS 서비스 이름) - 62개
       contact: [
         '7Lm07Yah', '6rmM65iR', '7Lm065iR', '7Lm07Lm07Jik',
         '7Lm07Lm07Jik7Yah', '7Jik7ZSI7LGE7YyF', '7Jik7ZSI7Lm07Yah', '7Jik7ZSI7Yah',
@@ -70,14 +76,20 @@ __mods['nick-words'] = function (module, exports, require) {
         'aW5zdGE=', 'aW5zdGFncmFt', 'ZGlzY29yZA==', 'dGVsZWdyYW0=',
         'dGlrdG9r', 'ZmFjZWJvb2s=', 'dHdpdHRlcg==', 'c25hcGNoYXQ=',
         'd2hhdHNhcHA=', 'd2VjaGF0', 'b3BlbmNoYXQ=', 'Z21haWw=',
-        'aGFubWFpbA=='
+        'aGFubWFpbA==', '64Sk7J2067KE', 'bmF2ZXI=', '64+E7Yq47Lu0',
+        '64+E7Yq47LyA7J207JWM', '64u37LyA7J207JWM', 'ZG90a3I=', 'ZG90bmV0',
+        '64u364S3', 'ZGF1bQ==', '64uk7J2M66mU7J28', 'aG90bWFpbA==',
+        'aWNsb3Vk', 'c2t5cGU=', '7Iqk7Lm07J207ZSE', '65SU7Jeg7KO87IS47JqU',
+        '7KCE7ZmU7KO87IS47JqU', '66y47J6Q7KO87IS47JqU'
       ],
-      // 오탐 방지 예외 (개인정보 검사에서 먼저 지우는 단어) - 6개
+      // 오탐 방지 예외 (한글: 먼저 지우는 단어 / 영문: 영문 검사에서 가려 두는 단어) - 16개
       allow: [
         '6rOg65Ox7Ja0', '7Iug67Cc', '7Iug67CU656M', '7Iuc67CU6rKs',
-        '7KG4652866eo', '66mU6rCI66Gc'
+        '7KG4652866eo', '66mU6rCI66Gc', 'c2hpaXRha2U=', 'aW5zdGFudA==',
+        'aW5zdGFsbA==', 'aW5zdGFuY2U=', 'dGhvcm55', 'cmFwcGluZw==',
+        'd3JhcHBpbmc=', 'dHJhcHBpbmc=', 'c2NyYXBpbmc=', 'c3RyYXBwaW5n'
       ],
-      // 한국어 금칙어 (욕설·성적·혐오·폭력·약물/도박) - 173개
+      // 한국어 금칙어 (욕설·성적·혐오·폭력·약물/도박) - 183개
       ko: [
         '7Iuc67Cc', '7Iuc7YyU', '7Iuc7Y6E', 'KuyLnOuyjA==',
         'KuyUqOuyjA==', '7Iuc67aA656E', '7JSo67aA65+0', '67OR7Iug',
@@ -122,9 +134,11 @@ __mods['nick-words'] = function (module, exports, require) {
         'Ku2ZmOqwgQ==', 'KuuPhOuwlQ==', 'Kuy5tOyngOuFuA==', 'KuuwlOy5tOudvA==',
         'KuyKrOuhr+uouOyLoA==', 'KuqyveuniA==', 'KuuyoO2MhQ==', 'Ku2ZgOuNpA==',
         'Kuu2iOuyleuPhOuwlQ==', 'Ku2GoO2GoOyCrOydtO2KuA==', 'KuuLtOuwsA==', 'Ku2doeyXsA==',
-        'KuuLiOy9lO2LtA=='
+        'KuuLiOy9lO2LtA==', 'PeyLnOu2iA==', 'PeyUqOu2iA==', 'PeyLnOu4lA==',
+        'PeyUqOu4lA==', 'PeuwnOyLnA==', 'PeuwnOyUqA==', 'Pe2MlOyLnA==',
+        'Pe2MlOyUqA==', 'PeuyjOyLnA==', 'PeuyjOyUqA=='
       ],
-      // 영어 금칙어 - 124개
+      // 영어 금칙어 - 171개
       en: [
         'ZnVjaw==', 'ZnVr', 'ZmNr', 'ZnZjaw==',
         'cGh1Y2s=', 'ZnVja2Vy', 'bW90aGVyZnVja2Vy', 'c2hpdA==',
@@ -156,7 +170,19 @@ __mods['nick-words'] = function (module, exports, require) {
         'Y29jYWluZQ==', 'PWhlcm9pbg==', 'PW1ldGg=', 'bWV0aGFtcGhldGFtaW5l',
         'bWFyaWp1YW5h', 'Y2FubmFiaXM=', 'PXdlZWQ=', 'PWxzZA==',
         'ZWNzdGFzeQ==', 'b3BpdW0=', 'Z2FtYmxl', 'Z2FtYmxpbmc=',
-        'Y2FzaW5v', 'YmV0dGluZw==', 'dmFwZQ==', 'Y2lnYXJldHRl'
+        'Y2FzaW5v', 'YmV0dGluZw==', 'dmFwZQ==', 'Y2lnYXJldHRl',
+        'PWZ1cQ==', 'PWZ4Y2s=', 'PWZjdWs=', 'PWZ1a2s=',
+        'PWZ1Y2M=', 'PWZ1dWs=', 'PWZ1Yw==', 'PWZ1eGs=',
+        'PXBodWs=', 'PXBodXE=', 'PWZ1a2luZw==', 'PWZja2luZw==',
+        'PWZraW5n', 'PXNoeXQ=', 'PXNoZXQ=', 'PXNoZWl0',
+        'PXNoaWV0', 'PXNoeXRl', 'PWJ5dGNo', 'PWJpdGM=',
+        'PWJpb3RjaA==', 'PWJlYXRjaA==', 'PWJ0Y2g=', 'PWRpaw==',
+        'PWRpa2s=', 'PWNvaw==', 'PXB1c3k=', 'PXB1c3Np',
+        'PXByb24=', 'PXJldHJk', 'PXRhcmQ=', 'PXNlZXg=',
+        'PXNleHg=', 'PXNla3M=', 'PXNlY2tz', 'PXNleGk=',
+        'PWt5cw==', 'PWttcw==', 'PWhvZQ==', 'PWhvZXM=',
+        'PWJhc3RlcmQ=', 'PWJhc3RyZA==', 'PW5pYmJh', 'PW5pcXFh',
+        'PWZhZ2c=', 'PWFzc2hhdA==', 'PWFzc3dpcGU='
       ],
       // 한국어 욕설을 알파벳으로 쓴 표현 - 34개
       rom: [
@@ -194,9 +220,13 @@ __mods['nickname'] = function (module, exports, require) {
    *   V3 영문(소문자, 숫자->글자 치환 0o 1i 3e 4a 5s 7t 8b 또는 숫자 제거, 영문 외 제거, 같은 글자 2연속 압축)
    *   V4 원문 소문자(예약어·연락 유도 부분 문자열)
    *   추가 뷰: V5 한글을 로마자로 바꿔 영문과 섞은 문자열(시bal), 자판 변환(한글 욕설을 영문 자판으로 친 tlqkf 같은 형태)
+   *           V3-l 영문 뷰에서 숫자 1과 대문자 I를 소문자 l로 읽은 것(s1ut, hitIer). 닉네임에 1 또는 I가 있을 때만 만든다.
    * 항목 앞 기호: '=' 전체 일치만 / '*' 글자 그대로 부분 일치(V2를 쓰지 않음) / 없음 = 기본 규칙
    *   기본 규칙(금칙어): 한글은 V2 키가 4자모 이상이면 V2 부분 일치, 그보다 짧으면 V1 전체 일치. 영문은 압축한 글자가 4자 이상이면 부분 일치, 짧으면 전체 일치.
    *   예약어·개인정보·연락 유도의 한글 항목은 V1 글자 그대로 부분 일치(소프트 키 안 씀).
+   *   2음절 한글 금칙어(기호 없음)는 V2 일치 뒤에 받침을 한 번 더 본다: 항목에 받침이 있으면 같은 무리의 받침(마지막 음절은 받침 없음도)만,
+   *   받침이 없으면 받침 없음(첫 음절은 ㅂ·ㅅ·ㅆ·ㄷ 받침도: 십발류)만 금칙어로 본다. 받침을 모두 지우는 V2 때문에 별시계·불씨·심바 같은 정상 단어가 걸리던 오탐을 줄인다.
+   *   허용 목록(allow)은 한글 항목(V1에서 먼저 지움)과 영문 항목(영문 뷰에서 '#'으로 바꿔 앞뒤 글자가 이어지지 않게 함)을 함께 쓴다.
    * 알려진 한계: 음절을 쪼개 넣는 우회(받침을 별도 음절로 풀어 쓰기)와 새로 만든 은어는 못 잡는다.
    *   server/test/nick-vectors.js 머리 주석과 server/README.md 에 정리했다.
    */
@@ -253,6 +283,39 @@ __mods['nickname'] = function (module, exports, require) {
       return out.replace(/(.)\1+/g, '$1');      // 같은 자모 연속은 하나로 (머엉청이처럼 모음 음절을 끼워 넣는 우회 방어)
     }
 
+    /** 한 음절의 비교용 정보: 접은 자모열(k), 받침 번호(f, 0=없음), 모음만 있는 음절인지(v) */
+    function sylInfo(ch) {
+      var c = ch.charCodeAt(0) - 0xAC00;
+      if (c < 0 || c > 11171) return null;
+      return { k: softKey(ch), f: c % 28, v: INIT_FOLD[Math.floor(c / 588)] === 11 };
+    }
+    /** 입력 한글 음절열 -> 음절 정보 배열. 앞 음절의 모음을 되풀이하는 모음 음절(시이발의 '이')은 접는다(V2의 같은 자모 접기와 같은 뜻) */
+    function reduceSyl(v1) {
+      var out = [];
+      for (var i = 0; i < v1.length; i++) {
+        var info = sylInfo(v1.charAt(i));
+        if (!info) continue;
+        if (info.v && out.length && out[out.length - 1].k.slice(-1) === info.k) continue;
+        out.push(info);
+      }
+      return out;
+    }
+    // 받침 허용: 항목에 받침이 있으면 같은 무리의 받침(ㄴ·ㅁ·ㅇ은 한 무리, ㄹ 겹받침은 한 무리)이어야 하고, 마지막 음절만 받침이 없어도 된다.
+    // 항목에 받침이 없으면 받침 없음, 또는 첫 음절의 ㄷ·ㅂ·ㅅ·ㅆ(십발류)
+    function finClass(f) { return (f === 4 || f === 16 || f === 21) ? 4 : (f >= 8 && f <= 15) ? 8 : f; }
+    function finOk(f, own, first) {
+      if (own) return finClass(f) === finClass(own) || (!first && f === 0);
+      return f === 0 || (first && (f === 7 || f === 17 || f === 19 || f === 20));
+    }
+    function strictHit(e, V) {
+      var sy = V.sy || (V.sy = reduceSyl(V.v1));
+      var a = e.syl[0], b = e.syl[1];
+      for (var i = 0; i + 1 < sy.length; i++) {
+        if (sy[i].k === a.k && sy[i + 1].k === b.k && finOk(sy[i].f, a.f, true) && finOk(sy[i + 1].f, b.f, false)) return true;
+      }
+      return false;
+    }
+
     // 두벌식 자판(소문자로 접음: 된소리 R,E,Q,T,W 도 소문자)
     var KB_INIT = ['r', 'r', 's', 'e', 'e', 'f', 'a', 'q', 'q', 't', 't', 'd', 'w', 'w', 'c', 'z', 'x', 'v', 'g'];
     var KB_MED = ['k', 'o', 'i', 'o', 'j', 'p', 'u', 'p', 'h', 'hk', 'ho', 'hl', 'y', 'n', 'nj', 'np', 'nl', 'b', 'm', 'ml', 'l'];
@@ -295,7 +358,7 @@ __mods['nickname'] = function (module, exports, require) {
      * 목록 컴파일 (처음 한 번만)
      * ------------------------------------------------------------- */
     /** 목록 항목(평문, 기호 포함) -> 비교용 객체. 비교할 글자가 없으면 null */
-    function compileEntry(raw) {
+    function compileEntry(raw, strict) {
       var text = String(raw).trim();
       if (!text) return null;
       var flag = '';
@@ -305,7 +368,10 @@ __mods['nickname'] = function (module, exports, require) {
         var lit = hangulOnly(text);
         if (!lit) return null;
         var kb = flag === '=' ? '' : compress(qwerty(lit));
-        return { k: 'ko', flag: flag, lit: lit, soft: softKey(lit), kb: kb.length >= 5 ? kb : '' };
+        var soft = softKey(lit);
+        // 2음절 기본 규칙 항목은 받침까지 한 번 더 본다(strictHit). 서버 EXTRA_BLOCK 항목에는 쓰지 않는다(strict=false)
+        var syl = (strict && !flag && lit.length === 2 && soft.length >= 4) ? [sylInfo(lit.charAt(0)), sylInfo(lit.charAt(1))] : null;
+        return { k: 'ko', flag: flag, lit: lit, soft: soft, kb: kb.length >= 5 ? kb : '', syl: syl };
       }
       var letters = onlyLetters(text);
       if (!letters) return null;
@@ -317,22 +383,25 @@ __mods['nickname'] = function (module, exports, require) {
     function compileList(arr, isEncoded) {
       var out = [];
       for (var i = 0; i < arr.length; i++) {
-        var e = compileEntry(isEncoded ? decodeB64(arr[i]) : arr[i]);
+        var e = compileEntry(isEncoded ? decodeB64(arr[i]) : arr[i], isEncoded);
         if (e) out.push(e);
       }
       return out;
     }
 
+    var RE_LATIN_ONLY = /^[a-z]+$/;
     var BASE = null;
     function base() {
       if (BASE) return BASE;
       var w = WORDS || {};
+      var allowRaw = (w.allow || []).map(function (x) { return decodeB64(x).normalize('NFC').toLowerCase(); });
       BASE = {
         reserved: compileList(w.reserved || [], true),
         pii: compileList((w.pii || []).concat(w.contact || []), true),
         block: compileList((w.ko || []).concat(w.en || []), true),
         rom: compileList(w.rom || [], true),
-        allow: (w.allow || []).map(function (x) { return hangulOnly(decodeB64(x).normalize('NFC')); }).filter(Boolean)
+        allow: allowRaw.map(hangulOnly).filter(Boolean),                                   // 한글 허용어: V1에서 먼저 지움
+        allowEn: allowRaw.filter(function (x) { return RE_LATIN_ONLY.test(x); })           // 영문 허용어(shiitake 등): 영문 뷰에서 '#'으로 바꿈
       };
       return BASE;
     }
@@ -352,14 +421,27 @@ __mods['nickname'] = function (module, exports, require) {
     /* ---------------------------------------------------------------
      * 뷰(정규화된 입력) 만들기와 비교
      * ------------------------------------------------------------- */
-    function buildViews(nick, allow) {
+    var DIGIT_SUBST_L = { '0': 'o', '1': 'l', '3': 'e', '4': 'a', '5': 's', '7': 't', '8': 'b' };
+    function substDigitsL(s) { return s.replace(/[0-9]/g, function (d) { return DIGIT_SUBST_L[d] || ''; }); }
+    function maskAllow(s, list) {
+      for (var i = 0; i < list.length; i++) if (s.indexOf(list[i]) >= 0) s = s.split(list[i]).join('#');
+      return s;
+    }
+
+    function buildViews(nick, allow, allowEn) {
       var lower = nick.toLowerCase();
       var v1 = hangulOnly(nick);
       if (allow) for (var i = 0; i < allow.length; i++) v1 = v1.split(allow[i]).join('');
       var a = onlyLetters(substDigits(lower));            // 숫자를 글자로 치환
       var b = onlyLetters(lower);                          // 숫자를 지움
       var r = romMix(nick);
-      return { v1: v1, v2: softKey(v1), a: a, b: b, aC: compress(a), bC: compress(b), r: r, rC: compress(r) };
+      // 1과 대문자 I를 l로 읽는 뷰(s1ut, hitIer). 1 또는 I가 있을 때만 만든다
+      var l = /[1I]/.test(nick) ? onlyLetters(substDigitsL(nick.replace(/I/g, 'l').toLowerCase())) : null;
+      if (allowEn && allowEn.length) {
+        a = maskAllow(a, allowEn); b = maskAllow(b, allowEn); r = maskAllow(r, allowEn);
+        if (l !== null) l = maskAllow(l, allowEn);
+      }
+      return { v1: v1, v2: softKey(v1), a: a, b: b, aC: compress(a), bC: compress(b), r: r, rC: compress(r), l: l, lC: l === null ? null : compress(l), sy: null };
     }
 
     /** policy: 'literal'(예약어·개인정보·연락 유도) | 'block'(금칙어) */
@@ -367,18 +449,19 @@ __mods['nickname'] = function (module, exports, require) {
       if (e.flag === '=') return V.v1 === e.lit;
       if (e.flag === '*' || policy === 'literal') {
         if (V.v1.indexOf(e.lit) >= 0) return true;
-      } else if (e.soft.length >= 4) { if (V.v2.indexOf(e.soft) >= 0) return true; }
+      } else if (e.soft.length >= 4) { if (V.v2.indexOf(e.soft) >= 0 && (!e.syl || strictHit(e, V))) return true; }
       else if (V.v1 === e.lit) return true;
       return policy === 'block' && !!e.kb && (V.aC.indexOf(e.kb) >= 0 || V.bC.indexOf(e.kb) >= 0);
     }
     function matchEn(e, V, withMix) {
-      if (e.flag === '=') return V.a === e.lit || V.b === e.lit || (withMix && V.r === e.lit);
-      if (e.flag === '*') return V.a.indexOf(e.lit) >= 0 || V.b.indexOf(e.lit) >= 0 || (withMix && V.r.indexOf(e.lit) >= 0);
+      var l = V.l;                                          // 1·I를 l로 읽은 뷰(없으면 null)
+      if (e.flag === '=') return V.a === e.lit || V.b === e.lit || (withMix && V.r === e.lit) || (l !== null && l === e.lit);
+      if (e.flag === '*') return V.a.indexOf(e.lit) >= 0 || V.b.indexOf(e.lit) >= 0 || (withMix && V.r.indexOf(e.lit) >= 0) || (l !== null && l.indexOf(e.lit) >= 0);
       if (e.useComp) {
-        return V.aC.indexOf(e.comp) >= 0 || V.bC.indexOf(e.comp) >= 0 || (withMix && V.rC.indexOf(e.comp) >= 0);
+        return V.aC.indexOf(e.comp) >= 0 || V.bC.indexOf(e.comp) >= 0 || (withMix && V.rC.indexOf(e.comp) >= 0) || (l !== null && V.lC.indexOf(e.comp) >= 0);
       }
-      if (e.lit.length >= 4) return V.a.indexOf(e.lit) >= 0 || V.b.indexOf(e.lit) >= 0 || (withMix && V.r.indexOf(e.lit) >= 0);
-      return V.a === e.lit || V.b === e.lit;
+      if (e.lit.length >= 4) return V.a.indexOf(e.lit) >= 0 || V.b.indexOf(e.lit) >= 0 || (withMix && V.r.indexOf(e.lit) >= 0) || (l !== null && l.indexOf(e.lit) >= 0);
+      return V.a === e.lit || V.b === e.lit || (l !== null && l === e.lit);
     }
     function findMatch(list, V, policy, withMix) {
       for (var i = 0; i < list.length; i++) {
@@ -395,12 +478,28 @@ __mods['nickname'] = function (module, exports, require) {
     var RE_PHONE_DIGITS = /01[016789]/;                      // 010, 011, 016~019
     var RE_PHONE_WORDS = /[공영]일[공영일이삼사오육칠팔구]/;     // 공일공, 영일영 ...
     var RE_CLASS_NUM = /[0-9]반/;                            // 3반
+    var RE_CLASS_KO = /(^|[^가-힣])[삼사오육칠팔구십]반$/;     // 삼반 (일반·이반은 흔한 말·이름이라 제외, 조사반처럼 앞에 한글이 붙은 말도 제외)
     var RE_SCHOOL_END = /^[가-힣]{2,}[초중고]$/;       // ○○초 (끝의 숫자는 떼고 검사)
+    var DIGIT_KO = { '0': '공', '1': '일', '2': '이', '3': '삼', '4': '사', '5': '오', '6': '육', '7': '칠', '8': '팔', '9': '구' };
+    /** 한글은 그대로, 숫자는 한글 읽기로(공1공 -> 공일공), 나머지는 버림 */
+    function koDigits(s) {
+      var out = '';
+      for (var i = 0; i < s.length; i++) {
+        var ch = s.charAt(i);
+        if (RE_HANGUL_ONE.test(ch)) out += ch;
+        else if (DIGIT_KO[ch]) out += DIGIT_KO[ch];
+      }
+      return out;
+    }
     function piiPattern(nick, V) {
       if (RE_PHONE_DIGITS.test(nick)) return true;
+      if (RE_PHONE_DIGITS.test(nick.replace(/[^0-9]/g, ''))) return true;   // 0a1b0처럼 글자를 끼운 숫자
       if (RE_PHONE_WORDS.test(V.v1)) return true;
+      if (/[0-9]/.test(nick) && RE_PHONE_WORDS.test(koDigits(nick))) return true;
       if (RE_CLASS_NUM.test(nick)) return true;
-      if (RE_SCHOOL_END.test(nick.replace(/[0-9]+$/, ''))) return true;
+      var noTail = nick.replace(/[0-9]+$/, '');
+      if (RE_CLASS_KO.test(noTail)) return true;
+      if (RE_SCHOOL_END.test(noTail)) return true;
       return false;
     }
 
@@ -433,7 +532,7 @@ __mods['nickname'] = function (module, exports, require) {
       var Vr = buildViews(s, null);
       if (matchAny(B.reserved, Vr, 'literal', false)) return fail('nick_reserved');
       // 개인정보·연락 유도, 금칙어 (고등어·신발처럼 오탐이 잦은 단어는 먼저 지운 뷰로 검사)
-      var Vp = B.allow.length ? buildViews(s, B.allow) : Vr;
+      var Vp = (B.allow.length || B.allowEn.length) ? buildViews(s, B.allow, B.allowEn) : Vr;
       if (piiPattern(s, Vp) || matchAny(B.pii, Vp, 'literal', false)) return fail('nick_pii');
       var extra = parseExtra(extraBlock);
       if (matchAny(B.block, Vp, 'block', false) || matchAny(B.rom, Vp, 'block', true) || (extra.length && matchAny(extra, Vp, 'block', true))) {
@@ -459,7 +558,7 @@ __mods['nickname'] = function (module, exports, require) {
       _compileEntry: compileEntry,
       /** 어떤 항목에 걸렸는지 확인하는 검수용 도구: { list:'block', entry:{...} } 또는 null */
       _explain: function (nick, extraBlock) {
-        var s = normalizeNick(nick), B = base(), V = buildViews(s, null), Vp = B.allow.length ? buildViews(s, B.allow) : V, e;
+        var s = normalizeNick(nick), B = base(), V = buildViews(s, null), Vp = (B.allow.length || B.allowEn.length) ? buildViews(s, B.allow, B.allowEn) : V, e;
         if ((e = findMatch(B.reserved, V, 'literal', false))) return { list: 'reserved', entry: e };
         if ((e = findMatch(B.pii, Vp, 'literal', false))) return { list: 'pii', entry: e };
         if ((e = findMatch(B.block, Vp, 'block', false))) return { list: 'block', entry: e };
