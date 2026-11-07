@@ -40,6 +40,16 @@
       dark: { duration: 8, mult: 2 },
       light: { time: 4, hint: 8 }
     },
+    // spec §20.14: 와이드 화면(태블릿·PC) 게이지 옆에 보이는 스킬 설명. 초등학생이 읽는 쉬운 말, 최대 2줄.
+    // {area} = 불 스킬 범위(3×3), {mult} = 어둠 스킬 배율. 난이도마다 달라지는 초·개수는 문장에 쓰지 않는다.
+    skillInfo: {
+      fire: '칸을 고르면 둘레 {area}을 한꺼번에 터뜨려요',
+      water: '잠시 동안 시간이 멈춰요',
+      grass: '칸을 고르면 가로 한 줄, 세로 한 줄을 지워요',
+      lightning: '번개가 같은 색 보석 여러 개를 지워요',
+      dark: '잠시 동안 점수가 {mult}배!',
+      light: '시간이 조금 늘고 힌트가 나와요'
+    },
     hint: { show: 3, cooldown: 8, auto: 0, autoShow: 0 },   // auto: 무입력 N초 후 자동 힌트(0=없음)
     scoreMult: 1,
     level: 'normal',
@@ -563,7 +573,7 @@
       CONFIG: CONFIG, findMatches: findMatches, squareAt: squareAt, lineAt: lineAt, hasValidMove: hasValidMove, findHint: findHint,
       applyGravity: applyGravity, generateBoard: generateBoard, shuffleTypes: shuffleTypes,
       fireCells: fireCells, grassCells: grassCells, baseScore: baseScore, chainMult: chainMult,
-      timeBonusFor: timeBonusFor, applyDifficulty: applyDifficulty,
+      timeBonusFor: timeBonusFor, applyDifficulty: applyDifficulty, skillDesc: skillDesc,
       fmtTime: fmtTime, fmtDur: fmtDur, stageTarget: stageTarget, starsFor: starsFor, isCleared: isCleared,
       stageUnlocked: stageUnlocked, applyStageResult: applyStageResult, parseSave: parseSave, leftFromTime: leftFromTime, leftFloorForStars: leftFloorForStars, defaultSave: defaultSave, gaugeGain: gaugeGain, praiseLevel: praiseLevel, listMoves: listMoves
     };
@@ -1643,6 +1653,14 @@
   /* =====================================================================
    * 화면 / HUD 흐름
    * ===================================================================== */
+  /** 스킬 설명 문구(CONFIG.skillInfo)의 {area}·{mult}를 현재 CONFIG 값으로 채운다 (spec §20.14) */
+  function skillDesc(id) {
+    const side = CONFIG.skills.fire.radius * 2 + 1;
+    return String(CONFIG.skillInfo[id] || '')
+      .replace('{area}', side + '×' + side)
+      .replace('{mult}', String(CONFIG.skills.dark.mult));
+  }
+
   function renderGauges() {
     const btns = el.gauges.children;
     for (let i = 0; i < TYPE_COUNT; i++) {
@@ -1656,7 +1674,7 @@
       b.classList.toggle('full', isFull);
       b.classList.toggle('locked', state.locked || state.phase !== 'playing');
       b.classList.toggle('aiming', state.aim === i);
-      b.setAttribute('aria-label', TYPES[i].name + ' 게이지 ' + v + '/' + max + (isFull ? ', ' + TYPES[i].skill + ' 사용 가능' : ''));
+      b.setAttribute('aria-label', TYPES[i].name + ' 게이지 ' + v + '/' + max + (isFull ? ', ' + TYPES[i].skill + ' 사용 가능' : '') + '. ' + skillDesc(TYPES[i].id));
       b.setAttribute('aria-disabled', (!isFull || state.locked || state.phase !== 'playing') ? 'true' : 'false');
     }
   }
@@ -1667,7 +1685,9 @@
       const b = document.createElement('button');
       b.type = 'button';
       b.className = 'gauge t-' + t.id;
-      b.innerHTML = '<span class="fill"></span>' + gemMarkup(i) + '<span class="count"></span>';
+      b.innerHTML = '<span class="fill"></span>' + gemMarkup(i) +
+        '<span class="gtext"><b class="gname">' + t.skill + '</b><span class="gdesc">' + skillDesc(t.id) + '</span></span>' +
+        '<span class="count"></span>';
       b.addEventListener('click', function () { onGauge(i); });
       el.gauges.appendChild(b);
     });

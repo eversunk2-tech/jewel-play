@@ -74,11 +74,14 @@
   <!-- 시작 화면 -->
   <section id="screen-start" class="screen start">
     <div class="start-card">
+      <div class="sc-brand">
       <img id="logo-img" class="logo" src="assets/title-logo.webp" width="900" height="605" alt="원소 보석 ELEMENT GEMS" draggable="false">
       <div id="title-fallback" hidden>
         <h1 class="title">원소 보석</h1>
         <p class="subtitle">ELEMENT GEMS</p>
       </div>
+      </div>
+      <div class="sc-menu">
       <button id="btn-profile-chip" class="me-chip" type="button" hidden></button>
       <p id="me-note" class="me-note" role="status" hidden></p>
       <p class="best-line">클리어 <strong id="start-clear">0/10</strong> · 별 <strong id="start-stars">0</strong></p>
@@ -90,6 +93,8 @@
       <p id="level-desc" class="level-desc">기본 규칙. 균형 잡힌 2분 승부!</p>
       <button id="btn-start" class="btn primary big" type="button">시작</button>
       <button id="btn-hall" class="btn hall" type="button" hidden><span class="st" aria-hidden="true">&#9733;</span>명예의 전당<span class="hall-sub">별 챔피언 순위 보기</span></button>
+      </div>
+      <div class="sc-info">
       <ul class="rules">
         <li id="rule-stage"><b>스테이지</b> 제한 시간(초보 2분 10초 / 중수 2분 / 고수 1분 40초) 안에 목표 점수를 넘기면 클리어! 레벨 1~10에 도전하세요.</li>
         <li><b>스왑</b> 인접한 보석 두 개를 바꿔 같은 모양 3개 이상, 또는 2×2 정사각형을 맞추세요.</li>
@@ -100,6 +105,7 @@
       <div class="toggles">
         <button id="btn-sound-start" class="btn ghost" type="button" aria-pressed="true">소리 켜짐</button>
         <button id="btn-cutin-start" class="btn ghost" type="button" aria-pressed="true">컷인 연출 켜짐</button>
+      </div>
       </div>
     </div>
   </section>
@@ -124,8 +130,11 @@
       <div class="hf-head"><span></span><h2 id="pf-title" class="hf-title" tabindex="-1">내 프로필 만들기</h2><span></span></div>
       <p id="pf-sub" class="hf-sub">명예의 전당에서 나를 보여 줄 그림과 이름을 골라요.</p>
       <p id="pf-rename" class="pf-msg err" role="status" hidden><i aria-hidden="true">!</i><span>이 이름은 순위표에서 잠시 숨겨졌어요. 새 이름을 정해 주세요.</span></p>
+      <div class="pf-col-a">
       <span class="pf-label" id="pf-av-label">그림 고르기</span>
       <div id="pf-avatars" class="av-grid" role="radiogroup" aria-labelledby="pf-av-label"></div>
+      </div>
+      <div class="pf-col-b">
       <label class="pf-label" for="pf-nick">닉네임 <small>2~8글자 · 한글, 영어, 숫자</small></label>
       <div class="nick-wrap">
         <input id="pf-nick" class="nick-input" type="text" maxlength="24" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="done" aria-describedby="pf-msg-wrap pf-left">
@@ -148,6 +157,7 @@
         </div>
       </div>
       <p class="pf-small">닉네임·그림·별 수는 순위표를 보여 주려고 서버에 저장돼요. 이름이나 학교, 연락처, 사진은 받지 않아요. 언제든 [프로필 지우기]로 지울 수 있어요.</p>
+      </div>
     </div>
   </section>
 
