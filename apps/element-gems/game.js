@@ -93,9 +93,9 @@
     audio: { bgm: 0.35, bgmDuck: 0.15, sfx: 0.8 },
     assets: { gems: 'assets/gems/', cutin: 'assets/cutin/', sfx: 'assets/sfx/', bgm: 'assets/music/bgm.mp3', loadTimeoutMs: 2500 },
     // spec §19: 별 챔피언 명예의 전당. apiBase가 비어 있으면 프로필·명예의 전당 UI와 네트워크 호출이 전부 꺼진다(기본 배포 상태).
-    // 배포 후 Worker 주소(예: 'https://element-gems-hall.<계정>.workers.dev')를 넣는다. 로컬 시험 주소는 커밋하지 않는다.
+    // 배포 후 Worker 주소(예: 'https://element-gems-ranking.sunkyboy.workers.dev')를 넣는다. 로컬 시험 주소는 커밋하지 않는다.
     ranking: {
-      apiBase: '',
+      apiBase: 'https://element-gems-ranking.sunkyboy.workers.dev',
       timeoutMs: 8000,                                   // 요청 1회 제한 시간
       retryMs: [5000, 15000, 60000, 300000, 900000],     // 제출 실패 백오프(5초→15초→1분→5분→15분 상한)
       minSubmitGapMs: 3000,                              // 서버의 같은 pid 쓰기 간격(3초)을 지킨다

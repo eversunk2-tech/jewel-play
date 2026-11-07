@@ -218,8 +218,9 @@ test('applyStageResult: 기존 6인자 호출 호환 + improved 반환', () => {
   assert.strictEqual(legacy.stages.easy[0].left, 5);
 });
 
-test('CONFIG.ranking 기본값: apiBase 비어 있음(배포 전 안전)', () => {
-  assert.strictEqual(G.CONFIG.ranking.apiBase, '');
+test('CONFIG.ranking 기본값: apiBase는 비어 있거나(기능 꺼짐) 끝 슬래시 없는 https 주소', () => {
+  const base = G.CONFIG.ranking.apiBase;
+  assert.ok(base === '' || /^https:\/\/[^\/\s]+$/.test(base), 'apiBase: ' + base);
   assert.strictEqual(G.CONFIG.ranking.pageSize, 50);
   assert.deepStrictEqual(G.CONFIG.ranking.retryMs, [5000, 15000, 60000, 300000, 900000]);
 });
