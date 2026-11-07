@@ -20,7 +20,9 @@
       { id: 'dark', name: '어둠', skill: '암흑 배율', color: '#8e4ec6', targeted: false, max: 22 },
       { id: 'light', name: '빛', skill: '빛의 인도', color: '#f4f4f5', targeted: false, max: 24 }
     ],
+    // 아래 types[].max / time / timeBonus / hint / skills 는 applyDifficulty()가 선택 난이도 값으로 덮어쓰는 "활성 값" 위치다.
     time: { start: 60, max: 90 },
+    timeDecay: { after: 90, factor: 0.5 },   // 경과 플레이 시간이 after초를 넘으면 매치 시간 보너스에 factor 곱 (3난이도 공통)
     anim: { swapMs: 150, removeMs: 220, fallMsPerCell: 80, fallMsMax: 400, shuffleMs: 420 },
     countdown: { stepMs: 600, goMs: 300 },
     input: { dragThreshold: 0.35 },
@@ -30,7 +32,7 @@
       chainMax: 5,
       skillCell: 10
     },
-    timeBonus: { 3: 0.25, 4: 0.5, 5: 1.0, chainExtra: 0 },   // Review 후 하향 조정(기존 0.5/1.0/1.5/+0.5): 한 판이 60~90초에 끝나도록
+    timeBonus: { 3: 0.2, 4: 0.4, 5: 0.8, chainExtra: 0 },
     gauge: { extraPerOver3: 1 },          // gain = size + (size - 3) -> 3/5/7/9 (spec 표 기준)
     skills: {
       fire: { radius: 1 },
@@ -39,7 +41,40 @@
       dark: { duration: 8, mult: 2 },
       light: { time: 4, hint: 8 }
     },
-    hint: { show: 3, cooldown: 8 },
+    hint: { show: 3, cooldown: 8, auto: 0, autoShow: 0 },   // auto: 무입력 N초 후 자동 힌트(0=없음)
+    scoreMult: 1,
+    level: 'normal',
+    defaultLevel: 'normal',
+    // spec §15.2 난이도 프리셋 (게이지 최대치 순서: 불·물·풀·번개·어둠·빛)
+    difficulty: {
+      easy: {
+        label: '초보', desc: '시간이 넉넉하고 스킬이 빨리 차요. 막히면 힌트가 자동으로 나와요.',
+        max: [10, 12, 10, 11, 12, 13],
+        time: { start: 65, max: 95 },
+        timeBonus: { 3: 0.25, 4: 0.5, 5: 1.0, chainExtra: 0 },
+        hint: { show: 4, cooldown: 4, auto: 6, autoShow: 4 },
+        skills: { waterFreeze: 7, darkDuration: 12, lightTime: 5, lightHint: 10, boltCount: 10 },
+        scoreMult: 0.8
+      },
+      normal: {
+        label: '중수', desc: '기본 규칙. 균형 잡힌 60초 승부!',
+        max: [11, 13, 11, 12, 13, 15],
+        time: { start: 60, max: 90 },
+        timeBonus: { 3: 0.2, 4: 0.4, 5: 0.8, chainExtra: 0 },
+        hint: { show: 3, cooldown: 8, auto: 0, autoShow: 0 },
+        skills: { waterFreeze: 5, darkDuration: 8, lightTime: 4, lightHint: 8, boltCount: 8 },
+        scoreMult: 1.0
+      },
+      hard: {
+        label: '고수', desc: '시간이 짧고 보너스가 적어요. 대신 점수 ×1.3!',
+        max: [12, 14, 12, 13, 14, 16],
+        time: { start: 50, max: 75 },
+        timeBonus: { 3: 0.15, 4: 0.3, 5: 0.6, chainExtra: 0 },
+        hint: { show: 2, cooldown: 12, auto: 0, autoShow: 0 },
+        skills: { waterFreeze: 4, darkDuration: 6, lightTime: 3, lightHint: 5, boltCount: 7 },
+        scoreMult: 1.3
+      }
+    },
     multReturn: 1.0,                      // 행동 종료 후 배율 표시가 x1로 돌아오기까지(초)
     praiseThreshold: 5000,
     particleCap: 60,
@@ -81,7 +116,7 @@
     return m;
   }
 
-  /** 가로/세로 3개 이상 연속 칸을 같은 색끼리 연결해 그룹으로 반환 */
+  /** 가로/세로 3개 이상 연속 또는 2×2 정사각형을 이룬 칸을, 같은 색끼리 연결해 그룹으로 반환 */
   function findMatches(g) {
     const R = g.length;
     const C = g[0].length;
@@ -106,6 +141,15 @@
         while (e < R && g[e][c] === t) e++;
         if (e - r >= 3) for (let k = r; k < e; k++) mark[k][c] = true;
         r = e;
+      }
+    }
+    // 2×2 정사각형 (spec §16): 같은 종류 4칸이 정사각형이면 마킹
+    for (let r = 0; r + 1 < R; r++) {
+      for (let c = 0; c + 1 < C; c++) {
+        const t = g[r][c];
+        if (t != null && g[r][c + 1] === t && g[r + 1][c] === t && g[r + 1][c + 1] === t) {
+          mark[r][c] = mark[r][c + 1] = mark[r + 1][c] = mark[r + 1][c + 1] = true;
+        }
       }
     }
     const seen = makeMatrix(R, C, false);
@@ -152,14 +196,31 @@
     return n >= 3;
   }
 
-  /** 두 칸을 바꾸면 매치가 생기는지 (원본 보드는 변경하지 않고 반환) */
+  /** (r,c) 칸을 포함하는 2×2 정사각형(같은 종류 4칸)이 있는지 */
+  function squareAt(g, r, c) {
+    const R = g.length;
+    const C = g[0].length;
+    const t = g[r][c];
+    if (t == null) return false;
+    for (let dr = -1; dr <= 0; dr++) {
+      for (let dc = -1; dc <= 0; dc++) {
+        const r0 = r + dr;
+        const c0 = c + dc;
+        if (r0 < 0 || c0 < 0 || r0 + 1 >= R || c0 + 1 >= C) continue;
+        if (g[r0][c0] === t && g[r0][c0 + 1] === t && g[r0 + 1][c0] === t && g[r0 + 1][c0 + 1] === t) return true;
+      }
+    }
+    return false;
+  }
+
+  /** 두 칸을 바꾸면 매치(3연속 또는 2×2)가 생기는지 (원본 보드는 변경하지 않고 반환) */
   function wouldMatch(g, r1, c1, r2, c2) {
     const t1 = g[r1][c1];
     const t2 = g[r2][c2];
     if (t1 == null || t2 == null || t1 === t2) return false;
     g[r1][c1] = t2;
     g[r2][c2] = t1;
-    const ok = lineAt(g, r1, c1) || lineAt(g, r2, c2);
+    const ok = lineAt(g, r1, c1) || lineAt(g, r2, c2) || squareAt(g, r1, c1) || squareAt(g, r2, c2);
     g[r1][c1] = t1;
     g[r2][c2] = t2;
     return ok;
@@ -223,7 +284,7 @@
     return { moves: moves, empties: empties };
   }
 
-  /** 초기 보드: 매치 0개 + 유효한 수 1개 이상 */
+  /** 초기 보드: 매치(3연속·2×2) 0개 + 유효한 수 1개 이상 */
   function generateBoard(rows, cols, n, rng) {
     const rand = rng || Math.random;
     let g = null;
@@ -234,6 +295,8 @@
           const bad = [];
           if (c >= 2 && g[r][c - 1] === g[r][c - 2]) bad.push(g[r][c - 1]);
           if (r >= 2 && g[r - 1][c] === g[r - 2][c]) bad.push(g[r - 1][c]);
+          // 2×2 완성 회피
+          if (r >= 1 && c >= 1 && g[r - 1][c - 1] === g[r - 1][c] && g[r - 1][c] === g[r][c - 1]) bad.push(g[r][c - 1]);
           let t;
           do { t = Math.floor(rand() * n); } while (bad.indexOf(t) !== -1);
           g[r][c] = t;
@@ -244,7 +307,7 @@
     return g;
   }
 
-  /** 기존 종류 구성은 유지한 채 재배치. 매치 0개 + 유효한 수 >= 1 보장 */
+  /** 기존 종류 구성은 유지한 채 재배치. 매치(3연속·2×2) 0개 + 유효한 수 >= 1 보장 */
   function shuffleTypes(g, rng) {
     const rand = rng || Math.random;
     const R = g.length;
@@ -287,10 +350,38 @@
     return CONFIG.score.base[size] || 0;
   }
   function chainMult(step) { return Math.min(Math.max(step, 1), CONFIG.score.chainMax); }
-  function timeBonusFor(size, step) {
+  /** elapsed: 경과 플레이 시간(초). 정지·컷인·일시정지 시간 제외. 생략하면 감쇠 없음 */
+  function timeBonusFor(size, step, elapsed) {
     const b = size >= 5 ? CONFIG.timeBonus[5] : CONFIG.timeBonus[size] || 0;
-    return b + (step >= 2 ? CONFIG.timeBonus.chainExtra : 0);
+    let v = b + (step >= 2 ? CONFIG.timeBonus.chainExtra : 0);
+    if (elapsed != null && elapsed > CONFIG.timeDecay.after) v *= CONFIG.timeDecay.factor;
+    return v;
   }
+  /** 선택한 난이도의 프리셋을 활성 값 위치(CONFIG.types[].max, time, timeBonus, hint, skills, scoreMult)에 복사 */
+  function applyDifficulty(level) {
+    const lv = CONFIG.difficulty[level] ? level : CONFIG.defaultLevel;
+    const d = CONFIG.difficulty[lv];
+    TYPES.forEach(function (t, i) { t.max = d.max[i]; });
+    CONFIG.time.start = d.time.start;
+    CONFIG.time.max = d.time.max;
+    CONFIG.timeBonus[3] = d.timeBonus[3];
+    CONFIG.timeBonus[4] = d.timeBonus[4];
+    CONFIG.timeBonus[5] = d.timeBonus[5];
+    CONFIG.timeBonus.chainExtra = d.timeBonus.chainExtra;
+    CONFIG.hint.show = d.hint.show;
+    CONFIG.hint.cooldown = d.hint.cooldown;
+    CONFIG.hint.auto = d.hint.auto;
+    CONFIG.hint.autoShow = d.hint.autoShow;
+    CONFIG.skills.water.freeze = d.skills.waterFreeze;
+    CONFIG.skills.dark.duration = d.skills.darkDuration;
+    CONFIG.skills.light.time = d.skills.lightTime;
+    CONFIG.skills.light.hint = d.skills.lightHint;
+    CONFIG.skills.lightning.count = d.skills.boltCount;
+    CONFIG.scoreMult = d.scoreMult;
+    CONFIG.level = lv;
+    return lv;
+  }
+
   function gaugeGain(size) { return size + CONFIG.gauge.extraPerOver3 * (size - 3); }
 
   /** 칭찬 등급: 한 행동에서 가장 높은 하나 */
@@ -307,10 +398,10 @@
    * ===================================================================== */
   if (typeof module !== 'undefined' && module.exports) {
     module.exports = {
-      CONFIG: CONFIG, findMatches: findMatches, hasValidMove: hasValidMove, findHint: findHint,
+      CONFIG: CONFIG, findMatches: findMatches, squareAt: squareAt, lineAt: lineAt, hasValidMove: hasValidMove, findHint: findHint,
       applyGravity: applyGravity, generateBoard: generateBoard, shuffleTypes: shuffleTypes,
       fireCells: fireCells, grassCells: grassCells, baseScore: baseScore, chainMult: chainMult,
-      timeBonusFor: timeBonusFor, gaugeGain: gaugeGain, praiseLevel: praiseLevel, listMoves: listMoves
+      timeBonusFor: timeBonusFor, applyDifficulty: applyDifficulty, gaugeGain: gaugeGain, praiseLevel: praiseLevel, listMoves: listMoves
     };
   }
   if (typeof document === 'undefined') return;
@@ -346,7 +437,10 @@
     stats: { maxChain: 0, skills: 0, matches: 0 },
     confirmFrom: null,
     cutinActive: false,
-    warnSec: 99
+    warnSec: 99,
+    level: 'normal',
+    elapsed: 0,
+    idle: 0
   };
 
   let gemSeq = 0;
@@ -363,7 +457,7 @@
       'dark-badge', 'dark-left', 'board-wrap', 'board', 'fx', 'popup', 'aim-msg', 'flash', 'gauges',
       'btn-hint', 'btn-menu', 'btn-reset', 'overlay-count', 'count-num', 'overlay-pause', 'btn-resume',
       'btn-restart', 'btn-sound-pause', 'btn-quit', 'overlay-confirm', 'btn-confirm-yes', 'btn-confirm-no',
-      'overlay-end', 'end-title', 'btn-cutin-start', 'btn-cutin-pause', 'cutin', 'cutin-img', 'cb-shout', 'cb-skill', 'cn-gem', 'cn-text', 'logo-img', 'title-fallback', 'end-score', 'end-newbest', 'end-best', 'end-chain', 'end-skills',
+      'overlay-end', 'end-title', 'level-select', 'level-desc', 'rule-time', 'level-chip', 'pause-level', 'end-level', 'btn-cutin-start', 'btn-cutin-pause', 'cutin', 'cutin-img', 'cb-shout', 'cb-skill', 'cn-gem', 'cn-text', 'logo-img', 'title-fallback', 'end-score', 'end-newbest', 'end-best', 'end-chain', 'end-skills',
       'end-matches', 'btn-again', 'btn-home'
     ].forEach(function (id) { el[id] = $(id); });
   }
@@ -474,7 +568,14 @@
    * 저장 (localStorage, 모든 접근 try/catch)
    * ===================================================================== */
   const STORAGE_KEY = 'element-gems:v1';
-  const save = { best: 0, bestChain: 0, plays: 0, lastScore: 0, muted: false, tutorialSeen: false, cutin: true };
+  const LEVELS = ['easy', 'normal', 'hard'];
+  // best: 레거시(bestByLevel.normal 미러). bestByLevel이 없는 옛 저장은 best를 normal로 이관한다.
+  const save = {
+    level: 'normal', bestByLevel: { easy: 0, normal: 0, hard: 0 }, best: 0,
+    bestChain: 0, plays: 0, lastScore: 0, muted: false, tutorialSeen: false, cutin: true
+  };
+
+  function validScore(v) { return typeof v === 'number' && isFinite(v) && v >= 0; }
 
   function loadSave() {
     try {
@@ -482,13 +583,21 @@
       if (!raw) return;
       const o = JSON.parse(raw);
       if (!o || typeof o !== 'object') return;
-      Object.keys(save).forEach(function (k) {
-        if (typeof o[k] === typeof save[k]) save[k] = o[k];
-      });
+      ['bestChain', 'plays', 'lastScore'].forEach(function (k) { if (validScore(o[k])) save[k] = o[k]; });
+      ['muted', 'tutorialSeen', 'cutin'].forEach(function (k) { if (typeof o[k] === 'boolean') save[k] = o[k]; });
+      const legacy = validScore(o.best) ? o.best : 0;
+      save.best = legacy;
+      if (o.bestByLevel && typeof o.bestByLevel === 'object') {
+        LEVELS.forEach(function (k) { if (validScore(o.bestByLevel[k])) save.bestByLevel[k] = o.bestByLevel[k]; });
+      } else {
+        save.bestByLevel.normal = legacy;      // 마이그레이션: 기존 best -> 중수 최고 점수
+      }
+      save.level = LEVELS.indexOf(o.level) !== -1 ? o.level : 'normal';
     } catch (e) { /* 저장소 사용 불가: 기본값 유지 */ }
   }
   function writeSave() {
     try {
+      save.best = save.bestByLevel.normal;   // 레거시 필드 미러링
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(save));
     } catch (e) { /* 저장 실패는 무시 */ }
   }
@@ -826,13 +935,14 @@
   }
 
   function awardGroup(ctx, g, step) {
-    const pts = baseScore(g.size) * chainMult(step) * darkMult();
+    const raw = baseScore(g.size) * chainMult(step) * darkMult();
+    const pts = Math.round(raw * CONFIG.scoreMult);     // 난이도 배율 적용 점수
     addScore(pts);
-    ctx.total += pts;
+    ctx.total += raw;                                   // 칭찬 판정은 배율 적용 전 값 기준
     ctx.maxGroup = Math.max(ctx.maxGroup, g.size);
     state.stats.matches++;
     if (!state.timeUp) {
-      state.timeLeft = Math.min(CONFIG.time.max, state.timeLeft + timeBonusFor(g.size, step));
+      state.timeLeft = Math.min(CONFIG.time.max, state.timeLeft + timeBonusFor(g.size, step, state.elapsed));
     }
     charge(g.type, g.size);
     const ctr = centroid(g.cells);
@@ -864,9 +974,10 @@
   async function removeSkillCells(ctx, cells) {
     const live = cells.filter(function (p) { return state.grid[p.r][p.c]; });
     if (!live.length) return;
-    const pts = live.length * CONFIG.score.skillCell * chainMult(1) * darkMult();
+    const raw = live.length * CONFIG.score.skillCell * chainMult(1) * darkMult();
+    const pts = Math.round(raw * CONFIG.scoreMult);
     addScore(pts);
-    ctx.total += pts;
+    ctx.total += raw;
     const ctr = centroid(live);
     floatText('+' + fmt(pts), ctr.r, ctr.c, '#ffe9a0');
     await removeGems(live);
@@ -980,6 +1091,7 @@
     const board = el.board;
 
     board.addEventListener('pointerdown', function (e) {
+      state.idle = 0;
       if (e.pointerType === 'mouse' && e.button !== 0) return;
       if (state.phase !== 'playing' || state.locked) return;
       const cell = cellFromEvent(e);
@@ -1029,6 +1141,7 @@
 
   function onKey(e) {
     const k = e.key;
+    state.idle = 0;
     if (k === 'Escape') {
       if (state.aim !== null) { cancelAim(); return; }
       if (state.phase === 'playing') pauseGame();
@@ -1085,6 +1198,7 @@
   }
 
   function onGauge(i) {
+    state.idle = 0;
     if (state.phase !== 'playing' || state.locked) return;
     if (state.gauge[i] < TYPES[i].max) return;
     if (state.aim === i) { cancelAim(); return; }
@@ -1457,6 +1571,7 @@
       state.freeze = Math.max(0, state.freeze - dt);
     } else if (!state.timeUp) {
       state.timeLeft -= dt;
+      state.elapsed += dt;                  // 경과 플레이 시간: 시계가 실제로 흐른 시간만(정지·컷인·일시정지 제외)
       const sec = Math.ceil(state.timeLeft - 1e-9);
       if (sec > 10) state.warnSec = 99;
       else if (sec > 0 && sec !== state.warnSec) { state.warnSec = sec; sfx('warning'); }
@@ -1467,6 +1582,14 @@
       }
     }
     if (state.timeUp && !state.locked) { finishGame(); return; }
+    if (CONFIG.hint.auto > 0) {
+      // 초보 자동 힌트: 입력 잠금·조준 중에는 카운트하지 않고, 힌트가 떠 있는 동안에도 멈춘다
+      if (state.locked || state.aim !== null || state.hintLeft > 0) state.idle = 0;
+      else {
+        state.idle += dt;
+        if (state.idle >= CONFIG.hint.auto) { state.idle = 0; showHint(CONFIG.hint.autoShow); }
+      }
+    }
     if (state.dark > 0) state.dark = Math.max(0, state.dark - dt);
     if (state.hintCd > 0) state.hintCd = Math.max(0, state.hintCd - dt);
     if (state.hintLeft > 0) {
@@ -1528,8 +1651,36 @@
     updateSoundButtons();
   }
 
+  function levelLabel(lv) { return CONFIG.difficulty[lv].label; }
+
+  /** 시작 화면의 난이도 선택 상태·설명·최고 점수·제한 시간 문구를 선택값 기준으로 갱신 */
+  function renderLevelUi() {
+    const lv = save.level;
+    const btns = el['level-select'].querySelectorAll('.level-btn');
+    Array.prototype.forEach.call(btns, function (b) {
+      const on = b.dataset.level === lv;
+      b.setAttribute('aria-checked', on ? 'true' : 'false');
+      b.tabIndex = on ? 0 : -1;
+      b.classList.toggle('on', on);
+    });
+    el['level-desc'].textContent = CONFIG.difficulty[lv].desc;
+    el['rule-time'].textContent = String(CONFIG.difficulty[lv].time.start);
+    el['start-best'].textContent = fmt(save.bestByLevel[lv]);
+  }
+
+  function selectLevel(lv, focus) {
+    if (state.phase !== 'start' || !CONFIG.difficulty[lv]) return;   // 난이도는 시작 화면에서만 변경
+    save.level = lv;
+    writeSave();
+    renderLevelUi();
+    if (focus) {
+      const b = el['level-select'].querySelector('[data-level="' + lv + '"]');
+      if (b) b.focus();
+    }
+  }
+
   function renderStart() {
-    el['start-best'].textContent = fmt(save.best);
+    renderLevelUi();
     el.tutorial.hidden = save.tutorialSeen;
   }
 
@@ -1558,6 +1709,9 @@
     state.confirmFrom = null;
     state.cutinActive = false;
     state.warnSec = 99;
+    state.elapsed = 0;
+    state.idle = 0;
+    state.level = CONFIG.level;
     drag = null;
     hud.bar = -1; hud.text = ''; hud.frozen = null; hud.low = null; hud.dark = null; hud.hint = '';
     el.score.textContent = '0';
@@ -1580,7 +1734,13 @@
     cancelCutin();
     audio.bgmStop();
     hideAllOverlays();
+    applyDifficulty(save.level);     // 선택 난이도 값을 활성 위치에 적용(재시작도 같은 난이도)
     resetState();
+    const lv = CONFIG.level;
+    el['level-chip'].textContent = levelLabel(lv);
+    el['level-chip'].className = 'level-chip lv-' + lv;
+    el['pause-level'].textContent = '난이도: ' + levelLabel(lv);
+    el['end-level'].textContent = '난이도: ' + levelLabel(lv);
     // 이미지 미리 로드(첫 판 깜빡임 방지). 오래 걸리면 폴백으로 그냥 진행
     await Promise.race([assetsReady, sleepRaw(CONFIG.assets.loadTimeoutMs)]);
     if (id !== state.gameId) return;
@@ -1691,17 +1851,18 @@
     renderGauges();
     state.shown = state.score;
     el.score.textContent = fmt(state.score);
-    const prevBest = save.best;
+    const lv = state.level;
+    const prevBest = save.bestByLevel[lv];
     const isNew = state.score > prevBest;
     save.plays += 1;
     save.lastScore = state.score;
-    if (isNew) save.best = state.score;
+    if (isNew) save.bestByLevel[lv] = state.score;
     if (state.stats.maxChain > save.bestChain) save.bestChain = state.stats.maxChain;
     writeSave();
     el['end-title'].textContent = 'TIME UP!';
     el['end-score'].textContent = fmt(state.score);
     el['end-newbest'].hidden = !isNew;
-    el['end-best'].textContent = fmt(save.best);
+    el['end-best'].textContent = fmt(save.bestByLevel[lv]);
     el['end-chain'].textContent = String(state.stats.maxChain);
     el['end-skills'].textContent = String(state.stats.skills);
     el['end-matches'].textContent = String(state.stats.matches);
@@ -1713,6 +1874,7 @@
   }
 
   function onHint() {
+    state.idle = 0;
     if (state.phase !== 'playing' || state.locked) return;
     if (state.hintCd > 0) return;
     if (showHint(CONFIG.hint.show)) state.hintCd = CONFIG.hint.cooldown;
@@ -1720,6 +1882,16 @@
 
   function bindUi() {
     el['btn-start'].addEventListener('click', startGame);
+    Array.prototype.forEach.call(el['level-select'].querySelectorAll('.level-btn'), function (b) {
+      b.addEventListener('click', function () { selectLevel(b.dataset.level, false); });
+    });
+    el['level-select'].addEventListener('keydown', function (e) {
+      const i = LEVELS.indexOf(save.level);
+      let n = -1;
+      if (e.key === 'ArrowRight' || e.key === 'ArrowDown') n = (i + 1) % LEVELS.length;
+      else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') n = (i + LEVELS.length - 1) % LEVELS.length;
+      if (n >= 0) { e.preventDefault(); selectLevel(LEVELS[n], true); }
+    });
     el['btn-sound-start'].addEventListener('click', toggleSound);
     el['btn-sound-pause'].addEventListener('click', toggleSound);
     el['btn-cutin-start'].addEventListener('click', toggleCutin);
@@ -1763,6 +1935,7 @@
     el.boardWrap = el['board-wrap'];
     loadSave();
     audio.muted = !!save.muted;
+    applyDifficulty(save.level);
     preloadAssets();
     bindLogoFallback();
     document.documentElement.style.setProperty('--swap-ms', CONFIG.anim.swapMs + 'ms');

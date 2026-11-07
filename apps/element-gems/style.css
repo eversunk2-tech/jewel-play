@@ -707,3 +707,37 @@ body::before {
   .cb-skill { font-size: clamp(1.3rem, 6vh, 1.8rem); }
   .cutin-name { bottom: 8px; }
 }
+
+/* =====================================================================
+ * 3차 Build: 난이도 선택 / 뱃지
+ * ===================================================================== */
+.level-select { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 4px 0 6px; }
+.level-btn {
+  min-height: 48px;
+  min-width: 0;
+  padding: 8px 4px;
+  border: 2px solid rgba(255, 215, 122, .55);
+  border-radius: 12px;
+  background: rgba(20, 12, 44, .65);
+  color: #e9e3ff;
+  font: inherit;
+  font-weight: 800;
+  font-size: 1.05rem;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: transform .08s, background .15s;
+}
+.level-btn:hover { background: rgba(60, 36, 110, .75); }
+.level-btn:active { transform: translateY(2px); }
+.level-btn.on { color: #3a2400; border-color: #fff3b0; text-shadow: 0 1px 0 rgba(255, 255, 255, .55); box-shadow: inset 0 2px 0 rgba(255, 255, 255, .6), 0 3px 0 #a25b00, 0 5px 8px rgba(0, 0, 0, .45); }
+.level-btn.lv-easy.on { background: linear-gradient(180deg, #d8ffd0 0%, #6fdc78 46%, #2f9e4a 54%, #6fdc78 100%); border-color: #eaffe0; }
+.level-btn.lv-normal.on { background: linear-gradient(180deg, #fff09a 0%, #ffc531 46%, #e08a00 54%, #ffbf2f 100%); }
+.level-btn.lv-hard.on { background: linear-gradient(180deg, #ffd0d0 0%, #ff6a6a 46%, #c32f3a 54%, #ff6a6a 100%); color: #fff; text-shadow: 0 1px 0 rgba(90, 0, 10, .8); border-color: #ffe0e0; }
+.level-desc { margin: 0 0 12px; min-height: 2.6em; font-size: .85rem; line-height: 1.4; color: #dcd8ff; }
+.level-chip { display: inline-block; font-style: normal; font-size: .62rem; font-weight: 900; letter-spacing: 0; padding: 0 6px; margin-left: 4px; border-radius: 8px; vertical-align: 1px; color: #fff; }
+.level-chip.lv-easy { background: #2f9e4a; }
+.level-chip.lv-normal { background: #c98a1b; }
+.level-chip.lv-hard { background: #c32f3a; }
+@media (orientation: landscape) and (max-height: 500px) {
+  .level-btn { min-height: 44px; }
+}
