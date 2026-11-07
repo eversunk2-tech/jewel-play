@@ -79,18 +79,19 @@
         <h1 class="title">원소 보석</h1>
         <p class="subtitle">ELEMENT GEMS</p>
       </div>
-      <p class="best-line">최고 점수 <strong id="start-best">0</strong></p>
+      <p class="best-line">클리어 <strong id="start-clear">0/10</strong> · 별 <strong id="start-stars">0</strong></p>
       <div id="level-select" class="level-select" role="radiogroup" aria-label="난이도">
         <button class="level-btn lv-easy" type="button" role="radio" aria-checked="false" data-level="easy" tabindex="-1">초보</button>
         <button class="level-btn lv-normal on" type="button" role="radio" aria-checked="true" data-level="normal">중수</button>
         <button class="level-btn lv-hard" type="button" role="radio" aria-checked="false" data-level="hard" tabindex="-1">고수</button>
       </div>
-      <p id="level-desc" class="level-desc">기본 규칙. 균형 잡힌 60초 승부!</p>
+      <p id="level-desc" class="level-desc">기본 규칙. 균형 잡힌 2분 승부!</p>
       <button id="btn-start" class="btn primary big" type="button">시작</button>
       <ul class="rules">
+        <li id="rule-stage"><b>스테이지</b> 제한 시간(초보 2분 10초 / 중수 2분 / 고수 1분 40초) 안에 목표 점수를 넘기면 클리어! 레벨 1~10에 도전하세요.</li>
         <li><b>스왑</b> 인접한 보석 두 개를 바꿔 같은 모양 3개 이상, 또는 2×2 정사각형을 맞추세요.</li>
         <li><b>게이지</b> 색마다 게이지가 따로 차고, 가득 차면 버튼이 반짝여요.</li>
-        <li><b>스킬</b> 게이지 버튼을 눌러 원소 스킬을 쓰세요. 제한 시간은 <span id="rule-time">60</span>초!</li>
+        <li><b>스킬</b> 게이지 버튼을 눌러 원소 스킬을 쓰세요.</li>
       </ul>
       <p id="tutorial" class="tutorial" hidden>처음이시군요! 불과 풀 스킬은 버튼을 누른 뒤 보드의 칸을 한 번 더 눌러 조준해요.</p>
       <div class="toggles">
@@ -100,12 +101,26 @@
     </div>
   </section>
 
+  <!-- 레벨 선택 화면 -->
+  <section id="screen-stages" class="screen stages" hidden>
+    <div class="stages-card">
+      <div class="stages-head">
+        <button id="btn-stages-back" class="btn small" type="button">뒤로</button>
+        <div class="stages-title"><i id="stages-chip" class="level-chip lv-normal">중수</i> 레벨 선택</div>
+        <span id="stages-time" class="stages-time">제한 시간 2:00</span>
+      </div>
+      <p id="stages-summary" class="stages-sub">클리어 0/10 · 별 0</p>
+      <div id="stage-grid" class="stage-grid" role="group" aria-label="레벨 선택"></div>
+      <p class="stages-hint">이전 레벨을 클리어하면 다음 레벨이 열려요.</p>
+    </div>
+  </section>
+
   <!-- 게임 화면 -->
   <section id="screen-game" class="screen" hidden>
     <div class="game" id="game">
       <div class="timer" id="timer" role="timer" aria-label="남은 시간">
         <div class="timer-fill" id="timer-fill"></div>
-        <span class="timer-text" id="timer-text">60</span>
+        <span class="timer-text" id="timer-text">2:00</span>
         <span class="freeze-text" id="freeze-text" hidden></span>
       </div>
 
@@ -119,6 +134,11 @@
           <strong id="mult">x1</strong>
           <span class="dark-badge" id="dark-badge" hidden>&times;2 <i id="dark-left"></i></span>
         </div>
+      </div>
+
+      <div class="goal" id="goal" role="progressbar" aria-label="목표 점수 진행" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+        <div class="goal-fill" id="goal-fill"></div>
+        <span class="goal-text" id="goal-text">0 / 9,200</span>
       </div>
 
       <div class="board-wrap" id="board-wrap">
@@ -141,6 +161,7 @@
 
   <!-- 카운트다운 -->
   <div id="overlay-count" class="overlay clear" hidden>
+    <div class="count-info" id="count-info">레벨 1 · 목표 6,500점</div>
     <div class="count-num" id="count-num">3</div>
   </div>
 
@@ -148,7 +169,7 @@
   <div id="overlay-pause" class="overlay" hidden role="dialog" aria-modal="true" aria-labelledby="pause-title">
     <div class="panel">
       <h2 id="pause-title">일시정지</h2>
-      <p id="pause-level" class="muted">난이도: 중수</p>
+      <p id="pause-level" class="muted">중수 · 레벨 1 · 목표 6,500</p>
       <button id="btn-resume" class="btn primary" type="button">계속하기</button>
       <button id="btn-restart" class="btn" type="button">다시 시작</button>
       <button id="btn-sound-pause" class="btn ghost" type="button" aria-pressed="true">소리 켜짐</button>
@@ -169,23 +190,26 @@
     </div>
   </div>
 
-  <!-- 종료 -->
+  <!-- 결과 (클리어 / 실패) -->
   <div id="overlay-end" class="overlay" hidden role="dialog" aria-modal="true" aria-labelledby="end-title">
     <div class="panel">
       <img class="logo small" src="assets/title-logo.webp" alt="" draggable="false" onerror="this.hidden=true">
-      <h2 id="end-title">TIME UP!</h2>
-      <p id="end-level" class="muted">난이도: 중수</p>
+      <h2 id="end-title">TIME UP</h2>
+      <p id="end-level" class="muted">중수 · 레벨 1</p>
+      <div class="end-stars" id="end-stars" aria-label="별" hidden>★★★</div>
       <div class="end-score" id="end-score">0</div>
-      <div class="new-best" id="end-newbest" hidden>NEW BEST!</div>
-      <p class="muted">최고 점수 <strong id="end-best">0</strong></p>
+      <p class="muted" id="end-target">목표 6,500 / 내 점수 0</p>
+      <p class="end-unlock" id="end-unlock" hidden></p>
+      <p class="muted">이 레벨 최고 점수 <strong id="end-best">0</strong></p>
       <dl class="stats">
         <div><dt>최대 연쇄</dt><dd id="end-chain">0</dd></div>
         <div><dt>스킬 사용</dt><dd id="end-skills">0</dd></div>
         <div><dt>총 매치</dt><dd id="end-matches">0</dd></div>
       </dl>
-      <div class="row">
-        <button id="btn-again" class="btn primary" type="button">다시 하기</button>
-        <button id="btn-home" class="btn" type="button">시작 화면</button>
+      <div class="end-buttons">
+        <button id="btn-next" class="btn primary" type="button" hidden>다음 레벨</button>
+        <button id="btn-again" class="btn" type="button">다시 하기</button>
+        <button id="btn-home" class="btn ghost" type="button">레벨 선택</button>
       </div>
     </div>
   </div>

@@ -21,8 +21,7 @@
       { id: 'light', name: '빛', skill: '빛의 인도', color: '#f4f4f5', targeted: false, max: 24 }
     ],
     // 아래 types[].max / time / timeBonus / hint / skills 는 applyDifficulty()가 선택 난이도 값으로 덮어쓰는 "활성 값" 위치다.
-    time: { start: 60, max: 90 },
-    timeDecay: { after: 90, factor: 0.5 },   // 경과 플레이 시간이 after초를 넘으면 매치 시간 보너스에 factor 곱 (3난이도 공통)
+    time: { start: 120, max: 145 },
     anim: { swapMs: 150, removeMs: 220, fallMsPerCell: 80, fallMsMax: 400, shuffleMs: 420 },
     countdown: { stepMs: 600, goMs: 300 },
     input: { dragThreshold: 0.35 },
@@ -32,7 +31,7 @@
       chainMax: 5,
       skillCell: 10
     },
-    timeBonus: { 3: 0.2, 4: 0.4, 5: 0.8, chainExtra: 0 },
+    timeBonus: { 3: 0.05, 4: 0.1, 5: 0.2, chainExtra: 0 },
     gauge: { extraPerOver3: 1 },          // gain = size + (size - 3) -> 3/5/7/9 (spec 표 기준)
     skills: {
       fire: { radius: 1 },
@@ -45,34 +44,45 @@
     scoreMult: 1,
     level: 'normal',
     defaultLevel: 'normal',
-    // spec §15.2 난이도 프리셋 (게이지 최대치 순서: 불·물·풀·번개·어둠·빛)
+    // spec §15.2 난이도 프리셋을 §17.2(2분 + 스테이지)로 갱신 (게이지 최대치 순서: 불·물·풀·번개·어둠·빛)
     difficulty: {
       easy: {
         label: '초보', desc: '시간이 넉넉하고 스킬이 빨리 차요. 막히면 힌트가 자동으로 나와요.',
-        max: [10, 12, 10, 11, 12, 13],
-        time: { start: 65, max: 95 },
-        timeBonus: { 3: 0.25, 4: 0.5, 5: 1.0, chainExtra: 0 },
+        max: [12, 14, 12, 13, 14, 16],
+        time: { start: 130, max: 155 },
+        timeBonus: { 3: 0.06, 4: 0.12, 5: 0.25, chainExtra: 0 },
         hint: { show: 4, cooldown: 4, auto: 6, autoShow: 4 },
         skills: { waterFreeze: 7, darkDuration: 12, lightTime: 5, lightHint: 10, boltCount: 10 },
         scoreMult: 0.8
       },
       normal: {
-        label: '중수', desc: '기본 규칙. 균형 잡힌 60초 승부!',
-        max: [11, 13, 11, 12, 13, 15],
-        time: { start: 60, max: 90 },
-        timeBonus: { 3: 0.2, 4: 0.4, 5: 0.8, chainExtra: 0 },
+        label: '중수', desc: '기본 규칙. 균형 잡힌 2분 승부!',
+        max: [13, 16, 13, 14, 16, 18],
+        time: { start: 120, max: 145 },
+        timeBonus: { 3: 0.05, 4: 0.1, 5: 0.2, chainExtra: 0 },
         hint: { show: 3, cooldown: 8, auto: 0, autoShow: 0 },
         skills: { waterFreeze: 5, darkDuration: 8, lightTime: 4, lightHint: 8, boltCount: 8 },
         scoreMult: 1.0
       },
       hard: {
         label: '고수', desc: '시간이 짧고 보너스가 적어요. 대신 점수 ×1.3!',
-        max: [12, 14, 12, 13, 14, 16],
-        time: { start: 50, max: 75 },
-        timeBonus: { 3: 0.15, 4: 0.3, 5: 0.6, chainExtra: 0 },
+        max: [14, 17, 14, 16, 17, 19],
+        time: { start: 100, max: 120 },
+        timeBonus: { 3: 0.04, 4: 0.08, 5: 0.15, chainExtra: 0 },
         hint: { show: 2, cooldown: 12, auto: 0, autoShow: 0 },
         skills: { waterFreeze: 4, darkDuration: 6, lightTime: 3, lightHint: 5, boltCount: 7 },
         scoreMult: 1.3
+      }
+    },
+    // spec §17.4 스테이지 목표 점수(표시 점수 기준). 실제 플레이 후 이 표만 조정하면 된다.
+    stages: {
+      count: 10,
+      star: [0.3, 0.5],                   // 클리어 시 남은 시간 비율 >= 0.3 -> ★★, >= 0.5 -> ★★★
+      // 4차 Review 시뮬레이션(72,000판) 후 하향 조정: 레벨2~10 초보 -10%/중수 -8%/고수 -7%, 초보 L8~10 추가 -5%. 사람 플레이 후 재조정.
+      targets: {
+        easy: [6100, 6400, 7100, 7700, 8500, 9100, 9700, 10000, 10900, 12400],
+        normal: [6500, 6900, 7700, 8500, 9200, 9800, 10600, 11400, 12500, 14200],
+        hard: [6900, 7400, 8300, 9100, 9900, 10500, 11300, 12200, 13400, 15200]
       }
     },
     multReturn: 1.0,                      // 행동 종료 후 배율 표시가 x1로 돌아오기까지(초)
@@ -350,11 +360,10 @@
     return CONFIG.score.base[size] || 0;
   }
   function chainMult(step) { return Math.min(Math.max(step, 1), CONFIG.score.chainMax); }
-  /** elapsed: 경과 플레이 시간(초). 정지·컷인·일시정지 시간 제외. 생략하면 감쇠 없음 */
-  function timeBonusFor(size, step, elapsed) {
+  /** 매치 그룹의 시간 보너스(초). §17: 감쇠 제거 — 3번째 인자는 호환용으로 무시한다 */
+  function timeBonusFor(size, step) {
     const b = size >= 5 ? CONFIG.timeBonus[5] : CONFIG.timeBonus[size] || 0;
     let v = b + (step >= 2 ? CONFIG.timeBonus.chainExtra : 0);
-    if (elapsed != null && elapsed > CONFIG.timeDecay.after) v *= CONFIG.timeDecay.factor;
     return v;
   }
   /** 선택한 난이도의 프리셋을 활성 값 위치(CONFIG.types[].max, time, timeBonus, hint, skills, scoreMult)에 복사 */
@@ -385,6 +394,115 @@
   function gaugeGain(size) { return size + CONFIG.gauge.extraPerOver3 * (size - 3); }
 
   /** 칭찬 등급: 한 행동에서 가장 높은 하나 */
+  /* ---------- 스테이지 (spec §17) 순수 함수 ---------- */
+  const LEVELS = ['easy', 'normal', 'hard'];
+
+  /** 타이머 표기: 60초 이상이면 m:ss(120 -> 2:00, 61 -> 1:01, 60 -> 1:00), 미만은 숫자만 */
+  function fmtTime(sec) {
+    const n = Math.max(0, Math.ceil(sec - 1e-9));
+    if (n >= 60) {
+      const s = n % 60;
+      return Math.floor(n / 60) + ':' + (s < 10 ? '0' : '') + s;
+    }
+    return String(n);
+  }
+
+  /** 시간 길이 문구: 130 -> '2분 10초', 120 -> '2분', 100 -> '1분 40초', 50 -> '50초' */
+  function fmtDur(sec) {
+    const m = Math.floor(sec / 60);
+    const s = Math.round(sec % 60);
+    if (m <= 0) return s + '초';
+    return m + '분' + (s > 0 ? ' ' + s + '초' : '');
+  }
+
+  /** 난이도 diff의 레벨 stage(1~10) 목표 점수. 범위 밖이면 0 */
+  function stageTarget(diff, stage) {
+    const t = CONFIG.stages.targets[diff];
+    return t && stage >= 1 && stage <= t.length ? t[stage - 1] : 0;
+  }
+
+  function starsFor(timeLeft, startTime) {
+    const ratio = timeLeft / startTime;
+    if (ratio >= CONFIG.stages.star[1] - 1e-9) return 3;
+    if (ratio >= CONFIG.stages.star[0] - 1e-9) return 2;
+    return 1;
+  }
+
+  function isCleared(score, target) { return target > 0 && score >= target; }
+
+  /** 레벨 N 선택 가능 = 1 <= N <= progress + 1 (N <= count) */
+  function stageUnlocked(progress, stage) {
+    return stage >= 1 && stage <= CONFIG.stages.count && stage <= progress + 1;
+  }
+
+  function validScore(v) { return typeof v === 'number' && isFinite(v) && v >= 0; }
+
+  function defaultSave() {
+    const stages = {};
+    LEVELS.forEach(function (k) {
+      stages[k] = [];
+      for (let i = 0; i < CONFIG.stages.count; i++) stages[k].push({ best: 0, stars: 0 });
+    });
+    return {
+      level: 'normal', progress: { easy: 0, normal: 0, hard: 0 }, stages: stages,
+      bestByLevel: { easy: 0, normal: 0, hard: 0 }, best: 0,
+      bestChain: 0, plays: 0, lastScore: 0, muted: false, tutorialSeen: false, cutin: true
+    };
+  }
+
+  /** 저장된 JSON(문자열 또는 객체)을 검증·마이그레이션해 새 저장 객체로 반환. 잘못된 값은 모두 기본값 */
+  function parseSave(raw) {
+    const out = defaultSave();
+    let o = raw;
+    try { if (typeof raw === 'string') o = JSON.parse(raw); } catch (e) { return out; }
+    if (!o || typeof o !== 'object' || Array.isArray(o)) return out;
+    ['bestChain', 'plays', 'lastScore'].forEach(function (k) { if (validScore(o[k])) out[k] = o[k]; });
+    ['muted', 'tutorialSeen', 'cutin'].forEach(function (k) { if (typeof o[k] === 'boolean') out[k] = o[k]; });
+    const legacy = validScore(o.best) ? o.best : 0;
+    out.best = legacy;
+    if (o.bestByLevel && typeof o.bestByLevel === 'object') {
+      LEVELS.forEach(function (k) { if (validScore(o.bestByLevel[k])) out.bestByLevel[k] = o.bestByLevel[k]; });
+    } else {
+      out.bestByLevel.normal = legacy;       // 60초 판 기록: 보존만 하고 UI에서는 쓰지 않는다
+    }
+    out.level = LEVELS.indexOf(o.level) !== -1 ? o.level : 'normal';
+    // 스테이지 진행도 / 레벨별 기록 (옛 저장에는 없으므로 레벨 1부터)
+    LEVELS.forEach(function (k) {
+      const arr = o.stages && Array.isArray(o.stages[k]) ? o.stages[k] : null;
+      let highestStar = 0;
+      if (arr && arr.length === CONFIG.stages.count) {
+        const parsed = [];
+        let ok = true;
+        for (let i = 0; i < arr.length; i++) {
+          const e = arr[i];
+          if (!e || typeof e !== 'object') { ok = false; break; }
+          const stars = (typeof e.stars === 'number' && e.stars % 1 === 0 && e.stars >= 0 && e.stars <= 3) ? e.stars : 0;
+          parsed.push({ best: validScore(e.best) ? e.best : 0, stars: stars });
+        }
+        if (ok) {
+          out.stages[k] = parsed;
+          parsed.forEach(function (e, i) { if (e.stars >= 1) highestStar = i + 1; });
+        }
+      }
+      const p = o.progress && o.progress[k];
+      const pv = (typeof p === 'number' && p % 1 === 0 && p >= 0 && p <= CONFIG.stages.count) ? p : 0;
+      out.progress[k] = Math.max(pv, highestStar);
+    });
+    return out;
+  }
+
+  /** 스테이지 결과를 저장 객체에 반영. 반환: { firstClear, unlocked } */
+  function applyStageResult(sv, diff, stage, score, cleared, stars) {
+    const e = sv.stages[diff][stage - 1];
+    if (score > e.best) e.best = score;
+    let firstClear = false;
+    if (cleared) {
+      if (stars > e.stars) e.stars = stars;          // 최고 별만 갱신
+      if (stage > sv.progress[diff]) { sv.progress[diff] = stage; firstClear = true; }
+    }
+    return { firstClear: firstClear, unlocked: firstClear && stage < CONFIG.stages.count ? stage + 1 : 0 };
+  }
+
   function praiseLevel(maxStep, maxGroup, total) {
     if (maxStep >= 5 || total >= CONFIG.praiseThreshold) return 'EXCELLENT!';
     if (maxStep >= 4) return 'AWESOME!';
@@ -401,7 +519,9 @@
       CONFIG: CONFIG, findMatches: findMatches, squareAt: squareAt, lineAt: lineAt, hasValidMove: hasValidMove, findHint: findHint,
       applyGravity: applyGravity, generateBoard: generateBoard, shuffleTypes: shuffleTypes,
       fireCells: fireCells, grassCells: grassCells, baseScore: baseScore, chainMult: chainMult,
-      timeBonusFor: timeBonusFor, applyDifficulty: applyDifficulty, gaugeGain: gaugeGain, praiseLevel: praiseLevel, listMoves: listMoves
+      timeBonusFor: timeBonusFor, applyDifficulty: applyDifficulty,
+      fmtTime: fmtTime, fmtDur: fmtDur, stageTarget: stageTarget, starsFor: starsFor, isCleared: isCleared,
+      stageUnlocked: stageUnlocked, applyStageResult: applyStageResult, parseSave: parseSave, defaultSave: defaultSave, gaugeGain: gaugeGain, praiseLevel: praiseLevel, listMoves: listMoves
     };
   }
   if (typeof document === 'undefined') return;
@@ -439,7 +559,9 @@
     cutinActive: false,
     warnSec: 99,
     level: 'normal',
-    elapsed: 0,
+    stage: 1,         // 현재(또는 마지막) 스테이지 레벨 1~10
+    target: 0,        // 이번 스테이지 목표 점수
+    startTime: 120,   // 별 계산 기준 시작 시간
     idle: 0
   };
 
@@ -452,12 +574,12 @@
   const el = {};
 
   function cacheDom() {
-    ['screen-start', 'screen-game', 'start-best', 'tutorial', 'btn-start', 'btn-sound-start',
+    ['screen-start', 'screen-game', 'screen-stages', 'start-clear', 'start-stars', 'rule-stage', 'stage-grid', 'stages-chip', 'stages-time', 'stages-summary', 'btn-stages-back', 'goal', 'goal-fill', 'goal-text', 'count-info', 'btn-next', 'end-unlock', 'end-stars', 'end-target', 'tutorial', 'btn-start', 'btn-sound-start',
       'timer', 'timer-fill', 'timer-text', 'freeze-text', 'scorebar', 'score', 'chain', 'mult',
       'dark-badge', 'dark-left', 'board-wrap', 'board', 'fx', 'popup', 'aim-msg', 'flash', 'gauges',
       'btn-hint', 'btn-menu', 'btn-reset', 'overlay-count', 'count-num', 'overlay-pause', 'btn-resume',
       'btn-restart', 'btn-sound-pause', 'btn-quit', 'overlay-confirm', 'btn-confirm-yes', 'btn-confirm-no',
-      'overlay-end', 'end-title', 'level-select', 'level-desc', 'rule-time', 'level-chip', 'pause-level', 'end-level', 'btn-cutin-start', 'btn-cutin-pause', 'cutin', 'cutin-img', 'cb-shout', 'cb-skill', 'cn-gem', 'cn-text', 'logo-img', 'title-fallback', 'end-score', 'end-newbest', 'end-best', 'end-chain', 'end-skills',
+      'overlay-end', 'end-title', 'level-select', 'level-desc', 'level-chip', 'pause-level', 'end-level', 'btn-cutin-start', 'btn-cutin-pause', 'cutin', 'cutin-img', 'cb-shout', 'cb-skill', 'cn-gem', 'cn-text', 'logo-img', 'title-fallback', 'end-score', 'end-best', 'end-chain', 'end-skills',
       'end-matches', 'btn-again', 'btn-home'
     ].forEach(function (id) { el[id] = $(id); });
   }
@@ -568,36 +690,20 @@
    * 저장 (localStorage, 모든 접근 try/catch)
    * ===================================================================== */
   const STORAGE_KEY = 'element-gems:v1';
-  const LEVELS = ['easy', 'normal', 'hard'];
-  // best: 레거시(bestByLevel.normal 미러). bestByLevel이 없는 옛 저장은 best를 normal로 이관한다.
-  const save = {
-    level: 'normal', bestByLevel: { easy: 0, normal: 0, hard: 0 }, best: 0,
-    bestChain: 0, plays: 0, lastScore: 0, muted: false, tutorialSeen: false, cutin: true
-  };
-
-  function validScore(v) { return typeof v === 'number' && isFinite(v) && v >= 0; }
+  // 저장 객체: 구조/검증은 순수 함수 parseSave()가 담당한다.
+  // level = 난이도(easy/normal/hard), progress/stages = 스테이지 진행(§17.7), bestByLevel/best = 60초 판 기록(보존만, UI 미사용)
+  const save = defaultSave();
 
   function loadSave() {
     try {
       const raw = window.localStorage.getItem(STORAGE_KEY);
       if (!raw) return;
-      const o = JSON.parse(raw);
-      if (!o || typeof o !== 'object') return;
-      ['bestChain', 'plays', 'lastScore'].forEach(function (k) { if (validScore(o[k])) save[k] = o[k]; });
-      ['muted', 'tutorialSeen', 'cutin'].forEach(function (k) { if (typeof o[k] === 'boolean') save[k] = o[k]; });
-      const legacy = validScore(o.best) ? o.best : 0;
-      save.best = legacy;
-      if (o.bestByLevel && typeof o.bestByLevel === 'object') {
-        LEVELS.forEach(function (k) { if (validScore(o.bestByLevel[k])) save.bestByLevel[k] = o.bestByLevel[k]; });
-      } else {
-        save.bestByLevel.normal = legacy;      // 마이그레이션: 기존 best -> 중수 최고 점수
-      }
-      save.level = LEVELS.indexOf(o.level) !== -1 ? o.level : 'normal';
+      const parsed = parseSave(raw);
+      Object.keys(parsed).forEach(function (k) { save[k] = parsed[k]; });
     } catch (e) { /* 저장소 사용 불가: 기본값 유지 */ }
   }
   function writeSave() {
     try {
-      save.best = save.bestByLevel.normal;   // 레거시 필드 미러링
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(save));
     } catch (e) { /* 저장 실패는 무시 */ }
   }
@@ -942,7 +1048,7 @@
     ctx.maxGroup = Math.max(ctx.maxGroup, g.size);
     state.stats.matches++;
     if (!state.timeUp) {
-      state.timeLeft = Math.min(CONFIG.time.max, state.timeLeft + timeBonusFor(g.size, step, state.elapsed));
+      state.timeLeft = Math.min(CONFIG.time.max, state.timeLeft + timeBonusFor(g.size, step));
     }
     charge(g.type, g.size);
     const ctr = centroid(g.cells);
@@ -1008,7 +1114,8 @@
           sfx('praise-' + cls);
           waited = true;
         }
-        if (!hasValidMove(typeGrid())) {
+        // 목표 점수에 도달했다면 NO MOVES 재섞기는 생략하고 곧바로 클리어 처리한다
+        if (!isCleared(state.score, state.target) && !hasValidMove(typeGrid())) {
           if (waited) await wait(CONFIG.noMovesPauseMs);
           showPopup('NO MOVES', 'warn');
           sfx('nomoves');
@@ -1023,7 +1130,8 @@
     }
     if (id !== state.gameId) return;
     setLocked(false);
-    if (state.timeUp) finishGame();
+    // 행동(연쇄 정산)이 모두 끝난 시점의 판정: 목표 달성이면 클리어, 시간이 소진됐으면 달성 여부로 클리어/실패
+    if (isCleared(state.score, state.target) || state.timeUp) finishStage();
   }
 
   /* =====================================================================
@@ -1143,6 +1251,7 @@
     const k = e.key;
     state.idle = 0;
     if (k === 'Escape') {
+      if (state.phase === 'stages') { goHome(); return; }
       if (state.aim !== null) { cancelAim(); return; }
       if (state.phase === 'playing') pauseGame();
       else if (state.phase === 'paused') {
@@ -1522,7 +1631,7 @@
     el.chain.classList.toggle('active', state.chain >= 2);
   }
 
-  const hud = { bar: -1, text: '', frozen: null, low: null, dark: null, darkText: '', freezeText: '', hint: '' };
+  const hud = { goal: -1, goalText: '', bar: -1, text: '', frozen: null, low: null, dark: null, darkText: '', freezeText: '', hint: '' };
 
   function updateHUD(dt) {
     // 점수 롤링
@@ -1538,8 +1647,25 @@
       el['timer-fill'].style.transform = 'scaleX(' + frac.toFixed(4) + ')';
       hud.bar = frac;
     }
-    const secs = String(Math.ceil(state.timeLeft - 1e-9));
+    const secs = fmtTime(state.timeLeft);
     if (secs !== hud.text) { el['timer-text'].textContent = secs; hud.text = secs; }
+    // 목표 진행 바 (점수 롤링 값 기준, 변경 시에만 DOM 쓰기)
+    if (state.target > 0) {
+      const gf = Math.max(0, Math.min(1, state.shown / state.target));
+      const gtxt = fmt(state.shown) + ' / ' + fmt(state.target);
+      if (Math.abs(gf - hud.goal) > 0.0005 || gtxt !== hud.goalText) {
+        el['goal-fill'].style.transform = 'scaleX(' + gf.toFixed(4) + ')';
+        el['goal-text'].textContent = gtxt;
+        el.goal.setAttribute('aria-valuenow', String(Math.round(gf * 100)));
+        if (gf >= 1 && hud.goal < 1) {
+          el.goal.classList.remove('hit');
+          void el.goal.offsetWidth;
+          el.goal.classList.add('hit');
+        }
+        hud.goal = gf;
+        hud.goalText = gtxt;
+      }
+    }
     const frozen = state.freeze > 0;
     if (frozen !== hud.frozen) { el.timer.classList.toggle('frozen', frozen); el['freeze-text'].hidden = !frozen; hud.frozen = frozen; }
     if (frozen) {
@@ -1571,7 +1697,6 @@
       state.freeze = Math.max(0, state.freeze - dt);
     } else if (!state.timeUp) {
       state.timeLeft -= dt;
-      state.elapsed += dt;                  // 경과 플레이 시간: 시계가 실제로 흐른 시간만(정지·컷인·일시정지 제외)
       const sec = Math.ceil(state.timeLeft - 1e-9);
       if (sec > 10) state.warnSec = 99;
       else if (sec > 0 && sec !== state.warnSec) { state.warnSec = sec; sfx('warning'); }
@@ -1581,7 +1706,7 @@
         cancelAim();
       }
     }
-    if (state.timeUp && !state.locked) { finishGame(); return; }
+    if (!state.locked && (state.timeUp || isCleared(state.score, state.target))) { finishStage(); return; }
     if (CONFIG.hint.auto > 0) {
       // 초보 자동 힌트: 입력 잠금·조준 중에는 카운트하지 않고, 힌트가 떠 있는 동안에도 멈춘다
       if (state.locked || state.aim !== null || state.hintLeft > 0) state.idle = 0;
@@ -1615,6 +1740,7 @@
   /* ---------- 화면 전환 ---------- */
   function showScreen(name) {
     el['screen-start'].hidden = name !== 'start';
+    el['screen-stages'].hidden = name !== 'stages';
     el['screen-game'].hidden = name !== 'game';
   }
   function showOverlay(id, on) {
@@ -1653,7 +1779,12 @@
 
   function levelLabel(lv) { return CONFIG.difficulty[lv].label; }
 
-  /** 시작 화면의 난이도 선택 상태·설명·최고 점수·제한 시간 문구를 선택값 기준으로 갱신 */
+  function clearedCount(lv) { return save.progress[lv]; }
+  function starTotal(lv) {
+    return save.stages[lv].reduce(function (sum, e) { return sum + e.stars; }, 0);
+  }
+
+  /** 시작 화면의 난이도 선택 상태·설명·진행도·스테이지 안내 문구를 선택값 기준으로 갱신 */
   function renderLevelUi() {
     const lv = save.level;
     const btns = el['level-select'].querySelectorAll('.level-btn');
@@ -1664,8 +1795,11 @@
       b.classList.toggle('on', on);
     });
     el['level-desc'].textContent = CONFIG.difficulty[lv].desc;
-    el['rule-time'].textContent = String(CONFIG.difficulty[lv].time.start);
-    el['start-best'].textContent = fmt(save.bestByLevel[lv]);
+    el['start-clear'].textContent = clearedCount(lv) + '/' + CONFIG.stages.count;
+    el['start-stars'].textContent = String(starTotal(lv));
+    const d = CONFIG.difficulty;
+    el['rule-stage'].innerHTML = '<b>스테이지</b> 제한 시간(초보 ' + fmtDur(d.easy.time.start) + ' / 중수 ' + fmtDur(d.normal.time.start) +
+      ' / 고수 ' + fmtDur(d.hard.time.start) + ') 안에 목표 점수를 넘기면 클리어! 레벨 1~' + CONFIG.stages.count + '에 도전하세요.';
   }
 
   function selectLevel(lv, focus) {
@@ -1709,12 +1843,12 @@
     state.confirmFrom = null;
     state.cutinActive = false;
     state.warnSec = 99;
-    state.elapsed = 0;
     state.idle = 0;
     state.level = CONFIG.level;
     drag = null;
-    hud.bar = -1; hud.text = ''; hud.frozen = null; hud.low = null; hud.dark = null; hud.hint = '';
+    hud.goal = -1; hud.goalText = ''; hud.bar = -1; hud.text = ''; hud.frozen = null; hud.low = null; hud.dark = null; hud.hint = '';
     el.score.textContent = '0';
+    el.goal.classList.remove('hit');
     el.popup.className = 'popup';
     el['aim-msg'].hidden = true;
     el.boardWrap.classList.remove('aiming', 'shake');
@@ -1727,7 +1861,62 @@
 
   function sleepRaw(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
 
-  async function startGame() {
+  function stageLabel(lv, stage) { return levelLabel(lv) + ' · 레벨 ' + stage; }
+
+  /** 레벨 선택 화면: 난이도 표시·진행도·레벨 카드 10개(잠금/별/목표) */
+  function renderStages() {
+    const lv = save.level;
+    const prog = save.progress[lv];
+    el['stages-chip'].textContent = levelLabel(lv);
+    el['stages-chip'].className = 'level-chip lv-' + lv;
+    el['stages-time'].textContent = '제한 시간 ' + fmtTime(CONFIG.difficulty[lv].time.start);
+    el['stages-summary'].textContent = '클리어 ' + prog + '/' + CONFIG.stages.count + ' · 별 ' + starTotal(lv);
+    const grid = el['stage-grid'];
+    grid.innerHTML = '';
+    for (let i = 1; i <= CONFIG.stages.count; i++) {
+      const rec = save.stages[lv][i - 1];
+      const open = stageUnlocked(prog, i);
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'stage-card' + (open ? '' : ' locked') + (i === prog + 1 ? ' current' : '') + (rec.stars > 0 ? ' cleared' : '');
+      b.dataset.stage = String(i);
+      b.disabled = !open;
+      b.setAttribute('aria-disabled', open ? 'false' : 'true');
+      let stars = '';
+      for (let k = 1; k <= 3; k++) stars += k <= rec.stars ? '★' : '☆';
+      b.setAttribute('aria-label', '레벨 ' + i + ', 목표 ' + fmt(stageTarget(lv, i)) + '점, ' + (open ? ('별 ' + rec.stars + '개') : '잠김'));
+      b.innerHTML = '<span class="sc-num">' + i + '</span>' +
+        (open ? '<span class="sc-target">' + fmt(stageTarget(lv, i)) + '</span><span class="sc-stars" aria-hidden="true">' + stars + '</span>'
+          : '<span class="sc-target">' + fmt(stageTarget(lv, i)) + '</span><span class="sc-lock">잠김</span>');
+      grid.appendChild(b);
+    }
+  }
+
+  function goStages() {
+    state.gameId++;
+    cancelCutin();
+    audio.bgmStop();
+    state.phase = 'stages';
+    state.locked = false;
+    hideAllOverlays();
+    renderStages();
+    updateSoundButtons();
+    showScreen('stages');
+    const cur = el['stage-grid'].querySelector('.stage-card.current') || el['stage-grid'].querySelector('.stage-card:not(:disabled)');
+    if (cur && cur.focus) cur.focus({ preventScroll: true });
+  }
+
+  function openStages() {
+    if (state.phase !== 'start') return;
+    goStages();
+  }
+
+  function restartStage() { startStage(state.stage); }
+  function nextStage() { startStage(Math.min(CONFIG.stages.count, state.stage + 1)); }
+
+  async function startStage(stage) {
+    const lv0 = save.level;
+    if (!stageUnlocked(save.progress[lv0], stage)) return;     // 잠긴 레벨은 시작 불가
     audio.init();
     state.gameId++;
     const id = state.gameId;
@@ -1737,10 +1926,14 @@
     applyDifficulty(save.level);     // 선택 난이도 값을 활성 위치에 적용(재시작도 같은 난이도)
     resetState();
     const lv = CONFIG.level;
-    el['level-chip'].textContent = levelLabel(lv);
+    state.stage = stage;
+    state.target = stageTarget(lv, stage);
+    state.startTime = CONFIG.time.start;
+    el['level-chip'].textContent = levelLabel(lv) + ' · Lv' + stage;
     el['level-chip'].className = 'level-chip lv-' + lv;
-    el['pause-level'].textContent = '난이도: ' + levelLabel(lv);
-    el['end-level'].textContent = '난이도: ' + levelLabel(lv);
+    el['pause-level'].textContent = stageLabel(lv, stage) + ' · 목표 ' + fmt(state.target);
+    el['end-level'].textContent = stageLabel(lv, stage);
+    el['count-info'].textContent = '레벨 ' + stage + ' · 목표 ' + fmt(state.target) + '점';
     // 이미지 미리 로드(첫 판 깜빡임 방지). 오래 걸리면 폴백으로 그냥 진행
     await Promise.race([assetsReady, sleepRaw(CONFIG.assets.loadTimeoutMs)]);
     if (id !== state.gameId) return;
@@ -1841,7 +2034,8 @@
     showScreen('start');
   }
 
-  function finishGame() {
+  /** 스테이지 종료(클리어/실패). 한 번만 실행된다(phase 가드) */
+  function finishStage() {
     if (state.phase !== 'playing') return;
     state.phase = 'over';
     cancelAim();
@@ -1852,25 +2046,47 @@
     state.shown = state.score;
     el.score.textContent = fmt(state.score);
     const lv = state.level;
-    const prevBest = save.bestByLevel[lv];
-    const isNew = state.score > prevBest;
+    const stage = state.stage;
+    const cleared = isCleared(state.score, state.target);
+    const stars = cleared ? starsFor(state.timeLeft, state.startTime) : 0;
+    const res = applyStageResult(save, lv, stage, state.score, cleared, stars);
     save.plays += 1;
     save.lastScore = state.score;
-    if (isNew) save.bestByLevel[lv] = state.score;
     if (state.stats.maxChain > save.bestChain) save.bestChain = state.stats.maxChain;
     writeSave();
-    el['end-title'].textContent = 'TIME UP!';
+    const last = stage >= CONFIG.stages.count;
+    el['end-title'].textContent = cleared ? 'STAGE CLEAR!' : 'TIME UP';
+    el['end-title'].className = cleared ? 'clear' : '';
     el['end-score'].textContent = fmt(state.score);
-    el['end-newbest'].hidden = !isNew;
-    el['end-best'].textContent = fmt(save.bestByLevel[lv]);
+    el['end-target'].textContent = cleared
+      ? '목표 ' + fmt(state.target) + ' 달성 · 남은 시간 ' + fmtTime(state.timeLeft)
+      : '목표 ' + fmt(state.target) + ' / 내 점수 ' + fmt(state.score);
+    el['end-stars'].hidden = !cleared;
+    if (cleared) {
+      let st = '';
+      for (let k = 1; k <= 3; k++) st += k <= stars ? '★' : '☆';
+      el['end-stars'].textContent = st;
+      el['end-stars'].setAttribute('aria-label', '별 ' + stars + '개');
+    }
+    el['end-unlock'].hidden = true;
+    if (cleared && last) {
+      el['end-unlock'].textContent = levelLabel(lv) + ' 완료! 축하해요';
+      el['end-unlock'].hidden = false;
+    } else if (res.unlocked) {
+      el['end-unlock'].textContent = '레벨 ' + res.unlocked + ' 해제!';
+      el['end-unlock'].hidden = false;
+    }
+    el['end-best'].textContent = fmt(save.stages[lv][stage - 1].best);
     el['end-chain'].textContent = String(state.stats.maxChain);
     el['end-skills'].textContent = String(state.stats.skills);
     el['end-matches'].textContent = String(state.stats.matches);
+    el['btn-next'].hidden = !(cleared && !last);
+    el['btn-again'].textContent = cleared ? '다시 하기' : '다시 도전';
     audio.bgmStop();
-    sfx('end');
-    if (isNew && state.score > 0) setTimeout(function () { sfx('newbest'); }, 900);
+    sfx(cleared ? 'newbest' : 'end');
+    if (cleared && last) setTimeout(function () { sfx('praise-excellent'); }, 700);
     showOverlay('overlay-end', true);
-    el['btn-again'].focus();
+    (cleared && !last ? el['btn-next'] : el['btn-again']).focus();
   }
 
   function onHint() {
@@ -1881,7 +2097,24 @@
   }
 
   function bindUi() {
-    el['btn-start'].addEventListener('click', startGame);
+    el['btn-start'].addEventListener('click', openStages);
+    el['btn-stages-back'].addEventListener('click', goHome);
+    el['stage-grid'].addEventListener('click', function (e) {
+      const b = e.target.closest && e.target.closest('.stage-card');
+      if (!b || b.disabled || state.phase !== 'stages') return;
+      startStage(Number(b.dataset.stage));
+    });
+    el['stage-grid'].addEventListener('keydown', function (e) {
+      const cards = Array.prototype.filter.call(el['stage-grid'].querySelectorAll('.stage-card'), function (c) { return !c.disabled; });
+      const i = cards.indexOf(document.activeElement);
+      if (i < 0) return;
+      let n = -1;
+      if (e.key === 'ArrowRight') n = Math.min(cards.length - 1, i + 1);
+      else if (e.key === 'ArrowLeft') n = Math.max(0, i - 1);
+      else if (e.key === 'ArrowDown') n = Math.min(cards.length - 1, i + 5);
+      else if (e.key === 'ArrowUp') n = Math.max(0, i - 5);
+      if (n >= 0) { e.preventDefault(); cards[n].focus(); }
+    });
     Array.prototype.forEach.call(el['level-select'].querySelectorAll('.level-btn'), function (b) {
       b.addEventListener('click', function () { selectLevel(b.dataset.level, false); });
     });
@@ -1909,12 +2142,13 @@
     el['btn-menu'].addEventListener('click', pauseGame);
     el['btn-reset'].addEventListener('click', openConfirm);
     el['btn-resume'].addEventListener('click', resumeGame);
-    el['btn-restart'].addEventListener('click', startGame);
-    el['btn-quit'].addEventListener('click', goHome);
-    el['btn-confirm-yes'].addEventListener('click', startGame);
+    el['btn-restart'].addEventListener('click', restartStage);
+    el['btn-quit'].addEventListener('click', goStages);
+    el['btn-confirm-yes'].addEventListener('click', restartStage);
     el['btn-confirm-no'].addEventListener('click', cancelConfirm);
-    el['btn-again'].addEventListener('click', startGame);
-    el['btn-home'].addEventListener('click', goHome);
+    el['btn-again'].addEventListener('click', restartStage);
+    el['btn-next'].addEventListener('click', nextStage);
+    el['btn-home'].addEventListener('click', goStages);
     document.addEventListener('visibilitychange', function () {
       if (document.hidden && state.phase === 'playing') pauseGame();
     });

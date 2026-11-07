@@ -10,7 +10,7 @@
   --danger: #ff5a5f;
   --ice: #7fd7ff;
   --vh100: 100vh;
-  --ui-h: 272px;
+  --ui-h: 302px;   /* 타이머·점수·목표 바·게이지·버튼·간격 합 (목표 바 22px+간격 포함) */
   --board: min(calc(100vw - 24px), calc(var(--vh100) - var(--ui-h)), 520px);
   --cell: calc(var(--board) / 8);
   --swap-ms: 150ms;
@@ -402,8 +402,8 @@ button:focus-visible, .gauge:focus-visible { outline: 3px solid var(--accent); o
     width: 100%;
     max-width: none;
     grid-template-columns: var(--board) 64px minmax(150px, 220px);
-    grid-template-rows: auto auto 1fr;
-    grid-template-areas: "board gauges timer" "board gauges score" "board gauges buttons";
+    grid-template-rows: auto auto auto 1fr;
+    grid-template-areas: "board gauges timer" "board gauges score" "board gauges goal" "board gauges buttons";
     gap: 8px 10px;
     align-content: center;
     justify-content: center;
@@ -413,6 +413,7 @@ button:focus-visible, .gauge:focus-visible { outline: 3px solid var(--accent); o
   .board-wrap { grid-area: board; }
   .timer { grid-area: timer; width: 100%; }
   .scorebar { grid-area: score; width: 100%; }
+  .goal { grid-area: goal; width: 100%; }
   .gauges { grid-area: gauges; width: 100%; height: var(--board); grid-template-columns: 1fr; grid-template-rows: repeat(6, 1fr); gap: 4px; }
   .gauge { min-height: 44px; flex-direction: row; justify-content: space-around; padding: 2px 4px; }
   .gauge .gi { width: 55%; max-width: 26px; }
@@ -740,4 +741,134 @@ body::before {
 .level-chip.lv-hard { background: #c32f3a; }
 @media (orientation: landscape) and (max-height: 500px) {
   .level-btn { min-height: 44px; }
+}
+
+/* =====================================================================
+ * 4차 Build: 스테이지(레벨 1~10) — 레벨 선택 화면 / 목표 진행 바 / 결과 화면
+ * ===================================================================== */
+/* 한글 문구는 음절이 아닌 어절 단위로 줄바꿈한다 */
+.start-card, .panel, .stages-card, .rules li, .level-desc, .tutorial, .stages-sub, .stages-hint, .count-info { word-break: keep-all; overflow-wrap: break-word; }
+
+/* 목표 진행 바 */
+.goal {
+  position: relative;
+  width: var(--board);
+  height: 22px;
+  flex: none;
+  border-radius: 11px;
+  overflow: hidden;
+  background: rgba(18, 10, 40, .85);
+  border: 2px solid #b98a2e;
+  box-shadow: inset 0 0 8px rgba(0, 0, 0, .55), 0 2px 6px rgba(0, 0, 0, .45);
+}
+.goal-fill {
+  position: absolute;
+  inset: 0;
+  transform-origin: left center;
+  transform: scaleX(0);
+  background: linear-gradient(90deg, #7a4bd6, #ff7ad8 60%, #ffd86b);
+  transition: transform .15s linear;
+}
+.goal-text { position: relative; display: block; text-align: center; font-size: .7rem; font-weight: 800; line-height: 18px; font-variant-numeric: tabular-nums; color: #fff; text-shadow: 0 1px 0 rgba(0, 0, 0, .9), 0 0 4px rgba(0, 0, 0, .8); }
+.goal.hit { animation: goalHit .8s ease-out; }
+@keyframes goalHit { 0% { box-shadow: 0 0 0 0 rgba(255, 216, 107, .9); } 50% { box-shadow: 0 0 18px 6px rgba(255, 216, 107, .95); filter: brightness(1.5); } 100% { box-shadow: 0 0 0 0 rgba(255, 216, 107, 0); } }
+
+/* 카운트다운 안내 */
+.count-info { position: absolute; top: 24%; left: 0; right: 0; text-align: center; font-size: clamp(1.1rem, 5.5vw, 1.6rem); font-weight: 900; color: #fff; text-shadow: 0 3px 0 rgba(0, 0, 0, .6), 0 0 14px rgba(0, 0, 0, .7); padding: 0 16px; }
+#overlay-count { flex-direction: column; }
+
+/* 레벨 선택 화면 */
+.stages { display: flex; align-items: center; justify-content: center; padding: 16px; }
+.stages-card {
+  width: min(100%, 440px);
+  padding: 16px 14px;
+  border-radius: 22px;
+  background: linear-gradient(180deg, rgba(52, 30, 96, .88), rgba(22, 14, 52, .92));
+  border: 3px solid #d9a93a;
+  box-shadow: inset 0 0 0 2px rgba(255, 240, 170, .25), 0 20px 50px rgba(0, 0, 0, .55);
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+  text-align: center;
+}
+.stages-head { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 8px; margin-bottom: 6px; }
+.stages-head .btn.small { flex: none; padding: 6px 14px; }
+.stages-title { font-weight: 900; font-size: 1.15rem; text-shadow: 0 2px 0 rgba(40, 10, 70, .8); }
+.stages-time { font-size: .8rem; font-weight: 800; color: #ffe9a0; white-space: nowrap; }
+.stages-sub { margin: 0 0 10px; color: #dcd8ff; font-size: .9rem; }
+.stages-hint { margin: 10px 0 0; color: var(--muted); font-size: .78rem; }
+.stage-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+.stage-card {
+  min-width: 0;
+  min-height: 76px;
+  padding: 6px 2px 5px;
+  border: 2px solid rgba(255, 215, 122, .7);
+  border-radius: 12px;
+  background: linear-gradient(180deg, #ff8fd8 0%, #d24cc0 46%, #8a2aa8 54%, #b04ad0 100%);
+  color: #fff;
+  font: inherit;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  gap: 2px;
+  cursor: pointer;
+  box-shadow: inset 0 2px 0 rgba(255, 255, 255, .45), 0 3px 0 #5b1a78, 0 5px 8px rgba(0, 0, 0, .4);
+  transition: transform .08s;
+}
+.stage-card:active:not(:disabled) { transform: translateY(2px); }
+.stage-card .sc-num { font-size: 1.35rem; font-weight: 900; line-height: 1; text-shadow: 0 2px 0 rgba(60, 10, 80, .75); }
+.stage-card .sc-target { font-size: .62rem; font-weight: 700; opacity: .95; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.stage-card .sc-stars { font-size: .75rem; letter-spacing: -1px; color: #ffe27a; text-shadow: 0 1px 0 rgba(0, 0, 0, .6); }
+.stage-card .sc-lock { font-size: .65rem; font-weight: 800; }
+.stage-card.cleared { background: linear-gradient(180deg, #d8ffd0 0%, #6fdc78 46%, #2f9e4a 54%, #6fdc78 100%); color: #12391a; text-shadow: none; }
+.stage-card.cleared .sc-num { text-shadow: 0 1px 0 rgba(255, 255, 255, .6); }
+.stage-card.cleared .sc-stars { color: #b87400; text-shadow: none; }
+.stage-card.current { border-color: #fff3b0; animation: stagePulse 1.2s ease-in-out infinite; }
+.stage-card.locked, .stage-card:disabled { background: linear-gradient(180deg, #4a4668, #2a2742); color: #a9a4d6; border-color: rgba(255, 215, 122, .25); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .15); cursor: not-allowed; text-shadow: none; }
+@keyframes stagePulse { 0%, 100% { box-shadow: inset 0 2px 0 rgba(255, 255, 255, .45), 0 3px 0 #5b1a78, 0 0 0 0 rgba(255, 243, 176, .8); } 50% { box-shadow: inset 0 2px 0 rgba(255, 255, 255, .45), 0 3px 0 #5b1a78, 0 0 14px 3px rgba(255, 243, 176, .9); } }
+
+/* 결과 화면 */
+#end-title.clear { color: #ffe27a; text-shadow: 0 3px 0 rgba(120, 60, 0, .7), 0 0 16px rgba(255, 216, 107, .7); }
+.end-stars { font-size: 2.2rem; letter-spacing: 4px; color: #ffd84a; text-shadow: 0 2px 0 rgba(120, 60, 0, .7), 0 0 12px rgba(255, 216, 107, .8); line-height: 1; }
+.end-unlock { margin: 0; font-weight: 900; color: #8be28a; }
+.end-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.end-buttons #btn-next { grid-column: 1 / -1; }
+.end-buttons .btn { min-width: 0; }
+
+@media (prefers-reduced-motion: reduce) {
+  .stage-card.current, .goal.hit { animation: none; }
+  .goal-fill { transition: none; }
+}
+@media (orientation: landscape) and (max-height: 500px) {
+  .stages { align-items: flex-start; }
+  .stage-card { min-height: 64px; }
+  .count-info { top: 12%; }
+}
+
+/* 결과/일시정지 패널: 낮은 화면에서는 로고를 숨기고 간격을 줄여 한 화면에 들어오게 한다 */
+@media (max-height: 700px) {
+  .panel .logo.small { display: none; }
+  .panel { gap: 7px; padding: 16px 16px; }
+  .end-score { font-size: 2.4rem; }
+  .end-stars { font-size: 1.8rem; }
+  .stats div { padding: 5px 4px; }
+}
+@media (orientation: landscape) and (max-height: 500px) {
+  .panel { gap: 5px; padding: 10px 14px; }
+  .panel h2 { font-size: 1.3rem; margin: 0; }
+  .end-score { font-size: 1.9rem; }
+  .end-stars { font-size: 1.4rem; }
+  .stats { margin: 0; }
+  .btn { min-height: 44px; padding-top: 6px; padding-bottom: 6px; }
+}
+
+/* 점수 영역: 난이도·레벨 칩이 줄바꿈되지 않게 한다 */
+.level-chip, .scorebar .label { white-space: nowrap; }
+@media (orientation: landscape) and (max-height: 500px) {
+  .goal { width: 100%; }   /* 가로 모드: 위쪽 .goal { width: var(--board) }가 같은 규칙(L416)을 덮어써 오른쪽 열 밖으로 넘치던 것 수정 */
+  /* 가로 모드(높이 ≤500px) 결과 화면: 버튼 3개를 한 줄로 — 첫 클리어('레벨 N 해제!' 줄 포함) 때 둘째 줄 버튼이 화면 아래로 밀리던 것 수정 */
+  .end-buttons { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: 1fr; }
+  .end-buttons #btn-next { grid-column: auto; }
+  .scorebar { grid-template-columns: auto 1fr auto; gap: 6px; padding: 4px 8px; }
+  .chain-box { font-size: .75rem; }
 }
