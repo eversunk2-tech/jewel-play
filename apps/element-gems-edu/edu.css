@@ -20,6 +20,36 @@
 .eg-home a { display: inline-flex; align-items: center; min-height: 44px; padding: 0 16px; border-radius: 999px; background: rgba(255, 255, 255, .9); color: var(--ink); font-size: .85rem; font-weight: 800; text-decoration: underline; box-shadow: 0 2px 0 rgba(120, 90, 220, .3); }
 .eg-home a:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
 
+/* 휴대폰 가로(낮은 화면)의 시작 화면.
+ * 칩 카드가 세로로 쌓이면 [시작]이 화면 아래로 밀리므로(844×390 에서 위쪽 기준 450px 넘게) 두 가지를 한다.
+ *  1) 단원 칩을 한 줄(배지 · 선택 요약 · [학습단원 선택])로 줄인다. 요약 글은 말줄임 없이 칸 안에서 줄을 바꾼다.
+ *  2) 폭 640px 이상이면 와이드 화면(§20)처럼 2열로 나눈다: 왼쪽 = 로고 + 게임 규칙, 오른쪽 = 메뉴(단원 칩·프로필·클리어/별·난이도·[시작]).
+ *     (칩만 줄여서는 [시작]이 아직 화면 밖이다: 일반용 318~378px + 칩 약 70px.) 폭 640px 미만은 1열 그대로 둔다.
+ * 와이드(min-height 501px 이상)·세로 화면은 이 조건에 걸리지 않아 그대로다. */
+@media (orientation: landscape) and (max-height: 500px) {
+  .eg-unit { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; grid-template-areas: "top label btn" "top stat btn" "warn warn warn"; align-items: center; column-gap: 10px; row-gap: 0; min-height: 60px; margin: 0 0 6px; padding: 6px 8px 6px 10px; border-radius: 16px; box-shadow: 0 2px 0 #e0b02a; }
+  .eg-unit-top { grid-area: top; flex-direction: column; align-items: center; gap: 1px; margin: 0; }
+  .eg-ribbon { padding: 1px 10px; font-size: .78rem; line-height: 1.5; }
+  .eg-unit-cap { font-size: .72rem; }
+  .eg-unit-label { grid-area: label; margin: 0; font-size: .82rem; line-height: 1.3; }
+  .eg-unit-stat { grid-area: stat; margin: 1px 0 0; font-size: .72rem; line-height: 1.25; }
+  .eg-unit-warn { grid-area: warn; margin: 4px 0 0; font-size: .78rem; line-height: 1.3; }
+  .eg-unit .btn { grid-area: btn; width: auto; min-width: 96px; min-height: 44px; padding: 0 12px; font-size: .88rem; white-space: nowrap; }
+}
+@media (orientation: landscape) and (max-height: 500px) and (min-width: 640px) {
+  .start { padding: 6px max(14px, env(safe-area-inset-right)) 6px max(14px, env(safe-area-inset-left)); }
+  .start-card { width: min(100%, 800px); display: grid; grid-template-columns: minmax(190px, 1fr) minmax(0, 440px); grid-template-areas: "brand menu" "info menu"; column-gap: 20px; align-items: start; padding: 0 4px 12px; }
+  .sc-brand { display: block; grid-area: brand; }
+  .sc-menu { display: block; grid-area: menu; min-width: 0; }
+  .sc-info { display: block; grid-area: info; min-width: 0; }
+  .sc-info .rules { margin: 6px 0 8px; padding: 0 12px; }
+  .sc-info .rules li { padding: 6px 0; font-size: .82rem; line-height: 1.4; }
+  .sc-menu .best-line { margin: 0 auto 6px; }
+  .sc-menu .level-select { margin: 0 0 6px; padding: 4px; }
+  .sc-menu .level-desc { margin-bottom: 8px; }
+  .sc-menu .me-chip { margin-bottom: 6px; }
+}
+
 /* ---------- 학습단원 선택 화면 (B안) ----------
  * 카드 = [머리] + [스크롤되는 본문: 칩 + 단원 목록] + [아래 고정: 안내 줄 + 확정 버튼]. 단원이 많아도 [이 단원으로 정했어요]가 항상 보인다. */
 .eg-pick-screen { display: flex; justify-content: center; align-items: center; padding: 14px; height: var(--vh100); min-height: 0; overflow: hidden; }
@@ -202,6 +232,12 @@
 @media (orientation: landscape) and (max-height: 500px) {
   .count-unit { bottom: 6%; font-size: .95rem; }
   .end-quiz { font-size: .8rem; line-height: 1.15; margin: 0; }
+  /* 일시정지 창(휴대폰 가로): 소단원 줄이 들어가면 5줄 버튼이 화면보다 길어져 안에서 스크롤이 생겼다(844×390 에서 약 17px, 360px 높이에서 약 40px).
+   * 버튼을 2열로 놓아(계속하기·다시 시작 / 소리·컷인 / 나가기) 3줄로 줄인다. 버튼 높이 44px 이상은 그대로. */
+  #overlay-pause .panel { width: min(100%, 480px); display: grid; grid-template-columns: 1fr 1fr; gap: 6px 8px; }
+  #overlay-pause #pause-title { justify-self: center; }
+  #overlay-pause #pause-title, #overlay-pause #pause-level, #overlay-pause #pause-unit, #overlay-pause #btn-quit { grid-column: 1 / -1; }
+  #pause-unit { font-size: .82rem; line-height: 1.3; }
 }
 
 /* ---------- 움직임을 줄이는 설정 ---------- */

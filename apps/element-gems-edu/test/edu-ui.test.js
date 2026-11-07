@@ -457,6 +457,19 @@ test('edu.css: 움직임 줄이기 설정을 존중하고 터치 타깃 규칙(4
   assert.ok(css.includes('.eg-quiz-q .eg-em') && css.includes('text-decoration: underline'), '강조는 색에만 의존하지 않는다');
 });
 
+test('edu.css: 휴대폰 가로(낮은 화면) — 단원 칩 한 줄 · 폭 640px 이상 2열 시작 화면 · 일시정지 창 2열 버튼 (R1 중요 1번)', () => {
+  const phone = '@media (orientation: landscape) and (max-height: 500px)';
+  assert.ok(css.includes(phone + ' {\n  .eg-unit { display: grid;'), '낮은 가로 화면의 단원 칩 규칙');
+  assert.match(css, /\.eg-unit \{[^}]*grid-template-areas: "top label btn" "top stat btn" "warn warn warn"/);
+  assert.match(css, /\.eg-unit \.btn \{[^}]*grid-area: btn[^}]*min-height: 44px/, '줄인 칩에서도 버튼은 44px 이상');
+  assert.ok(css.includes(phone + ' and (min-width: 640px) {'), '2열 시작 화면은 폭 640px 이상에서만');
+  assert.match(css, /\.start-card \{[^}]*display: grid[^}]*grid-template-areas: "brand menu" "info menu"/);
+  assert.match(css, /#overlay-pause \.panel \{[^}]*grid-template-columns: 1fr 1fr/);
+  // 와이드·세로 화면의 칩 규칙(맨 위 기본 규칙)은 그대로다
+  assert.match(css, /\n\.eg-unit \{ margin: 2px 0 10px; padding: 10px 12px;/);
+  assert.match(css, /\n\.eg-unit \.btn \{ width: 100%; min-height: 44px; \}/);
+});
+
 test('일반용 style.css 는 교육용 복사본에서 바뀌지 않았다(추가 스타일은 edu.css 로)', () => {
   const a = fs.readFileSync(path.join(root, 'style.css'), 'utf8');
   const b = fs.readFileSync(path.join(root, '..', 'element-gems', 'style.css'), 'utf8');
