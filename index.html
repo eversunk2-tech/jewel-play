@@ -2,18 +2,260 @@
 <html lang="ko">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#9fb6ff">
+<meta name="description" content="원소 보석 - 원소 스킬 퍼즐. 교육용과 일반용 중에서 골라서 놀아요.">
 <title>원소 보석 - Element Gems</title>
-<meta http-equiv="refresh" content="0; url=apps/element-gems/">
-<link rel="canonical" href="apps/element-gems/">
 <style>
-  html, body { height: 100%; margin: 0; }
-  body { display: flex; align-items: center; justify-content: center; background: #1b1633; color: #fff; font-family: system-ui, -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif; }
-  a { color: #ffd54a; font-weight: 700; }
+/* 원소 보석 - 모드 고르기 (spec §21.2.3). 일반용 시작 화면과 같은 '스카이 캔디' 토큰(§18.3). 이 파일 하나로 자체 완결(외부 주소 없음). */
+:root {
+  --sky-1: #6fcfff; --sky-2: #9fb6ff; --sky-3: #e0b8ff; --sky-4: #ffc8e6;
+  --ink: #2a2160; --ink-2: #4f478a;
+  --lip: #b9a8f5;
+  --accent-ink: #4a2600; --focus: #5b3df5;
+  --r-btn: 16px; --r-pill: 999px;
+  --sh-card: 0 6px 0 var(--lip), 0 16px 28px rgba(50, 30, 140, .30);
+  --vh100: 100vh;
+}
+@supports (height: 100dvh) { :root { --vh100: 100dvh; } }
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html { background: var(--sky-2); }
+html, body {
+  margin: 0; padding: 0; min-height: 100%;
+  color: var(--ink);
+  font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", system-ui, sans-serif;
+  -webkit-tap-highlight-color: transparent;
+  overflow-x: hidden;
+}
+body { min-height: var(--vh100); background: transparent; }
+a:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+
+/* ---------- 배경: 정글 그림 + 파스텔 하늘 틴트 + 구름 (그림이 없어도 하늘 그라디언트가 보인다) ---------- */
+html::before {
+  content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+  background:
+    url("apps/element-gems/assets/bg-jungle.webp") center / cover no-repeat,
+    linear-gradient(180deg, var(--sky-1) 0%, var(--sky-2) 42%, var(--sky-3) 74%, var(--sky-4) 100%);
+  filter: brightness(1.12) saturate(1.12);
+}
+body::before {
+  content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+  background:
+    radial-gradient(circle, rgba(255, 255, 255, .9) 0 1.6px, transparent 2.4px) 0 0 / 96px 96px,
+    radial-gradient(circle, rgba(255, 255, 255, .6) 0 1.2px, transparent 2px) 48px 40px / 132px 132px,
+    linear-gradient(180deg, rgba(111, 207, 255, .64) 0%, rgba(159, 182, 255, .55) 34%, rgba(224, 184, 255, .36) 68%, rgba(255, 200, 230, .22) 100%);
+}
+body::after {
+  content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none; opacity: .93;
+  background:
+    radial-gradient(circle 14px at 24px 52px, #fff 96%, transparent) 8% 3% / 160px 84px no-repeat, radial-gradient(circle 22px at 46px 44px, #fff 96%, transparent) 8% 3% / 160px 84px no-repeat, radial-gradient(circle 28px at 76px 34px, #fff 96%, transparent) 8% 3% / 160px 84px no-repeat, radial-gradient(circle 22px at 110px 44px, #fff 96%, transparent) 8% 3% / 160px 84px no-repeat, radial-gradient(circle 16px at 134px 52px, #fff 96%, transparent) 8% 3% / 160px 84px no-repeat,
+    radial-gradient(circle 16px at 27px 59px, #fff 96%, transparent) 92% 12% / 184px 96px no-repeat, radial-gradient(circle 25px at 52px 50px, #fff 96%, transparent) 92% 12% / 184px 96px no-repeat, radial-gradient(circle 32px at 87px 39px, #fff 96%, transparent) 92% 12% / 184px 96px no-repeat, radial-gradient(circle 25px at 126px 50px, #fff 96%, transparent) 92% 12% / 184px 96px no-repeat, radial-gradient(circle 18px at 154px 59px, #fff 96%, transparent) 92% 12% / 184px 96px no-repeat,
+    radial-gradient(circle 11px at 19px 41px, #fff 96%, transparent) 4% 72% / 128px 67px no-repeat, radial-gradient(circle 17px at 36px 35px, #fff 96%, transparent) 4% 72% / 128px 67px no-repeat, radial-gradient(circle 22px at 60px 27px, #fff 96%, transparent) 4% 72% / 128px 67px no-repeat, radial-gradient(circle 17px at 88px 35px, #fff 96%, transparent) 4% 72% / 128px 67px no-repeat, radial-gradient(circle 12px at 107px 41px, #fff 96%, transparent) 4% 72% / 128px 67px no-repeat;
+  animation: cloudDrift 40s ease-in-out infinite alternate;
+}
+@keyframes cloudDrift { from { transform: translateX(-14px); } to { transform: translateX(14px); } }
+
+/* ---------- 화면 ---------- */
+.mode {
+  display: flex; align-items: center; justify-content: center;
+  min-height: var(--vh100);
+  padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+}
+.mode-card {
+  width: min(100%, 760px); text-align: center; word-break: keep-all;
+  background: rgba(255, 255, 255, .9); border: 3px solid #fff; border-radius: 28px;
+  padding: 20px 18px 22px; box-shadow: var(--sh-card);
+}
+.logo-h { margin: 0 0 10px; line-height: 0; }
+.logo {
+  display: block; margin: 0 auto; height: auto; aspect-ratio: 900 / 605; object-fit: contain;
+  width: min(62%, 260px, calc(var(--vh100) * .3 * 1.4876));
+  filter: drop-shadow(0 6px 8px rgba(50, 30, 140, .35));
+  user-select: none; -webkit-user-drag: none;
+}
+.mode-q { margin: 8px 0 18px; font-size: 1.25rem; font-weight: 900; color: var(--ink); }
+
+/* ---------- 큰 카드 2장 ---------- */
+.mode-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.mode-btn {
+  position: relative; display: flex; flex-direction: column; align-items: center; gap: 10px;
+  min-height: 230px; padding: 22px 16px; text-align: center; text-decoration: none; color: var(--ink);
+  border: 3px solid #fff; border-radius: 26px; background: #fff; box-shadow: var(--sh-card);
+  transition: transform .1s, filter .15s;
+}
+.mode-btn:hover { filter: brightness(1.03); transform: translateY(-2px); }
+.mode-btn:focus-visible { box-shadow: var(--sh-card), 0 0 0 6px #fff; }
+.mode-btn:active { transform: translateY(3px); box-shadow: 0 2px 0 var(--lip), 0 6px 12px rgba(50, 30, 140, .25); }
+.mode-btn.edu { background: linear-gradient(180deg, #fff7d6, #ffe9a0); border-color: #ffd34d; }
+.mode-btn.gen { background: linear-gradient(180deg, #f1ecff, #ddd2ff); border-color: #c9bbff; }
+.mode-btn .ic { flex: none; width: 72px; height: 72px; }
+.mode-btn .tx { display: contents; }
+.mode-btn h2 { margin: 0; font-size: 1.6rem; line-height: 1.25; }
+.mode-btn p { margin: 0; font-size: 1.02rem; line-height: 1.5; color: var(--ink-2); }
+.mode-btn p b { color: var(--ink); }
+.mode-btn .last {
+  display: inline-block; margin-left: 6px; vertical-align: 3px; padding: 2px 10px;
+  border-radius: var(--r-pill); background: var(--focus); color: #fff; font-size: .75rem; font-weight: 900; line-height: 1.4;
+}
+.mode-btn .go {
+  margin-top: auto; padding: 10px 26px; border-radius: var(--r-btn); font-weight: 900; font-size: 1.08rem;
+  background: linear-gradient(180deg, #ffe97a, #ffc531 55%, #ffb21a); color: var(--accent-ink);
+  box-shadow: 0 4px 0 #d9830a;
+}
+.mode-note { margin: 18px 0 0; font-size: .92rem; line-height: 1.5; color: var(--ink-2); }
+
+/* ---------- 휴대폰 세로: 카드가 가로 한 줄(그림 + 글)로 쌓임 ---------- */
+@media (max-width: 560px) {
+  .mode-grid { grid-template-columns: 1fr; gap: 14px; }
+  .mode-btn { flex-direction: row; align-items: center; min-height: 0; gap: 14px; padding: 18px 14px; text-align: left; }
+  .mode-btn .ic { width: 60px; height: 60px; }
+  .mode-btn .tx { display: block; flex: 1; min-width: 0; }
+  .mode-btn h2 { font-size: 1.35rem; }
+  .mode-btn p { font-size: .98rem; }
+  .mode-btn .go { display: none; }
+}
+/* 낮은 세로 화면(예: 360x640): 로고와 여백을 줄여서 한 화면에 들어오게 */
+@media (max-width: 560px) and (max-height: 700px) {
+  .mode-card { padding: 14px 12px 14px; }
+  .logo { width: min(56%, 200px, calc(var(--vh100) * .27 * 1.4876)); }
+  .mode-q { margin: 6px 0 12px; font-size: 1.12rem; }
+  .mode-grid { gap: 12px; }
+  .mode-btn { padding: 12px; }
+  .mode-btn .ic { width: 52px; height: 52px; }
+  .mode-btn p { font-size: .92rem; line-height: 1.4; }
+  .mode-note { margin-top: 12px; font-size: .86rem; }
+}
+/* 휴대폰 가로(낮은 높이): 카드 2열을 작게 */
+@media (min-width: 561px) and (max-height: 520px) {
+  .mode-card { padding: 12px 16px 14px; }
+  .logo-h { margin-bottom: 2px; }
+  .logo { width: min(190px, calc(var(--vh100) * .34 * 1.4876)); }
+  .mode-q { margin: 4px 0 10px; font-size: 1.08rem; }
+  .mode-grid { gap: 12px; }
+  .mode-btn { min-height: 0; flex-direction: row; align-items: center; gap: 12px; padding: 12px 14px; text-align: left; }
+  .mode-btn .ic { width: 52px; height: 52px; }
+  .mode-btn .tx { display: block; flex: 1; min-width: 0; }
+  .mode-btn h2 { font-size: 1.25rem; }
+  .mode-btn p { font-size: .9rem; line-height: 1.4; }
+  .mode-btn .go { display: none; }
+  .mode-note { margin-top: 10px; font-size: .85rem; }
+}
+/* 태블릿·PC */
+@media (min-width: 1100px) and (min-height: 700px) {
+  .mode-card { width: min(100%, 900px); padding: 28px 28px 30px; }
+  .logo { width: min(300px, calc(var(--vh100) * .3 * 1.4876)); }
+  .mode-q { margin: 10px 0 22px; font-size: 1.45rem; }
+  .mode-grid { gap: 22px; }
+  .mode-btn { min-height: 270px; padding: 26px 20px; }
+  .mode-btn .ic { width: 84px; height: 84px; }
+  .mode-btn h2 { font-size: 1.85rem; }
+  .mode-btn p { font-size: 1.12rem; }
+  .mode-note { margin-top: 22px; font-size: 1.02rem; }
+}
+@media (min-width: 1600px) and (min-height: 900px) {
+  .mode-card { width: min(100%, 1040px); padding: 34px 34px 36px; }
+  .logo { width: min(360px, calc(var(--vh100) * .3 * 1.4876)); }
+  .mode-q { margin: 12px 0 26px; font-size: 1.65rem; }
+  .mode-grid { gap: 26px; }
+  .mode-btn { min-height: 310px; padding: 30px 24px; }
+  .mode-btn .ic { width: 96px; height: 96px; }
+  .mode-btn h2 { font-size: 2.15rem; }
+  .mode-btn p { font-size: 1.27rem; }
+  .mode-btn .last { font-size: .85rem; }
+  .mode-btn .go { font-size: 1.22rem; padding: 12px 32px; }
+  .mode-note { margin-top: 26px; font-size: 1.12rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body::after { animation: none; }
+  .mode-btn { transition: none; }
+  .mode-btn:hover, .mode-btn:active { transform: none; }
+}
 </style>
-<script>location.replace("apps/element-gems/" + location.search + location.hash);</script>
 </head>
 <body>
-  <p>게임으로 이동 중입니다… 이동하지 않으면 <a href="apps/element-gems/">여기를 누르세요</a>.</p>
+<main class="mode">
+  <div class="mode-card">
+    <h1 class="logo-h"><img class="logo" src="apps/element-gems/assets/title-logo.webp" width="900" height="605" alt="원소 보석 ELEMENT GEMS"></h1>
+    <p class="mode-q">어떤 방식으로 놀까요?</p>
+
+    <div class="mode-grid">
+      <a class="mode-btn edu" data-mode="edu" href="apps/element-gems-edu/">
+        <svg class="ic" viewBox="0 0 100 100" aria-hidden="true" focusable="false">
+          <rect x="14" y="42" width="72" height="48" rx="10" fill="#e8369a" stroke="#8a1760" stroke-width="5"/>
+          <rect x="9" y="30" width="82" height="18" rx="8" fill="#ff6fbd" stroke="#8a1760" stroke-width="5"/>
+          <rect x="43" y="30" width="14" height="60" fill="#ffc21a" stroke="#a36a00" stroke-width="3"/>
+          <path d="M50 30 C34 8 14 24 36 30 Z M50 30 C66 8 86 24 64 30 Z" fill="#ffc21a" stroke="#a36a00" stroke-width="4" stroke-linejoin="round"/>
+          <text x="50" y="80" text-anchor="middle" font-size="40" font-weight="900" fill="#fff" stroke="#6b1250" stroke-width="2.5" paint-order="stroke" font-family="system-ui,sans-serif">?</text>
+        </svg>
+        <div class="tx">
+          <h2>교육용 <span class="last" hidden>지난번에 했어요</span></h2>
+          <p><b>? 선물상자</b>를 터뜨리면 교과 문제가 나오고, 맞히면 보너스 점수!</p>
+        </div>
+        <span class="go">교육용으로 놀기</span>
+      </a>
+
+      <a class="mode-btn gen" data-mode="gen" href="apps/element-gems/">
+        <svg class="ic" viewBox="0 0 100 100" aria-hidden="true" focusable="false">
+          <defs>
+            <linearGradient id="gem-shine" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="#fff" stop-opacity=".55"/>
+              <stop offset=".5" stop-color="#fff" stop-opacity="0"/>
+              <stop offset="1" stop-color="#000" stop-opacity=".18"/>
+            </linearGradient>
+          </defs>
+          <polygon points="50,6 95,90 5,90" fill="#e5484d" stroke="#8c1d22" stroke-width="5" stroke-linejoin="round"/>
+          <polygon points="50,6 95,90 5,90" fill="url(#gem-shine)" stroke="none"/>
+          <path d="M50 42 C53 52 61 56 61 67 C61 75 56 80 50 80 C44 80 39 75 39 67 C39 61 43 58 44 52 C47 55 49 53 50 42 Z" fill="#fff" fill-opacity=".93"/>
+        </svg>
+        <div class="tx">
+          <h2>일반용 <span class="last" hidden>지난번에 했어요</span></h2>
+          <p>문제 없이 원소 보석 퍼즐만 즐겨요.</p>
+        </div>
+        <span class="go">일반용으로 놀기</span>
+      </a>
+    </div>
+
+    <p class="mode-note">다음에 놀 때 모드를 다시 고를 수 있어요.</p>
+  </div>
+</main>
+
+<script>
+(function () {
+  'use strict';
+
+  var KEY_MODE = 'element-gems:mode';      // localStorage: 지난번에 고른 모드 ('edu' | 'gen')
+  var KEY_FROM = 'eg-from-chooser';        // sessionStorage: 선택 화면을 거쳐 왔다는 표시 (교육용 시작 화면의 '처음 화면' 링크용)
+  var isFile = location.protocol === 'file:';
+
+  var cards = Array.prototype.slice.call(document.querySelectorAll('.mode-btn'));
+  cards.forEach(function (a) {
+    var mode = a.getAttribute('data-mode');
+    // file:// 에서는 폴더 주소를 열면 파일 목록만 보이므로 index.html 을 붙인다.
+    if (isFile) a.setAttribute('href', a.getAttribute('href') + 'index.html');
+    function remember(e) {
+      if (e.type === 'auxclick' && e.button !== 1) return;
+      try { sessionStorage.setItem(KEY_FROM, '1'); } catch (err) { /* 막혀도 이동은 정상 */ }
+      try { localStorage.setItem(KEY_MODE, mode); } catch (err) { /* 막혀도 이동은 정상 */ }
+    }
+    a.addEventListener('click', remember);
+    a.addEventListener('auxclick', remember);
+  });
+
+  // "지난번에 했어요" 표시 (저장소 접근에 실패하면 생략)
+  function showLast() {
+    var last = null;
+    try { last = localStorage.getItem(KEY_MODE); } catch (err) { last = null; }
+    cards.forEach(function (a) {
+      var chip = a.querySelector('.last');
+      if (chip) chip.hidden = a.getAttribute('data-mode') !== last;
+    });
+  }
+  showLast();
+  window.addEventListener('pageshow', showLast);   // 뒤로 가기로 돌아왔을 때도 갱신
+})();
+</script>
 </body>
 </html>

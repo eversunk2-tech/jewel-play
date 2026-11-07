@@ -114,7 +114,27 @@
       hallCacheMaxAgeMs: 259200000,                      // 오프라인용 마지막 순위표 캐시 보관(3일)
       nickChangePerDay: 2,
       pageSize: 50
+    },
+    // [EDU] spec §21.7·§21.8: ? 선물상자(조커)·정답 보너스·교육용 목표·저장 키. 교육용에서 바뀌는 수치는 모두 여기에 모은다.
+    edu: {
+      // 리필 때 새로 생기는 칸마다 spawn 확률로 ?가 된다(보드 위 ?가 max개면 더 안 나옴). 첫 행동의 리필에서 1개를 확정 등장(guaranteeFirst).
+      // spawn 이 0이면 ?가 전혀 나오지 않고(첫 등장 보장 포함) 일반용과 똑같이 동작한다.
+      wild: { spawn: 0.016, max: 2, guaranteeFirst: true },
+      // 정답 보너스 = base × 난이도 배율(round 점 단위 반올림): 초보 240 / 중수 300 / 고수 390. 연쇄·어둠 배율은 곱하지 않는다.
+      bonus: { base: 300, mult: { easy: 0.8, normal: 1.0, hard: 1.3 }, round: 10, maxPoints: 100000 },
+      targetScale: 1.2,                     // 교육용 목표 점수 = 일반용 목표 × targetScale (targetRound 점 단위 반올림)
+      targetRound: 100,
+      quiz: { maxPerAction: 3, gapMs: 400, praiseHoldMs: 700 },   // 한 행동 최대 문제 수 / 문제 사이 간격 / 칭찬 팝업을 보여 주는 시간
+      storageKey: 'element-gems-edu:v1',    // 진행·설정 저장 키(일반용 'element-gems:v1' 과 분리). 프로필·순위 캐시 키는 ranking.js 소관
+      saveEduMaxChars: 200000,              // 저장 객체의 edu 필드(edu.js 소관) 크기 상한: 넘으면 버린다
+      hintMs: 3500,                         // 첫 ? 등장 안내를 보여 주는 시간
+      text: {
+        wildLabel: '선물상자(물음표)',
+        giftHint: '? 선물상자는 어떤 보석 대신으로도 쓸 수 있어요',
+        summary: '선물상자 문제 {asked}개 중 {right}개 맞혔어요 · 보너스 +{bonus}점'
+      }
     }
+    // [/EDU]
   };
 
   // 컷인 캐릭터·대사 (강조색 rgb는 CSS 변수용)
@@ -139,6 +159,11 @@
   const COLS = CONFIG.cols;
   const TYPES = CONFIG.types;
   const TYPE_COUNT = TYPES.length;
+  // [EDU] ? 선물상자(조커) = 7번째 보석 번호. 일반 보석은 0~5(TYPE_COUNT 는 그대로 6: 게이지·무작위 생성에 영향 없음).
+  const WILD = 6;
+  // 화면 표현용 목록: 0~5 = TYPES, 6 = 선물상자(SVG 심볼 #gem-gift 는 index.html 에 정의)
+  const VIEW = TYPES.concat([{ id: 'gift', name: '선물상자', color: '#ff9bd8' }]);
+  // [/EDU]
 
   /* =====================================================================
    * 순수 보드 로직 (DOM 없음) — 보드는 2D 배열, 칸 값은 종류 번호 또는 null
@@ -149,8 +174,106 @@
     return m;
   }
 
-  /** 가로/세로 3개 이상 연속 또는 2×2 정사각형을 이룬 칸을, 같은 색끼리 연결해 그룹으로 반환 */
+  // [EDU] ? 선물상자 규칙(§21.7.2): 보드에 ?가 없으면 일반용과 똑같은 원래 알고리즘(findMatchesPlain)을 그대로 쓰고,
+  // ?가 있으면 findMatchesWild 를 쓴다. 두 함수는 ?가 없는 보드에서 결과(순서 포함)가 같다(시험으로 고정).
+  function hasWild(g) {
+    for (let r = 0; r < g.length; r++) {
+      const row = g[r];
+      for (let c = 0; c < row.length; c++) if (row[c] === WILD) return true;
+    }
+    return false;
+  }
+
+  /** 가로/세로 3개 이상 연속 또는 2×2 정사각형을 이룬 칸을, 같은 색끼리 연결해 그룹으로 반환. 그룹 = { type, cells, size, wilds } */
   function findMatches(g) {
+    return hasWild(g) ? findMatchesWild(g) : findMatchesPlain(g);
+  }
+
+  /**
+   * ? 가 있는 보드: 종류 t마다 "t 또는 ?" 로 이루어진 가로·세로 3칸 이상 연속(한 줄 = 끊기지 않은 가장 긴 구간)과 2×2 를 표시한다.
+   * 단 그 줄/정사각형 안에 진짜 t 가 1개 이상 있어야 한다. 표시된 칸은 같은 t 안에서 연결 요소로 묶는다(? 는 여러 t 그룹에 동시에 속할 수 있다).
+   * 반환 순서: 그룹의 첫 칸(위→아래, 왼→오) 순, 같으면 종류 번호 순. wilds = 그룹 안의 ? 칸 수.
+   */
+  function findMatchesWild(g) {
+    const R = g.length;
+    const C = g[0].length;
+    const kinds = [];
+    for (let r = 0; r < R; r++) {
+      for (let c = 0; c < C; c++) {
+        const v = g[r][c];
+        if (v != null && v !== WILD && kinds.indexOf(v) === -1) kinds.push(v);
+      }
+    }
+    const out = [];
+    const dirs = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+    kinds.forEach(function (t) {
+      const ok = function (r, c) { const v = g[r][c]; return v === t || v === WILD; };
+      const mark = makeMatrix(R, C, false);
+      let any = false;
+      for (let r = 0; r < R; r++) {
+        let c = 0;
+        while (c < C) {
+          if (!ok(r, c)) { c++; continue; }
+          let e = c;
+          let real = false;
+          while (e < C && ok(r, e)) { if (g[r][e] === t) real = true; e++; }
+          if (e - c >= 3 && real) { for (let k = c; k < e; k++) mark[r][k] = true; any = true; }
+          c = e;
+        }
+      }
+      for (let c = 0; c < C; c++) {
+        let r = 0;
+        while (r < R) {
+          if (!ok(r, c)) { r++; continue; }
+          let e = r;
+          let real = false;
+          while (e < R && ok(e, c)) { if (g[e][c] === t) real = true; e++; }
+          if (e - r >= 3 && real) { for (let k = r; k < e; k++) mark[k][c] = true; any = true; }
+          r = e;
+        }
+      }
+      for (let r = 0; r + 1 < R; r++) {
+        for (let c = 0; c + 1 < C; c++) {
+          if (ok(r, c) && ok(r, c + 1) && ok(r + 1, c) && ok(r + 1, c + 1) &&
+            (g[r][c] === t || g[r][c + 1] === t || g[r + 1][c] === t || g[r + 1][c + 1] === t)) {
+            mark[r][c] = mark[r][c + 1] = mark[r + 1][c] = mark[r + 1][c + 1] = true;
+            any = true;
+          }
+        }
+      }
+      if (!any) return;
+      const seen = makeMatrix(R, C, false);
+      for (let r = 0; r < R; r++) {
+        for (let c = 0; c < C; c++) {
+          if (!mark[r][c] || seen[r][c]) continue;
+          const cells = [];
+          let wilds = 0;
+          const stack = [[r, c]];
+          seen[r][c] = true;
+          while (stack.length) {
+            const cur = stack.pop();
+            cells.push({ r: cur[0], c: cur[1] });
+            if (g[cur[0]][cur[1]] === WILD) wilds++;
+            for (let d = 0; d < 4; d++) {
+              const nr = cur[0] + dirs[d][0];
+              const nc = cur[1] + dirs[d][1];
+              if (nr < 0 || nc < 0 || nr >= R || nc >= C) continue;
+              if (!mark[nr][nc] || seen[nr][nc]) continue;
+              seen[nr][nc] = true;
+              stack.push([nr, nc]);
+            }
+          }
+          out.push({ type: t, cells: cells, size: cells.length, wilds: wilds, start: r * C + c });
+        }
+      }
+    });
+    out.sort(function (a, b) { return a.start - b.start || a.type - b.type; });
+    out.forEach(function (x) { delete x.start; });
+    return out;
+  }
+
+  /** ? 가 없는 보드의 매치 탐색(일반용 원본 알고리즘 그대로, 그룹에 wilds:0 만 추가) */
+  function findMatchesPlain(g) {
     const R = g.length;
     const C = g[0].length;
     const mark = makeMatrix(R, C, false);
@@ -207,44 +330,72 @@
             stack.push([nr, nc]);
           }
         }
-        groups.push({ type: t, cells: cells, size: cells.length });
+        groups.push({ type: t, cells: cells, size: cells.length, wilds: 0 });
       }
     }
     return groups;
   }
+  // [/EDU]
+
+  // [EDU] ? 인식: 칸이 ? 면 일반 6종 모두 검사하고, 줄/정사각형 안에 진짜 t 가 1개 이상 있어야 한다(§21.7.2). ?가 없으면 원래 결과와 같다.
+  function okKind(v, t) { return v === t || v === WILD; }
+
+  /** 종류 t 로 (r,c) 를 지나는 가로 또는 세로 3칸 이상 연속("t 또는 ?")이 있고 그 안에 진짜 t 가 있는지 */
+  function lineAtKind(g, r, c, t) {
+    const R = g.length;
+    const C = g[0].length;
+    let n = 1;
+    let real = g[r][c] === t;
+    for (let k = c - 1; k >= 0 && okKind(g[r][k], t); k--) { n++; if (g[r][k] === t) real = true; }
+    for (let k = c + 1; k < C && okKind(g[r][k], t); k++) { n++; if (g[r][k] === t) real = true; }
+    if (n >= 3 && real) return true;
+    n = 1;
+    real = g[r][c] === t;
+    for (let k = r - 1; k >= 0 && okKind(g[k][c], t); k--) { n++; if (g[k][c] === t) real = true; }
+    for (let k = r + 1; k < R && okKind(g[k][c], t); k++) { n++; if (g[k][c] === t) real = true; }
+    return n >= 3 && real;
+  }
 
   /** (r,c) 칸이 가로 또는 세로 3연속에 속하는지 */
   function lineAt(g, r, c) {
-    const R = g.length;
-    const C = g[0].length;
     const t = g[r][c];
     if (t == null) return false;
-    let n = 1;
-    for (let k = c - 1; k >= 0 && g[r][k] === t; k--) n++;
-    for (let k = c + 1; k < C && g[r][k] === t; k++) n++;
-    if (n >= 3) return true;
-    n = 1;
-    for (let k = r - 1; k >= 0 && g[k][c] === t; k--) n++;
-    for (let k = r + 1; k < R && g[k][c] === t; k++) n++;
-    return n >= 3;
+    if (t === WILD) {
+      for (let k = 0; k < WILD; k++) if (lineAtKind(g, r, c, k)) return true;
+      return false;
+    }
+    return lineAtKind(g, r, c, t);
   }
 
-  /** (r,c) 칸을 포함하는 2×2 정사각형(같은 종류 4칸)이 있는지 */
-  function squareAt(g, r, c) {
+  function squareAtKind(g, r, c, t) {
     const R = g.length;
     const C = g[0].length;
-    const t = g[r][c];
-    if (t == null) return false;
     for (let dr = -1; dr <= 0; dr++) {
       for (let dc = -1; dc <= 0; dc++) {
         const r0 = r + dr;
         const c0 = c + dc;
         if (r0 < 0 || c0 < 0 || r0 + 1 >= R || c0 + 1 >= C) continue;
-        if (g[r0][c0] === t && g[r0][c0 + 1] === t && g[r0 + 1][c0] === t && g[r0 + 1][c0 + 1] === t) return true;
+        const a = g[r0][c0];
+        const b = g[r0][c0 + 1];
+        const d = g[r0 + 1][c0];
+        const e = g[r0 + 1][c0 + 1];
+        if (okKind(a, t) && okKind(b, t) && okKind(d, t) && okKind(e, t) && (a === t || b === t || d === t || e === t)) return true;
       }
     }
     return false;
   }
+
+  /** (r,c) 칸을 포함하는 2×2 정사각형(같은 종류 4칸, ? 는 대신)이 있는지 */
+  function squareAt(g, r, c) {
+    const t = g[r][c];
+    if (t == null) return false;
+    if (t === WILD) {
+      for (let k = 0; k < WILD; k++) if (squareAtKind(g, r, c, k)) return true;
+      return false;
+    }
+    return squareAtKind(g, r, c, t);
+  }
+  // [/EDU]
 
   /** 두 칸을 바꾸면 매치(3연속 또는 2×2)가 생기는지 (원본 보드는 변경하지 않고 반환) */
   function wouldMatch(g, r1, c1, r2, c2) {
@@ -290,6 +441,108 @@
     const rand = rng || Math.random;
     return moves[Math.floor(rand() * moves.length)];
   }
+
+  // [EDU] ? 선물상자 순수 도우미 (§21.7) — DOM 없이 시험할 수 있게 규칙을 함수로 분리했다.
+  /** 매치 그룹들이 지우는 칸 목록(중복 제거). ? 하나가 두 그룹에 걸쳐도 한 번만 지운다. 첫 등장 순서 유지 */
+  function uniqueCells(groups) {
+    const seen = {};
+    const out = [];
+    groups.forEach(function (gr) {
+      gr.cells.forEach(function (p) {
+        const key = p.r * 1000 + p.c;
+        if (seen[key]) return;
+        seen[key] = true;
+        out.push(p);
+      });
+    });
+    return out;
+  }
+
+  /** 매치 그룹들이 지우는 ? 칸(중복 제거) */
+  function wildCellsOfGroups(groups, g) {
+    return uniqueCells(groups).filter(function (p) { return g[p.r][p.c] === WILD; });
+  }
+
+  /** 보드 위 ? 개수 */
+  function countWild(g) {
+    let n = 0;
+    for (let r = 0; r < g.length; r++) for (let c = 0; c < g[r].length; c++) if (g[r][c] === WILD) n++;
+    return n;
+  }
+
+  /**
+   * 리필로 새로 생기는 count 칸의 종류를 정한다(§21.7.1). 칸마다 확률 opt.spawn 으로 ? (보드 위 ?가 opt.max 개가 되면 더 안 나옴).
+   * opt.force 이면 새 칸 중 하나를 ?로 확정한다(첫 행동 보장). spawn=0·force=false 이면 rng 를 count번 쓰는 일반 무작위와 똑같다.
+   * wildOnBoard = 이미 보드 위에 있는 ? 수. n = 일반 종류 수.
+   */
+  function pickRefillTypes(count, wildOnBoard, rng, opt) {
+    const rand = rng || Math.random;
+    const o = opt || {};
+    const spawn = o.spawn > 0 ? o.spawn : 0;
+    const max = o.max > 0 ? o.max : 0;
+    const n = o.n > 0 ? o.n : TYPE_COUNT;
+    let wilds = wildOnBoard;
+    let forceAt = -1;
+    if (o.force && count > 0 && wilds < max) forceAt = Math.floor(rand() * count);
+    const out = [];
+    for (let i = 0; i < count; i++) {
+      if (i === forceAt) { out.push(WILD); wilds++; continue; }
+      const reserve = forceAt > i ? 1 : 0;      // 확정 칸이 아직 앞에 남아 있으면 그 자리를 비워 둔다(max 초과 방지)
+      if (spawn > 0 && wilds + reserve < max && rand() < spawn) { out.push(WILD); wilds++; continue; }
+      out.push(Math.floor(rand() * n));
+    }
+    return out;
+  }
+
+  /** 번개 스킬: 보드에 있는 진짜 6색 중에서만 색을 고르고(? 제외), 그 색 보석만 최대 count개 고른다. ? 칸은 대상이 아니다. 고를 색이 없으면 null */
+  function boltTargets(tg, count, rng) {
+    const rand = rng || Math.random;
+    const present = [];
+    tg.forEach(function (row) { row.forEach(function (t) { if (t != null && t !== WILD && present.indexOf(t) === -1) present.push(t); }); });
+    if (!present.length) return null;
+    const color = present[Math.floor(rand() * present.length)];
+    const all = [];
+    for (let r = 0; r < tg.length; r++) for (let c = 0; c < tg[r].length; c++) if (tg[r][c] === color) all.push({ r: r, c: c });
+    for (let i = all.length - 1; i > 0; i--) {
+      const j = Math.floor(rand() * (i + 1));
+      const tmp = all[i]; all[i] = all[j]; all[j] = tmp;
+    }
+    return { color: color, targets: all.slice(0, count) };
+  }
+
+  /** 정답 보너스(점). base × 난이도 배율, round 점 단위 반올림 -> 초보 240 / 중수 300 / 고수 390. level 을 생략하면 현재 난이도 */
+  function bonusFor(level) {
+    const b = CONFIG.edu.bonus;
+    const m = b.mult[level] != null ? b.mult[level] : b.mult[CONFIG.level];
+    return Math.round(b.base * (m == null ? 1 : m) / b.round) * b.round;
+  }
+
+  /** 저장 객체의 edu 필드(edu.js 소관: 학습단원·출제 풀·통계)는 모양(일반 객체)과 크기만 확인하고 그대로 보존한다. 잘못되면 {} */
+  function cleanEduField(v) {
+    if (!v || typeof v !== 'object' || Array.isArray(v)) return {};
+    let s;
+    try { s = JSON.stringify(v); } catch (e) { return {}; }
+    if (typeof s !== 'string' || s.length > CONFIG.edu.saveEduMaxChars) return {};
+    try { return JSON.parse(s); } catch (e2) { return {}; }
+  }
+
+  /**
+   * 저장할 때 edu 필드를 정한다. edu.js 가 같은 키에 직접 edu 필드를 쓸 수도(저장소 우선), save.edu 를 고쳐 writeSave 를 부를 수도(메모리 우선) 있다.
+   * 마지막으로 맞춘 값(syncedJson)에서 메모리 edu 가 바뀌었으면 메모리 것을, 아니면 저장소에 있는 것을 쓴다. 반환 { edu, json }
+   */
+  function resolveEduField(memEdu, syncedJson, storedRaw) {
+    const mem = cleanEduField(memEdu);
+    const memJson = JSON.stringify(mem);
+    let edu = mem;
+    if (memJson === syncedJson && typeof storedRaw === 'string') {
+      try {
+        const cur = JSON.parse(storedRaw);
+        if (cur && typeof cur === 'object' && !Array.isArray(cur)) edu = cleanEduField(cur.edu);
+      } catch (e) { /* 저장소 값이 깨졌으면 메모리 값 */ }
+    }
+    return { edu: edu, json: JSON.stringify(edu) };
+  }
+  // [/EDU]
 
   /**
    * 중력: 각 열의 항목을 아래로 내린다. 제네릭(종류 번호/젬 객체 모두 가능).
@@ -356,7 +609,23 @@
       for (let i = 0; i < flat.length; i++) out[Math.floor(i / C)][i % C] = flat[i];
       if (findMatches(out).length === 0 && hasValidMove(out)) return out;
     }
-    return generateBoard(R, C, TYPE_COUNT, rand);
+    // [EDU] 폴백: 새 보드를 만든 뒤 원래 있던 ? 개수만큼 다시 놓는다(놓을 자리를 못 찾으면 ? 없이). ?가 없으면 일반용과 똑같다
+    const fresh = generateBoard(R, C, TYPE_COUNT, rand);
+    const nWild = countWild(g);
+    if (nWild > 0) {
+      for (let attempt = 0; attempt < 300; attempt++) {
+        const t = fresh.map(function (row) { return row.slice(); });
+        let placed = 0;
+        while (placed < nWild && placed < R * C) {
+          const r = Math.floor(rand() * R);
+          const c = Math.floor(rand() * C);
+          if (t[r][c] !== WILD) { t[r][c] = WILD; placed++; }
+        }
+        if (findMatches(t).length === 0 && hasValidMove(t)) return t;
+      }
+    }
+    return fresh;
+    // [/EDU]
   }
 
   function fireCells(r, c, rows, cols, radius) {
@@ -441,7 +710,10 @@
   /** 난이도 diff의 레벨 stage(1~10) 목표 점수. 범위 밖이면 0 */
   function stageTarget(diff, stage) {
     const t = CONFIG.stages.targets[diff];
-    return t && stage >= 1 && stage <= t.length ? t[stage - 1] : 0;
+    if (!(t && stage >= 1 && stage <= t.length)) return 0;
+    // [EDU] 교육용 목표 점수 = 일반용 목표 × targetScale(1.2), targetRound(100)점 단위 반올림 (§21.8.4)
+    return Math.round(t[stage - 1] * CONFIG.edu.targetScale / CONFIG.edu.targetRound) * CONFIG.edu.targetRound;
+    // [/EDU]
   }
 
   function starsFor(timeLeft, startTime) {
@@ -488,7 +760,8 @@
     return {
       level: 'normal', progress: { easy: 0, normal: 0, hard: 0 }, stages: stages,
       bestByLevel: { easy: 0, normal: 0, hard: 0 }, best: 0,
-      bestChain: 0, plays: 0, lastScore: 0, muted: false, tutorialSeen: false, cutin: true
+      bestChain: 0, plays: 0, lastScore: 0, muted: false, tutorialSeen: false, cutin: true,
+      edu: {}     // [EDU] 학습단원·출제 풀·통계(edu.js 소관). 여기서는 보존만 한다
     };
   }
 
@@ -508,6 +781,7 @@
       out.bestByLevel.normal = legacy;       // 60초 판 기록: 보존만 하고 UI에서는 쓰지 않는다
     }
     out.level = LEVELS.indexOf(o.level) !== -1 ? o.level : 'normal';
+    out.edu = cleanEduField(o.edu);     // [EDU]
     // 스테이지 진행도 / 레벨별 기록 (옛 저장에는 없으므로 레벨 1부터)
     LEVELS.forEach(function (k) {
       const arr = o.stages && Array.isArray(o.stages[k]) ? o.stages[k] : null;
@@ -575,7 +849,13 @@
       fireCells: fireCells, grassCells: grassCells, baseScore: baseScore, chainMult: chainMult,
       timeBonusFor: timeBonusFor, applyDifficulty: applyDifficulty, skillDesc: skillDesc,
       fmtTime: fmtTime, fmtDur: fmtDur, stageTarget: stageTarget, starsFor: starsFor, isCleared: isCleared,
-      stageUnlocked: stageUnlocked, applyStageResult: applyStageResult, parseSave: parseSave, leftFromTime: leftFromTime, leftFloorForStars: leftFloorForStars, defaultSave: defaultSave, gaugeGain: gaugeGain, praiseLevel: praiseLevel, listMoves: listMoves
+      stageUnlocked: stageUnlocked, applyStageResult: applyStageResult, parseSave: parseSave, leftFromTime: leftFromTime, leftFloorForStars: leftFloorForStars, defaultSave: defaultSave, gaugeGain: gaugeGain, praiseLevel: praiseLevel, listMoves: listMoves,
+      // [EDU] ? 선물상자 시험용 내보내기
+      WILD: WILD, wouldMatch: wouldMatch, findMatchesPlain: findMatchesPlain, findMatchesWild: findMatchesWild, hasWild: hasWild,
+      uniqueCells: uniqueCells, wildCellsOfGroups: wildCellsOfGroups, countWild: countWild, pickRefillTypes: pickRefillTypes,
+      boltTargets: boltTargets, bonusFor: bonusFor, cleanEduField: cleanEduField, resolveEduField: resolveEduField,
+      makeMatrix: makeMatrix
+      // [/EDU]
     };
   }
   if (typeof document === 'undefined') return;
@@ -628,7 +908,11 @@
     stage: 1,         // 현재(또는 마지막) 스테이지 레벨 1~10
     target: 0,        // 이번 스테이지 목표 점수
     startTime: 120,   // 별 계산 기준 시작 시간
-    idle: 0
+    idle: 0,
+    // [EDU] 문제 중(칭찬 팝업 대기 포함)에는 게임 시계·쿨다운이 모두 멈춘다(advance 가 즉시 반환). edu = 이번 스테이지 문제 통계
+    quizActive: false,
+    edu: { asked: 0, right: 0, bonus: 0, firstDone: false, skipped: 0 }
+    // [/EDU]
   };
 
   let startGate = null;     // [시작] 눌렀을 때 먼저 물어볼 함수(없으면 바로 진행)
@@ -756,10 +1040,11 @@
   /* =====================================================================
    * 저장 (localStorage, 모든 접근 try/catch)
    * ===================================================================== */
-  const STORAGE_KEY = 'element-gems:v1';
+  const STORAGE_KEY = CONFIG.edu.storageKey;   // [EDU] 교육용 진행·설정 저장 키 'element-gems-edu:v1' (일반용 'element-gems:v1' 과 분리)
   // 저장 객체: 구조/검증은 순수 함수 parseSave()가 담당한다.
   // level = 난이도(easy/normal/hard), progress/stages = 스테이지 진행(§17.7), bestByLevel/best = 60초 판 기록(보존만, UI 미사용)
   const save = defaultSave();
+  let eduSynced = JSON.stringify(save.edu);   // [EDU] 저장소와 마지막으로 맞춘 edu 필드(JSON)
 
   function loadSave() {
     try {
@@ -767,10 +1052,18 @@
       if (!raw) return;
       const parsed = parseSave(raw);
       Object.keys(parsed).forEach(function (k) { save[k] = parsed[k]; });
+      eduSynced = JSON.stringify(save.edu);   // [EDU]
     } catch (e) { /* 저장소 사용 불가: 기본값 유지 */ }
   }
   function writeSave() {
     try {
+      // [EDU] edu 필드는 edu.js 가 같은 키에 직접 쓸 수도 있다 -> 쓰기 전에 저장소의 edu 를 읽어 보존한다(resolveEduField)
+      let stored = null;
+      try { stored = window.localStorage.getItem(STORAGE_KEY); } catch (e) { /* 읽기 실패: 메모리 값 */ }
+      const r = resolveEduField(save.edu, eduSynced, stored);
+      if (r.json !== JSON.stringify(save.edu)) save.edu = r.edu;     // 바뀐 때만 교체(edu.js 가 쥐고 있는 같은 객체를 유지)
+      eduSynced = r.json;
+      // [/EDU]
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(save));
     } catch (e) { /* 저장 실패는 무시 */ }
   }
@@ -845,16 +1138,29 @@
 
   /** 3D 보석 이미지. 로드 실패 시 SVG 도형으로 폴백 */
   function gemMarkup(type) {
-    const id = TYPES[type].id;
+    const id = VIEW[type].id;     // [EDU] 6번(? 선물상자)도 읽는다: gemOk['gift'] 는 없으므로 SVG 심볼 #gem-gift 를 쓴다
     if (gemOk[id]) return '<img class="gi" src="' + CONFIG.assets.gems + id + '.webp" alt="" draggable="false">';
     return '<svg class="gi" viewBox="0 0 100 100" aria-hidden="true"><use href="#gem-' + id + '"></use></svg>';
   }
 
+  // [EDU] ? 선물상자 접근성: 색·모양 말고 이름으로도 구별되게 role="img" + aria-label 을 붙인다(일반 보석은 속성 없음)
+  function markGemA11y(div, type) {
+    if (type === WILD) {
+      div.setAttribute('role', 'img');
+      div.setAttribute('aria-label', CONFIG.edu.text.wildLabel);
+    } else if (div.getAttribute('role') === 'img') {
+      div.removeAttribute('role');
+      div.removeAttribute('aria-label');
+    }
+  }
+  // [/EDU]
+
   function createGem(type, r, c, ms) {
     const div = document.createElement('div');
     div.className = 'gem';
-    div.dataset.type = TYPES[type].id;
+    div.dataset.type = VIEW[type].id;     // [EDU]
     div.innerHTML = gemMarkup(type);
+    markGemA11y(div, type);               // [EDU]
     const gem = { id: ++gemSeq, type: type, r: r, c: c, el: div, special: null };
     placeGem(gem, ms == null ? 0 : ms);
     return gem;
@@ -862,8 +1168,9 @@
 
   function setGemType(gem, type) {
     gem.type = type;
-    gem.el.dataset.type = TYPES[type].id;
+    gem.el.dataset.type = VIEW[type].id;     // [EDU]
     gem.el.innerHTML = gemMarkup(type);
+    markGemA11y(gem.el, type);               // [EDU]
   }
 
   function buildBoard() {
@@ -981,7 +1288,7 @@
       if (!gem) return;
       gem.el.classList.remove('selected', 'hint', 'cursor');
       gem.el.classList.add('removing');
-      spawnParticles(p.r, p.c, TYPES[gem.type].color, 2);
+      spawnParticles(p.r, p.c, VIEW[gem.type].color, 2);     // [EDU]
       gone.push(p);
     });
     state.sel = null;
@@ -992,6 +1299,40 @@
       state.grid[p.r][p.c] = null;
     });
   }
+
+  // [EDU] ? 선물상자 등장(§21.7.1). EduQuiz 가 없거나 준비되지 않았으면 ?는 나오지 않는다(일반 퍼즐과 똑같이 동작).
+  let giftHintShown = false;      // 첫 ? 등장 안내는 페이지를 연 뒤 한 번만
+
+  function quizReady() {
+    const q = window.EduQuiz;
+    return !!(q && q.ready && typeof q.ask === 'function');
+  }
+
+  function gridWildCount() {
+    let n = 0;
+    state.grid.forEach(function (row) { row.forEach(function (g) { if (g && g.type === WILD) n++; }); });
+    return n;
+  }
+
+  /** 이번 리필의 새 칸 count개 종류. spawn 이 0 이면 일반 무작위와 완전히 같다 */
+  function planRefill(count) {
+    const w = CONFIG.edu.wild;
+    const on = w.spawn > 0 && quizReady();
+    const force = on && w.guaranteeFirst && !state.edu.firstDone && count > 0;
+    if (force) state.edu.firstDone = true;
+    return pickRefillTypes(count, on ? gridWildCount() : 0, Math.random, { spawn: on ? w.spawn : 0, max: on ? w.max : 0, force: force, n: TYPE_COUNT });
+  }
+
+  /** 첫 ? 등장 안내(조준 안내 줄을 잠깐 빌려 쓴다. 조준 중이면 건너뜀) */
+  function showGiftHint() {
+    const m = el['aim-msg'];
+    if (!m || state.aim !== null) return;
+    const txt = CONFIG.edu.text.giftHint;
+    m.textContent = txt;
+    m.hidden = false;
+    setTimeout(function () { if (state.aim === null && m.textContent === txt) m.hidden = true; }, CONFIG.edu.hintMs);
+  }
+  // [/EDU]
 
   /** 중력 + 리필 */
   async function dropAndRefill() {
@@ -1006,10 +1347,15 @@
       placeGem(gem, ms);
     });
     const pending = [];
+    // [EDU] 새 칸 종류를 한꺼번에 정한다(열 순서대로 소비). ?가 하나라도 있으면 첫 등장 안내
+    const newTypes = planRefill(res.empties.reduce(function (a, b) { return a + b; }, 0));
+    let nk = 0;
+    if (!giftHintShown && newTypes.indexOf(WILD) !== -1) { giftHintShown = true; showGiftHint(); }
+    // [/EDU]
     for (let c = 0; c < COLS; c++) {
       const n = res.empties[c];
       for (let i = 0; i < n; i++) {
-        const gem = createGem(randInt(TYPE_COUNT), i - n, c, 0);
+        const gem = createGem(newTypes[nk++], i - n, c, 0);     // [EDU] (원래: randInt(TYPE_COUNT))
         grid[i][c] = gem;
         el.board.appendChild(gem.el);
         pending.push({ gem: gem, row: i, ms: Math.min(n * CONFIG.anim.fallMsPerCell, CONFIG.anim.fallMsMax) });
@@ -1122,20 +1468,29 @@
     floatText('+' + fmt(pts), ctr.r, ctr.c);
   }
 
+  // [EDU] ? 가 매치로 지워질 때(§21.7.5): 스왑으로 시작한 행동이면 ? 하나당 문제 1개(한 행동 최대 quiz.maxPerAction), 스킬이 시작한 행동이면 문제 없음
+  function noteWildClears(ctx, n) {
+    if (!n) return;
+    if (ctx.fromSkill) { state.edu.skipped += n; return; }
+    ctx.quizzes = Math.min(CONFIG.edu.quiz.maxPerAction, (ctx.quizzes || 0) + n);
+  }
+  // [/EDU]
+
   /** 매치 → 제거 → 낙하/리필 → 재검사 루프. startStep: 스왑 1, 스킬 이후 2 */
   async function cascade(ctx, startStep) {
     let step = startStep;
     for (;;) {
-      const groups = findMatches(typeGrid());
+      const tg = typeGrid();
+      const groups = findMatches(tg);
       if (!groups.length) break;
       ctx.maxStep = Math.max(ctx.maxStep, step);
       setChain(step);
       sfx('match', step);
-      const cells = [];
-      groups.forEach(function (g) {
-        awardGroup(ctx, g, step);
-        g.cells.forEach(function (p) { cells.push(p); });
-      });
+      groups.forEach(function (g) { awardGroup(ctx, g, step); });
+      // [EDU] ? 가 두 그룹에 걸쳐도 한 번만 지운다(점수·게이지는 위에서 그룹마다 따로 계산). 플레이어 스왑에서 시작한 행동일 때만 문제 대상
+      const cells = uniqueCells(groups);
+      noteWildClears(ctx, wildCellsOfGroups(groups, tg).length);
+      // [/EDU]
       renderGauges();
       await removeGems(cells);
       await dropAndRefill();
@@ -1162,13 +1517,85 @@
     renderGauges();
   }
 
+  // [EDU] 문제 흐름(§21.7.6): 행동의 연쇄가 모두 끝난 뒤 EduQuiz.ask() 를 ? 하나당 한 번씩 순서대로 부른다.
+  /** 정답 보너스 가산: 점수 + 떠오르는 숫자. 게임이 진행 중이 아니거나 값이 이상하면 아무것도 하지 않고 0 을 돌려준다 */
+  function addBonus(points) {
+    const p = Math.round(Number(points));
+    if (!isFinite(p) || p <= 0 || p > CONFIG.edu.bonus.maxPoints || state.phase !== 'playing') return 0;
+    addScore(p);
+    state.edu.bonus += p;
+    floatText('+' + fmt(p), (ROWS - 1) / 2, (COLS - 1) / 2, '#ffe9a0');
+    return p;
+  }
+
+  async function runQuizzes(ctx, id, holdMs) {
+    const n = Math.min(ctx.quizzes || 0, CONFIG.edu.quiz.maxPerAction);
+    if (n <= 0 || !quizReady()) return;
+    await wait(0);                 // 일시정지 중이면 풀릴 때까지 기다린다(게임이 바뀌면 ABORT)
+    state.quizActive = true;       // 칭찬 팝업을 보여 주는 동안과 문제 사이 간격도 시계 정지
+    audio.duck(true);
+    try {
+      if (holdMs > 0) await wait(holdMs);
+      for (let i = 0; i < n; i++) {
+        if (i > 0) await wait(CONFIG.edu.quiz.gapMs);
+        const q = window.EduQuiz;
+        if (!q || typeof q.ask !== 'function') break;
+        let res = null;
+        try { res = await q.ask(); } catch (err) { res = null; }
+        if (id !== state.gameId) throw ABORT;
+        if (!res || typeof res !== 'object') continue;      // 낼 문제가 없었음(null): 통계·보너스 없음
+        state.edu.asked++;
+        if (res.right === true) {
+          state.edu.right++;
+          // 보너스 크기는 EduQuiz 가 난이도 배율까지 계산해 넘긴다. 값이 없거나 이상하면 같은 규칙(bonusFor)으로 계산한다
+          addBonus(typeof res.bonus === 'number' && isFinite(res.bonus) && res.bonus > 0 ? res.bonus : bonusFor(state.level));
+        }
+      }
+    } finally {
+      if (id === state.gameId) { state.quizActive = false; audio.duck(false); }
+    }
+  }
+
+  /** 게임이 바뀔 때(홈·레벨 선택·재시작) 진행 중인 문제 상태를 정리한다. 팝업을 닫는 일은 EduQuiz.cancel() 이 있으면 부른다 */
+  function eduAbortQuiz() {
+    if (!state.quizActive) return;
+    state.quizActive = false;
+    audio.duck(false);
+    try { const q = window.EduQuiz; if (q && typeof q.cancel === 'function') q.cancel(); } catch (e) { /* 무시 */ }
+  }
+
+  /** EduQuiz 가 주는 소단원 요약 문구(없으면 빈 문자열) */
+  function eduUnitLabel() {
+    try {
+      const q = window.EduQuiz;
+      const t = q && typeof q.unitLabel === 'function' ? q.unitLabel() : '';
+      return typeof t === 'string' ? t : '';
+    } catch (e) { return ''; }
+  }
+
+  /** 결과 화면 한 줄: 이번 스테이지에서 낸 문제가 있을 때만. EduQuiz.summary(stats) 가 있으면 그 문구, 없으면 기본 문구 */
+  function eduSummaryText() {
+    const st = state.edu;
+    if (!st.asked) return '';
+    const stats = { asked: st.asked, right: st.right, bonus: st.bonus };
+    try {
+      const q = window.EduQuiz;
+      if (q && typeof q.summary === 'function') {
+        const t = q.summary(stats);
+        if (typeof t === 'string' && t) return t;
+      }
+    } catch (e) { /* 기본 문구 */ }
+    return CONFIG.edu.text.summary.replace('{asked}', String(stats.asked)).replace('{right}', String(stats.right)).replace('{bonus}', fmt(stats.bonus));
+  }
+  // [/EDU]
+
   async function runAction(fn) {
     if (state.locked || state.phase !== 'playing') return;
     setLocked(true);
     state.multHold = 0;
     clearHint();
     setSelected(null);
-    const ctx = { total: 0, maxStep: 1, maxGroup: 3, noPost: false };   // noPost: 무효 스왑/보드 변화 없는 스킬은 칭찬·재섞기 판정 생략
+    const ctx = { total: 0, maxStep: 1, maxGroup: 3, noPost: false, fromSkill: false, quizzes: 0 };   // noPost: 무효 스왑/보드 변화 없는 스킬은 칭찬·재섞기 판정 생략 / [EDU] fromSkill·quizzes
     const id = state.gameId;
     try {
       await fn(ctx);
@@ -1181,6 +1608,12 @@
           sfx('praise-' + cls);
           waited = true;
         }
+        // [EDU] 연쇄 정산이 끝난 뒤 문제(칭찬 팝업은 잠깐 보여 준 다음). 문제가 끝나면 점수 정산 -> NO MOVES 판정 -> 목표 달성 판정
+        if (ctx.quizzes > 0) {
+          await runQuizzes(ctx, id, waited ? CONFIG.edu.quiz.praiseHoldMs : 0);
+          waited = false;
+        }
+        // [/EDU]
         // 목표 점수에 도달했다면 NO MOVES 재섞기는 생략하고 곧바로 클리어 처리한다
         if (!isCleared(state.score, state.target) && !hasValidMove(typeGrid())) {
           if (waited) await wait(CONFIG.noMovesPauseMs);
@@ -1317,6 +1750,7 @@
   function onKey(e) {
     const k = e.key;
     state.idle = 0;
+    if (state.quizActive) return;     // [EDU] 문제 팝업이 키(O/X·1~4·Enter·Esc)를 쓴다: 게임 단축키·커서 이동은 모두 무시
     if (k === 'Escape') {
       if (state.phase === 'stages') { goHome(); return; }
       if (state.aim !== null) { cancelAim(); return; }
@@ -1395,6 +1829,7 @@
 
   /** 컷인 -> 스킬 효과. 컷인이 끝난(또는 건너뛴/취소된) 뒤 정확히 한 번 실행된다 */
   async function castSkill(ctx, i, r, c) {
+    ctx.fromSkill = true;     // [EDU] 스킬이 시작한 행동: 직접 지움이든 스킬 뒤 자동 연쇄든 ? 가 지워져도 문제 없음(§21.7.5)
     await playCutin(i);
     await wait(0);   // 컷인 중 일시정지됐다면 재개될 때까지 대기
     const id = TYPES[i].id;
@@ -1621,18 +2056,11 @@
   }
 
   async function skillLightning(ctx) {
-    const tg = typeGrid();
-    const present = [];
-    tg.forEach(function (row) { row.forEach(function (t) { if (t != null && present.indexOf(t) === -1) present.push(t); }); });
-    if (!present.length) return;
-    const color = present[randInt(present.length)];
-    const all = [];
-    for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) if (tg[r][c] === color) all.push({ r: r, c: c });
-    for (let i = all.length - 1; i > 0; i--) {
-      const j = randInt(i + 1);
-      const tmp = all[i]; all[i] = all[j]; all[j] = tmp;
-    }
-    const targets = all.slice(0, CONFIG.skills.lightning.count);
+    // [EDU] 색은 진짜 6색 중에서만 고르고 ? 칸은 대상이 아니다(boltTargets). ?가 없으면 원래와 같은 무작위 호출 순서
+    const pick = boltTargets(typeGrid(), CONFIG.skills.lightning.count, Math.random);
+    if (!pick) return;
+    const targets = pick.targets;
+    // [/EDU]
     const unit = boardSize() / COLS;
     shakeBoard(true);
     for (let i = 0; i < targets.length; i++) {
@@ -1770,6 +2198,7 @@
 
   function advance(dt) {
     if (state.cutinActive) return;          // 컷인 중에는 모든 시계 정지
+    if (state.quizActive) return;           // [EDU] 문제 중에도 모든 시계(게임 타이머·물·어둠·힌트 쿨다운·자동 힌트·배율 유지) 정지
     if (state.freeze > 0) {
       state.freeze = Math.max(0, state.freeze - dt);
     } else if (!state.timeUp) {
@@ -1924,6 +2353,8 @@
     state.stats = { maxChain: 0, skills: 0, matches: 0 };
     state.confirmFrom = null;
     state.cutinActive = false;
+    state.quizActive = false;                                              // [EDU]
+    state.edu = { asked: 0, right: 0, bonus: 0, firstDone: false, skipped: 0 };   // [EDU] 스테이지마다 문제 통계·첫 등장 보장 초기화
     state.warnSec = 99;
     state.idle = 0;
     state.level = CONFIG.level;
@@ -1975,6 +2406,7 @@
   }
 
   function goStages() {
+    eduAbortQuiz();     // [EDU]
     state.gameId++;
     cancelCutin();
     audio.bgmStop();
@@ -2006,6 +2438,7 @@
     const lv0 = save.level;
     if (!stageUnlocked(save.progress[lv0], stage)) return;     // 잠긴 레벨은 시작 불가
     audio.init();
+    eduAbortQuiz();     // [EDU]
     state.gameId++;
     const id = state.gameId;
     cancelCutin();
@@ -2022,6 +2455,14 @@
     el['pause-level'].textContent = stageLabel(lv, stage) + ' · 목표 ' + fmt(state.target);
     el['end-level'].textContent = stageLabel(lv, stage);
     el['count-info'].textContent = '레벨 ' + stage + ' · 목표 ' + fmt(state.target) + '점';
+    // [EDU] 소단원 요약 문구(있는 요소에만)와 stageStart 이벤트(edu.js 가 문제 통계 초기화에 쓴다)
+    const unitText = eduUnitLabel();
+    ['pause-unit', 'count-unit'].forEach(function (uid) {
+      const ue = document.getElementById(uid);
+      if (ue) { ue.textContent = unitText; ue.hidden = !unitText; }
+    });
+    emit('stageStart', { diff: lv, stage: stage, target: state.target, unit: unitText });
+    // [/EDU]
     // 이미지 미리 로드(첫 판 깜빡임 방지). 오래 걸리면 폴백으로 그냥 진행
     await Promise.race([assetsReady, sleepRaw(CONFIG.assets.loadTimeoutMs)]);
     if (id !== state.gameId) return;
@@ -2055,6 +2496,7 @@
 
   function pauseGame() {
     if (state.phase !== 'playing') return;
+    if (state.quizActive) return;     // [EDU] 문제 중에는 일시정지 없음(시계가 이미 멈춰 있다). 탭 전환·Esc 도 같음
     cancelAim();
     cancelCutin();       // 컷인 중 일시정지: 연출을 정리하고 효과는 재개 후 실행
     audio.bgmPause();
@@ -2077,6 +2519,7 @@
   }
 
   function openConfirm() {
+    if (state.quizActive) return;     // [EDU]
     if (state.phase === 'playing') {
       state.confirmFrom = 'playing';
       pauseGameForConfirm();
@@ -2111,6 +2554,7 @@
   }
 
   function goHome() {
+    eduAbortQuiz();     // [EDU]
     state.gameId++;
     cancelCutin();
     audio.bgmStop();
@@ -2144,6 +2588,12 @@
     if (state.stats.maxChain > save.bestChain) save.bestChain = state.stats.maxChain;
     writeSave();
     emit('stageResult', { diff: lv, stage: stage, cleared: cleared, stars: stars, left: left, improved: !!res.improved });
+    // [EDU] 결과 화면의 문제 요약 한 줄(#end-quiz 가 있으면) + stageEnd 이벤트(edu.js 의 요약·통계용)
+    const quizSummary = eduSummaryText();
+    const quizSumEl = document.getElementById('end-quiz');
+    if (quizSumEl) { quizSumEl.textContent = quizSummary; quizSumEl.hidden = !quizSummary; }
+    emit('stageEnd', { diff: lv, stage: stage, cleared: cleared, score: state.score, target: state.target, asked: state.edu.asked, right: state.edu.right, bonus: state.edu.bonus, summary: quizSummary });
+    // [/EDU]
     const last = stage >= CONFIG.stages.count;
     el['end-title'].textContent = cleared ? 'STAGE CLEAR!' : 'TIME UP';
     el['end-title'].className = cleared ? 'clear' : '';
@@ -2290,6 +2740,25 @@
     enterStages: enterStages,
     getPhase: function () { return state.phase; }
   };
+
+  // [EDU] 교육용 연결점(§21.10): edu.js 가 보너스를 더하고 문제 중 상태를 읽는다. bonusFor 는 팝업 표시용(같은 규칙으로 계산)
+  window.ElementGemsEdu = {
+    addBonus: addBonus,
+    bonusFor: bonusFor,
+    state: function () {
+      return { quizActive: !!state.quizActive, level: state.level, asked: state.edu.asked, right: state.edu.right, bonus: state.edu.bonus };
+    }
+  };
+
+  // 시험용: Node 시험 하네스가 globalThis.__EG_TEST__ 를 미리 만들어 둔 경우에만 내부를 노출한다(브라우저에서는 아무 일도 없다).
+  if (typeof globalThis !== 'undefined' && globalThis.__EG_TEST__) {
+    globalThis.__EG_TEST__.internals = {
+      state: state, save: save, el: el, CONFIG: CONFIG, startStage: startStage, handleTap: handleTap, trySwap: trySwap, onGauge: onGauge,
+      onHint: onHint, pauseGame: pauseGame, resumeGame: resumeGame, goStages: goStages, goHome: goHome, typeGrid: typeGrid, setGemType: setGemType,
+      writeSave: writeSave, loadSave: loadSave, frame: frame, onKey: onKey, listMoves: listMoves, reshuffleBoard: reshuffleBoard
+    };
+  }
+  // [/EDU]
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
   else init();

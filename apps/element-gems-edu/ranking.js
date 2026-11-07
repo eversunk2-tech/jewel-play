@@ -12,7 +12,8 @@
 })(typeof window !== 'undefined' ? window : globalThis, function () {
   'use strict';
 
-  const KEYS = { profile: 'element-gems:profile:v1', sync: 'element-gems:sync:v1', hall: 'element-gems:hall:v1' };
+  // [EDU] 제출 대기 상태(sync)만 교육용 전용 키. 프로필·순위표 캐시 키는 일반용과 같다(프로필 공유, spec §21.2.6)
+  const KEYS = { profile: 'element-gems:profile:v1', sync: 'element-gems-edu:sync:v1', hall: 'element-gems:hall:v1' };
   const DIFFS = ['easy', 'normal', 'hard'];
   const BOARDS = ['all', 'easy', 'normal', 'hard'];
   const AVATAR_COUNT = 16;
