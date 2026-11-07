@@ -1492,6 +1492,7 @@ body::after {
     .gauge { grid-template-rows: auto; }
     .gauge .gi { grid-row: 1; }
     .gauge .gname, .gauge .count { grid-row: 1; align-self: center; }
+    .gauges { grid-auto-rows: 44px; }   /* 크기 격리가 없으면 행이 88px까지 커져 패널이 보드 밖으로 넘친다 → 행을 44px로 고정 (Review 8차) */
   }
 }
 

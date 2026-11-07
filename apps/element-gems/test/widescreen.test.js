@@ -99,4 +99,7 @@ test('style.css: 와이드 블록 핵심 규칙과 휴대폰 보호 규칙', () 
   assert.ok(rm.includes('.gauge.full { animation: none; }') && rm.includes('.gauge .fill { transition: none; }'));
   // 세로 태블릿 보드 상한
   assert.ok(css.includes('--board-cap: 680px;') && css.includes('--board-cap: 840px;'));
+  // 컨테이너 쿼리(크기 격리) 미지원 폴백: 행을 44px로 고정해야 패널이 보드 밖으로 넘치지 않는다 (Review 8차)
+  const fb = css.slice(css.indexOf('@supports not (container-type: size)'));
+  assert.ok(fb.includes('.gauges { grid-auto-rows: 44px; }'));
 });
