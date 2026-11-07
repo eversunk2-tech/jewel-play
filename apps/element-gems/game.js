@@ -88,11 +88,12 @@
     stages: {
       count: 10,
       star: [0.3, 0.5],                   // 클리어 시 남은 시간 비율 >= 0.3 -> ★★, >= 0.5 -> ★★★
-      // 4차 Review 시뮬레이션(72,000판) 후 하향 조정: 레벨2~10 초보 -10%/중수 -8%/고수 -7%, 초보 L8~10 추가 -5%. 사람 플레이 후 재조정.
+      // 4차 Review 시뮬레이션(72,000판) 후 하향 조정: 레벨2~10 초보 -10%/중수 -8%/고수 -7%, 초보 L8~10 추가 -5%.
+      // §22.2 안 B(2026-11-08): 중수 = 보통(1.9초) 모델 기준 완만 곡선, 초보 = 중수 x0.94, 고수 = 중수 x1.10(100점 반올림). 사람 플레이 후 재조정.
       targets: {
-        easy: [6100, 6400, 7100, 7700, 8500, 9100, 9700, 10000, 10900, 12400],
-        normal: [6500, 6900, 7700, 8500, 9200, 9800, 10600, 11400, 12500, 14200],
-        hard: [6900, 7400, 8300, 9100, 9900, 10500, 11300, 12200, 13400, 15200]
+        easy: [5200, 5900, 6400, 6800, 7300, 7800, 8400, 8900, 9600, 10300],
+        normal: [5500, 6300, 6800, 7200, 7800, 8300, 8900, 9500, 10200, 11000],
+        hard: [6100, 6900, 7500, 7900, 8600, 9100, 9800, 10500, 11200, 12100]
       }
     },
     multReturn: 1.0,                      // 행동 종료 후 배율 표시가 x1로 돌아오기까지(초)
@@ -100,8 +101,18 @@
     particleCap: 60,
     noMovesPauseMs: 500,
     cutin: { ms: 1300, offMs: 500, reducedMs: 600 },   // ms 값은 style.css의 컷인 애니메이션 길이(1.3s)와 맞춘다
-    audio: { bgm: 0.35, bgmDuck: 0.15, sfx: 0.8 },
-    assets: { gems: 'assets/gems/', cutin: 'assets/cutin/', sfx: 'assets/sfx/', bgm: 'assets/music/bgm.mp3', loadTimeoutMs: 2500 },
+    // spec §22.3.3: 음량은 모두 0~1. bgm = 플레이 곡, bgmMenu = 시작 화면 곡, bgmDuck = 컷인 중 덕킹.
+    // 곡 페이드: fadeMs = 시작 화면 곡 -> 플레이(레벨 카드), fadeOutMs = 플레이 -> 시작 화면(나가기·레벨 선택), fadeStepMs = 단계 간격. fadeMs/fadeOutMs 0 = 페이드 없음.
+    audio: { bgm: 0.42, bgmDuck: 0.18, bgmMenu: 0.42, sfx: 0.8, fadeMs: 400, fadeOutMs: 300, fadeStepMs: 30 },
+    // music = 장면별 곡 목록(§22.3). 곡은 그 장면에 쓸 때만 내려받는다. bgm(문자열) = 목록이 비었거나 모든 곡이 실패할 때의 폴백(P0).
+    assets: {
+      gems: 'assets/gems/', cutin: 'assets/cutin/', sfx: 'assets/sfx/', bgm: 'assets/music/bgm.mp3',
+      music: {
+        menu: ['assets/music/menu.mp3'],
+        play: ['assets/music/bgm.mp3', 'assets/music/play-1.mp3', 'assets/music/play-2.mp3', 'assets/music/play-3.mp3']
+      },
+      loadTimeoutMs: 2500
+    },
     // spec §19: 별 챔피언 명예의 전당. apiBase가 비어 있으면 프로필·명예의 전당 UI와 네트워크 호출이 전부 꺼진다(기본 배포 상태).
     // 배포 후 Worker 주소(예: 'https://element-gems-ranking.sunkyboy.workers.dev')를 넣는다. 로컬 시험 주소는 커밋하지 않는다.
     ranking: {
@@ -565,6 +576,16 @@
     return null;
   }
 
+  /** 플레이 곡 고르기(spec §22.3.5). 목록이 비면 null, 1곡이면 그 곡, 2곡 이상이면 last 를 뺀 나머지에서 균등 무작위. rnd 는 [0,1) 난수 함수 */
+  function pickTrack(list, last, rnd) {
+    if (!list || list.length === 0) return null;
+    if (list.length === 1) return list[0];
+    const rest = list.filter(function (u) { return u !== last; });
+    const pool = rest.length ? rest : list;
+    const i = Math.min(pool.length - 1, Math.floor((rnd || Math.random)() * pool.length));
+    return pool[i];
+  }
+
   /* =====================================================================
    * 테스트용 내보내기 (브라우저에서는 module이 없으므로 무시된다)
    * ===================================================================== */
@@ -575,7 +596,8 @@
       fireCells: fireCells, grassCells: grassCells, baseScore: baseScore, chainMult: chainMult,
       timeBonusFor: timeBonusFor, applyDifficulty: applyDifficulty, skillDesc: skillDesc,
       fmtTime: fmtTime, fmtDur: fmtDur, stageTarget: stageTarget, starsFor: starsFor, isCleared: isCleared,
-      stageUnlocked: stageUnlocked, applyStageResult: applyStageResult, parseSave: parseSave, leftFromTime: leftFromTime, leftFloorForStars: leftFloorForStars, defaultSave: defaultSave, gaugeGain: gaugeGain, praiseLevel: praiseLevel, listMoves: listMoves
+      stageUnlocked: stageUnlocked, applyStageResult: applyStageResult, parseSave: parseSave, leftFromTime: leftFromTime, leftFloorForStars: leftFloorForStars, defaultSave: defaultSave, gaugeGain: gaugeGain, praiseLevel: praiseLevel, listMoves: listMoves,
+      pickTrack: pickTrack
     };
   }
   if (typeof document === 'undefined') return;
@@ -652,19 +674,41 @@
   }
 
   /* =====================================================================
-   * 오디오 (WAV 샘플 + MP3 배경음악, HTMLAudioElement 풀 — file://에서도 동작)
+   * 오디오 (WAV 샘플 + MP3 배경음악, HTMLAudioElement — file://에서도 동작)
+   *
+   * 배경음악(spec §22.3): Audio 요소 하나(audio.bgm)에서 src 만 바꿔 쓴다. 곡 파일은 그 장면에 쓸 때만 내려받는다(지연 로드).
+   *   scene    지금 화면이 원하는 음악. 'menu' 시작·단계 선택·프로필·명예의 전당 / 'play' 게임 판 / 'none' 결과 화면(음악 없음)
+   *   musicCtx 요소에 올라 있는 곡의 장면('menu'|'play'|null), curTrack 그 곡의 CONFIG 경로(없으면 null)
+   *   musicGen 곡을 바꿀 때마다 +1. 낡은 페이드 타이머·재시도가 새 상태를 되돌리지 못하게 한다(state.gameId 와 같은 방식)
+   * 불변식: 소리 내는 BGM 요소는 1개 / 모든 play() 의 거절은 처리 / 곡을 바꾸기 전에 musicGen++ /
+   *        곡이 하나뿐이면 loop=true, 둘 이상이면 loop=false(끝나면 다음 곡) / Audio 가 없으면 타이머를 만들지 않는다.
    * ===================================================================== */
   function noop() {}
+  // 곡 파일을 받지 않고 요소의 재생 권한(모바일 정책)만 얻을 때 쓰는 길이 0의 무음 WAV(데이터 주소: 네트워크 0)
+  const SILENT_SRC = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=';
   const audio = {
     ready: false,
     muted: false,
     pools: {},
     bgm: null,
     ducked: false,
+    scene: 'menu',
+    musicCtx: null,
+    curTrack: null,
+    lastPlay: null,       // 직전 플레이 곡(직전 곡 회피). 메모리 값만 쓰고 저장하지 않는다
+    musicGen: 0,
+    failed: {},           // 이번 방문에서 내려받기에 실패한 곡 경로
+    tries: 0,             // 이번 장면 곡 선택에서 실패한 횟수(한 번 다시 고르고, 그래도 실패하면 폴백)
+    fade: 1,              // 페이드 계수 0~1
+    fadeTimer: null,
+    wantPlay: false,      // 지금 곡을 재생하라고 요청한 상태인가(오류로 곡을 바꿀 때 이어서 재생할지 판단)
+    needNext: false,      // 곡이 끝났는데 바로 다음 곡을 못 틀었다(일시정지·소리 꺼짐)
+    onBlocked: null,      // play() 가 자동재생 정책으로 거절됐을 때 부르는 함수(첫 입력 핸들러를 다시 건다)
     /** 첫 사용자 입력에서 호출: 풀 생성 + 모바일 정책 잠금 해제 */
     init: function () {
       if (this.ready) return;
       this.ready = true;
+      if (typeof Audio === 'undefined') return;     // 오디오 없음(시험 환경 등): 아무 것도 만들지 않는다(타이머 포함)
       try {
         const self = this;
         // 1) 풀마다 첫 요소를 만들어 제스처 안에서 잠금 해제, 2) 나머지 요소는 나눠서 추가(요청 폭주 방지)
@@ -686,11 +730,14 @@
             }
           }, 300 + idx * 40);
         });
-        const bgm = new Audio(CONFIG.assets.bgm);
-        bgm.loop = true;
-        bgm.preload = 'auto';
+        // 배경음악 요소: src 없이 만든다(곡은 장면에서 쓸 때 올린다). 실제 곡을 틀기 전에는 무음 주소로 재생 권한만 얻는다.
+        const bgm = new Audio();
+        bgm.muted = this.muted;
+        bgm.addEventListener('ended', function () { self.onPlayEnded(); });
+        bgm.addEventListener('error', function () { self.onTrackError(); });
         this.bgm = bgm;
         this.applyVol();
+        bgm.src = SILENT_SRC;
         this.unlock(bgm, true);
       } catch (e) { /* 오디오 사용 불가: 무음 */ }
     },
@@ -708,7 +755,10 @@
       } catch (e) { restore(); }
     },
     applyVol: function () {
-      if (this.bgm) this.bgm.volume = this.ducked ? CONFIG.audio.bgmDuck : CONFIG.audio.bgm;
+      if (!this.bgm) return;
+      const base = this.musicCtx === 'menu' ? CONFIG.audio.bgmMenu : CONFIG.audio.bgm;
+      const v = (this.ducked ? CONFIG.audio.bgmDuck : base) * this.fade;
+      this.bgm.volume = Math.max(0, Math.min(1, v));
     },
     setMuted: function (v) {
       this.muted = v;
@@ -728,23 +778,211 @@
         if (p && p.catch) p.catch(noop);
       } catch (e) { /* 무시 */ }
     },
+
+    /* ---------- 배경음악: 곡 고르기·올리기·재생 ---------- */
+    /** 장면의 곡 목록에서 실패한 곡을 뺀 것 */
+    tracksFor: function (scene) {
+      const m = CONFIG.assets.music;
+      const self = this;
+      return (m && m[scene] ? m[scene] : []).filter(function (u) { return !self.failed[u]; });
+    },
+    /** 장면에 쓸 곡을 고른다. allowList=false 면 목록은 건너뛰고 폴백(CONFIG.assets.bgm)만 본다. 고를 곡이 없으면 null(무음) */
+    chooseTrack: function (scene, last, allowList) {
+      if (allowList) {
+        const live = this.tracksFor(scene);
+        const url = pickTrack(live, last, Math.random);
+        if (url) return { url: url, loop: live.length <= 1 };
+      }
+      const fb = CONFIG.assets.bgm;
+      return fb && !this.failed[fb] ? { url: fb, loop: true } : null;
+    },
+    clearFade: function () {
+      if (this.fadeTimer !== null) { clearTimeout(this.fadeTimer); this.fadeTimer = null; }
+    },
+    /** 요소에 곡을 올린다(src 만 설정, 재생은 하지 않는다). 곡을 바꾸기 전에 musicGen++ */
+    setTrack: function (ctx, url, loop) {
+      this.musicGen++;
+      this.clearFade();
+      try {
+        this.bgm.pause();
+        this.bgm.loop = !!loop;
+        this.bgm.preload = 'auto';        // 현재 곡에만 미리 받기. 다음 곡은 받지 않는다
+        this.bgm.src = url;
+      } catch (e) { /* 무시 */ }
+      this.musicCtx = ctx;
+      this.curTrack = url;
+      this.fade = 1;
+      this.wantPlay = false;
+      this.needNext = false;
+      this.applyVol();
+    },
+    /** 올려 둔 곡을 재생한다. fromStart 면 처음부터 */
+    playNow: function (fromStart) {
+      const b = this.bgm;
+      if (!b || !this.curTrack) return;
+      const self = this;
+      try {
+        if (fromStart) b.currentTime = 0;
+        b.muted = this.muted;
+        this.applyVol();
+        this.wantPlay = true;
+        const p = b.play();
+        if (p && p.catch) {
+          p.catch(function (e) {
+            // 자동재생 정책으로 거절: 다음 사용자 입력에서 다시 시도하게 한다. 그 밖의 거절은 무시(곡 오류는 error 이벤트가 처리)
+            if (e && e.name === 'NotAllowedError' && self.onBlocked) self.onBlocked();
+          });
+        }
+      } catch (e) { /* 무시 */ }
+    },
+    /** 소리를 완전히 멈추고 곡을 내려놓는다(다음에 필요할 때 다시 올린다) */
+    silence: function () {
+      this.musicGen++;
+      this.clearFade();
+      this.fade = 1;
+      this.wantPlay = false;
+      this.needNext = false;
+      this.curTrack = null;
+      this.musicCtx = null;
+      try { if (this.bgm) { this.bgm.pause(); this.bgm.currentTime = 0; } } catch (e) { /* 무시 */ }
+    },
+    /** ms 동안 음량을 0으로 줄인 뒤 then() 실행. ms<=0 이면 바로 실행. 곡이 바뀌면(musicGen) 낡은 단계는 무시 */
+    fadeOut: function (ms, then) {
+      const self = this;
+      const gen = this.musicGen;
+      if (!(ms > 0)) { then(); return; }
+      const stepMs = CONFIG.audio.fadeStepMs > 0 ? CONFIG.audio.fadeStepMs : 30;
+      const steps = Math.max(1, Math.round(ms / stepMs));
+      let k = 0;
+      (function step() {
+        if (gen !== self.musicGen) return;
+        k++;
+        self.fade = Math.max(0, 1 - k / steps);
+        self.applyVol();
+        if (k >= steps) { self.fadeTimer = null; then(); return; }
+        self.fadeTimer = setTimeout(step, stepMs);
+      })();
+    },
+    /** 이미 올라 있는 곡이 소리 나는 중인가 */
+    isSounding: function () {
+      return !!(this.bgm && this.curTrack && !this.bgm.paused);
+    },
+
+    /* ---------- 배경음악: 장면 전환 API (호출부는 이 이름만 쓴다) ---------- */
+    /** 시작 화면 곡을 보장한다. 이미 재생 중이면 아무것도 하지 않는다(곡을 다시 시작하지 않는다) */
+    musicMenu: function () {
+      const from = this.scene;
+      this.scene = 'menu';
+      if (!this.ready || !this.bgm) return;
+      if (this.musicCtx === 'menu' && this.isSounding()) return;
+      this.musicGen++;                       // 진행 중이던 페이드(플레이 곡 등)를 무효화
+      this.clearFade();
+      if (this.muted) { this.silence(); return; }
+      if (from === 'play' && this.musicCtx === 'play' && this.isSounding()) {
+        const self = this;
+        this.fadeOut(CONFIG.audio.fadeOutMs, function () { self.startMenu(); });
+      } else {
+        this.startMenu();
+      }
+    },
+    startMenu: function () {
+      if (!this.bgm || this.muted || document.hidden) return;
+      if (!(this.curTrack && this.musicCtx === 'menu')) {
+        const c = this.chooseTrack('menu', null, true);
+        if (!c) { this.silence(); return; }
+        this.tries = 0;
+        this.setTrack('menu', c.url, c.loop);
+      }
+      this.fade = 1;
+      this.playNow(false);
+    },
+    /** 게임 판 시작: 시작 화면 곡을 페이드아웃해 멈추고, 이번 판 곡을 골라 src 만 설정한다(재생은 GO 뒤 bgmPlay(true)) */
+    musicPrepare: function () {
+      this.scene = 'play';
+      if (!this.ready || !this.bgm) return;
+      this.musicGen++;
+      this.clearFade();
+      this.wantPlay = false;
+      if (this.muted) { this.silence(); return; }       // 소리 꺼짐: 곡을 받지 않는다(켜면 bgmPlay 가 고른다)
+      const self = this;
+      if (this.isSounding()) this.fadeOut(CONFIG.audio.fadeMs, function () { self.prepareTrack(); });
+      else this.prepareTrack();
+    },
+    prepareTrack: function () {
+      if (!this.bgm || this.muted) return;
+      const c = this.chooseTrack('play', this.lastPlay, true);
+      this.tries = 0;
+      if (!c) { this.silence(); return; }
+      this.lastPlay = c.url;
+      this.setTrack('play', c.url, c.loop);
+    },
+    /** 플레이 곡 재생: GO 직후는 처음부터(bgmPlay(true)), 일시정지 재개는 이어서(bgmPlay(false)) */
     bgmPlay: function (fromStart) {
       if (!this.ready || !this.bgm) return;
-      try {
-        if (fromStart) this.bgm.currentTime = 0;
-        this.bgm.muted = this.muted;
-        this.applyVol();
-        const p = this.bgm.play();
-        if (p && p.catch) p.catch(noop);
-      } catch (e) { /* 무시 */ }
+      const loaded = !!(this.curTrack && this.musicCtx === 'play');
+      if (this.muted && !loaded) return;          // 소리 꺼짐: 곡을 새로 받지 않는다(이미 올라 있는 곡은 음소거로 계속 흐른다)
+      if (!loaded) {
+        const c = this.chooseTrack('play', this.lastPlay, true);
+        if (!c) return;
+        this.tries = 0;
+        this.lastPlay = c.url;
+        this.setTrack('play', c.url, c.loop);
+        fromStart = true;
+      } else if (this.needNext && !this.bgm.loop) {
+        if (!this.muted) this.startNext();         // 끝난 곡: 다음 곡(소리 꺼짐이면 켤 때 받는다)
+        return;
+      }
+      this.fade = 1;
+      this.playNow(!!fromStart);
+    },
+    /** 플레이 곡이 끝났을 때: 직전 곡을 뺀 다른 곡을 틀어 이어 간다 */
+    startNext: function () {
+      const c = this.chooseTrack('play', this.curTrack, true);
+      if (!c) { this.silence(); return; }
+      this.tries = 0;
+      this.lastPlay = c.url;
+      this.setTrack('play', c.url, c.loop);
+      this.playNow(true);
+    },
+    onPlayEnded: function () {
+      if (!this.bgm || this.musicCtx !== 'play' || !this.curTrack || this.bgm.loop || this.scene !== 'play') return;
+      if (this.muted || state.phase !== 'playing') { this.needNext = true; return; }    // 지금은 못 튼다: 재개·소리 켤 때 다음 곡
+      this.startNext();
+    },
+    /** 곡을 못 받았을 때(error): 실패 목록에 넣고 다른 곡으로 한 번 재시도 -> 폴백(CONFIG.assets.bgm) -> 무음. 화면에 오류를 띄우지 않는다 */
+    onTrackError: function () {
+      if (!this.bgm || !this.curTrack) return;      // 무음 주소 등 곡이 아닌 것의 오류는 무시
+      const bad = this.curTrack;
+      const ctx = this.musicCtx;
+      const was = this.wantPlay;
+      this.failed[bad] = true;
+      this.tries++;
+      const c = this.chooseTrack(ctx, bad, this.tries <= 1);
+      if (!c) { this.silence(); return; }
+      if (ctx === 'play') this.lastPlay = c.url;
+      this.setTrack(ctx, c.url, c.loop);
+      if (was && !(ctx === 'menu' && document.hidden)) this.playNow(true);
+    },
+    /** 지금 장면에 맞는 곡을 보장한다: 첫 입력·소리 켤 때·탭이 다시 보일 때 */
+    musicSync: function () {
+      if (!this.ready || !this.bgm || this.muted) return;
+      if (this.scene === 'menu') {
+        if (document.hidden) return;
+        if (this.musicCtx === 'menu' && this.isSounding()) { this.applyVol(); return; }
+        this.startMenu();
+      } else if (this.scene === 'play' && state.phase === 'playing') {
+        if (this.musicCtx === 'play' && this.isSounding()) { this.applyVol(); return; }
+        this.bgmPlay(false);
+      }
     },
     bgmPause: function () {
+      this.wantPlay = false;
       try { if (this.bgm) this.bgm.pause(); } catch (e) { /* 무시 */ }
     },
+    /** 결과 화면 등 음악이 없는 장면: 멈추고 곡을 내려놓는다 */
     bgmStop: function () {
-      try {
-        if (this.bgm) { this.bgm.pause(); this.bgm.currentTime = 0; }
-      } catch (e) { /* 무시 */ }
+      this.scene = 'none';
+      this.silence();
     },
     duck: function (on) {
       this.ducked = on;
@@ -1854,7 +2092,7 @@
     audio.setMuted(!audio.muted);
     save.muted = audio.muted;
     writeSave();
-    if (!audio.muted) audio.init();
+    if (!audio.muted) { audio.init(); audio.musicSync(); }     // 켬: 지금 장면의 곡을 시작/재개(꺼져 있던 동안 안 받은 곡은 이때 받는다)
     updateSoundButtons();
   }
 
@@ -1977,7 +2215,7 @@
   function goStages() {
     state.gameId++;
     cancelCutin();
-    audio.bgmStop();
+    audio.musicMenu();       // 시작 화면 곡(플레이 곡이 소리 나는 중이면 페이드아웃 뒤). 이미 재생 중이면 그대로 둔다
     state.phase = 'stages';
     state.locked = false;
     hideAllOverlays();
@@ -2009,7 +2247,7 @@
     state.gameId++;
     const id = state.gameId;
     cancelCutin();
-    audio.bgmStop();
+    audio.musicPrepare();    // 시작 화면 곡 페이드아웃 + 이번 판 곡을 골라 src 만 설정(재생은 GO 뒤)
     hideAllOverlays();
     applyDifficulty(save.level);     // 선택 난이도 값을 활성 위치에 적용(재시작도 같은 난이도)
     resetState();
@@ -2113,7 +2351,7 @@
   function goHome() {
     state.gameId++;
     cancelCutin();
-    audio.bgmStop();
+    audio.musicMenu();
     state.phase = 'start';
     state.locked = false;
     hideAllOverlays();
@@ -2240,8 +2478,39 @@
     el['btn-next'].addEventListener('click', nextStage);
     el['btn-home'].addEventListener('click', goStages);
     document.addEventListener('visibilitychange', function () {
-      if (document.hidden && state.phase === 'playing') pauseGame();
+      if (document.hidden) {
+        if (state.phase === 'playing') pauseGame();
+        else if (audio.scene === 'menu') audio.bgmPause();      // 시작·단계 선택 화면의 곡도 멈춘다(크롬은 숨은 탭에서도 소리가 난다)
+      } else {
+        audio.musicSync();                                       // 다시 보이면 시작 화면 곡을 이어서
+      }
     });
+    bindFirstInput();
+  }
+
+  /** 첫 사용자 입력(spec §22.3.3): 캡처 단계에서 효과음·음악 요소를 준비하고 시작 화면 곡을 시작한다.
+   *  audio.ready 가 되면 떼는 1회용 핸들러. pointerdown 은 쓰지 않는다(iOS Safari 는 touchend·click 부터 사용자 활성으로 본다).
+   *  소리 꺼짐이면 init 하지 않으므로(곡을 받지 않는다) 켜거나 첫 판을 시작할 때까지 남아 있다. play() 가 자동재생 정책으로 거절되면 다시 걸린다. */
+  const FIRST_INPUT_EVENTS = ['click', 'touchend', 'keydown'];
+  let firstInputArmed = false;
+  function onFirstInput() {
+    if (!audio.muted) audio.init();
+    audio.musicSync();
+    if (audio.ready) disarmFirstInput();
+  }
+  function armFirstInput() {
+    if (firstInputArmed) return;
+    firstInputArmed = true;
+    FIRST_INPUT_EVENTS.forEach(function (t) { document.addEventListener(t, onFirstInput, true); });
+  }
+  function disarmFirstInput() {
+    firstInputArmed = false;
+    if (!document.removeEventListener) return;
+    FIRST_INPUT_EVENTS.forEach(function (t) { document.removeEventListener(t, onFirstInput, true); });
+  }
+  function bindFirstInput() {
+    audio.onBlocked = armFirstInput;
+    armFirstInput();
   }
 
   /* =====================================================================
