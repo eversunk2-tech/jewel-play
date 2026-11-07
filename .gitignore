@@ -1,1 +1,8 @@
 .DS_Store
+
+# 명예의 전당 서버(Cloudflare Worker): 로컬 비밀·도구 캐시는 커밋하지 않는다 (spec §19.9)
+.dev.vars*
+!.dev.vars.example
+.env*
+.wrangler/
+node_modules/

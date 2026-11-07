@@ -91,7 +91,20 @@
     noMovesPauseMs: 500,
     cutin: { ms: 1300, offMs: 500, reducedMs: 600 },   // ms 값은 style.css의 컷인 애니메이션 길이(1.3s)와 맞춘다
     audio: { bgm: 0.35, bgmDuck: 0.15, sfx: 0.8 },
-    assets: { gems: 'assets/gems/', cutin: 'assets/cutin/', sfx: 'assets/sfx/', bgm: 'assets/music/bgm.mp3', loadTimeoutMs: 2500 }
+    assets: { gems: 'assets/gems/', cutin: 'assets/cutin/', sfx: 'assets/sfx/', bgm: 'assets/music/bgm.mp3', loadTimeoutMs: 2500 },
+    // spec §19: 별 챔피언 명예의 전당. apiBase가 비어 있으면 프로필·명예의 전당 UI와 네트워크 호출이 전부 꺼진다(기본 배포 상태).
+    // 배포 후 Worker 주소(예: 'https://element-gems-hall.<계정>.workers.dev')를 넣는다. 로컬 시험 주소는 커밋하지 않는다.
+    ranking: {
+      apiBase: '',
+      timeoutMs: 8000,                                   // 요청 1회 제한 시간
+      retryMs: [5000, 15000, 60000, 300000, 900000],     // 제출 실패 백오프(5초→15초→1분→5분→15분 상한)
+      minSubmitGapMs: 3000,                              // 서버의 같은 pid 쓰기 간격(3초)을 지킨다
+      refreshMinMs: 5000,                                // 순위표 [새로고침] 간격
+      resultDelayMs: 1200,                               // 결과 화면이 뜬 뒤 제출까지(컷인·연출과 겹치지 않게)
+      hallCacheMaxAgeMs: 259200000,                      // 오프라인용 마지막 순위표 캐시 보관(3일)
+      nickChangePerDay: 2,
+      pageSize: 50
+    }
   };
 
   // 컷인 캐릭터·대사 (강조색 rgb는 CSS 변수용)
@@ -437,11 +450,30 @@
 
   function validScore(v) { return typeof v === 'number' && isFinite(v) && v >= 0; }
 
+  /** 난이도 diff의 시작 시간(초). 별 하한 추정·서버 제출용으로 활성 값(CONFIG.time)과 무관하게 프리셋에서 읽는다 */
+  function startTimeOf(diff) {
+    const d = CONFIG.difficulty[diff];
+    return d ? d.time.start : 0;
+  }
+
+  /** 남은 시간(초, 소수)을 정수 초(내림)로. 부동소수점 오차 방어(spec §19.2.2) */
+  function leftFromTime(timeLeft) {
+    return Math.max(0, Math.floor(timeLeft + 1e-6));
+  }
+
+  /** 별 개수로 추정한 남은 시간 하한(정수 초). ★★★ >= 50%, ★★ >= 30%, ★ -> 0 (spec §19.2.4 마이그레이션) */
+  function leftFloorForStars(diff, stars) {
+    const s = startTimeOf(diff);
+    if (stars >= 3) return Math.ceil(s * CONFIG.stages.star[1] - 1e-9);
+    if (stars === 2) return Math.ceil(s * CONFIG.stages.star[0] - 1e-9);
+    return 0;
+  }
+
   function defaultSave() {
     const stages = {};
     LEVELS.forEach(function (k) {
       stages[k] = [];
-      for (let i = 0; i < CONFIG.stages.count; i++) stages[k].push({ best: 0, stars: 0 });
+      for (let i = 0; i < CONFIG.stages.count; i++) stages[k].push({ best: 0, stars: 0, left: 0 });
     });
     return {
       level: 'normal', progress: { easy: 0, normal: 0, hard: 0 }, stages: stages,
@@ -476,8 +508,16 @@
         for (let i = 0; i < arr.length; i++) {
           const e = arr[i];
           if (!e || typeof e !== 'object') { ok = false; break; }
-          const stars = (typeof e.stars === 'number' && e.stars % 1 === 0 && e.stars >= 0 && e.stars <= 3) ? e.stars : 0;
-          parsed.push({ best: validScore(e.best) ? e.best : 0, stars: stars });
+          let stars = (typeof e.stars === 'number' && e.stars % 1 === 0 && e.stars >= 0 && e.stars <= 3) ? e.stars : 0;
+          let left = (typeof e.left === 'number' && e.left % 1 === 0 && e.left >= 0 && e.left <= 200) ? e.left : 0;
+          if (stars >= 1) {
+            // 별 <-> 남은 시간 일치: left가 없거나 낮으면 별에서 하한을 추정(옛 저장 마이그레이션), 별이 낮으면 left에서 올린다
+            left = Math.max(left, leftFloorForStars(k, stars));
+            stars = Math.max(stars, starsFor(left, startTimeOf(k)));
+          } else {
+            left = 0;
+          }
+          parsed.push({ best: validScore(e.best) ? e.best : 0, stars: stars, left: left });
         }
         if (ok) {
           out.stages[k] = parsed;
@@ -491,16 +531,20 @@
     return out;
   }
 
-  /** 스테이지 결과를 저장 객체에 반영. 반환: { firstClear, unlocked } */
-  function applyStageResult(sv, diff, stage, score, cleared, stars) {
+  /** 스테이지 결과를 저장 객체에 반영. 반환: { firstClear, unlocked, improved } — improved = 별 또는 남은 시간(left)이 커졌는가(제출 트리거) */
+  function applyStageResult(sv, diff, stage, score, cleared, stars, left) {
     const e = sv.stages[diff][stage - 1];
+    if (typeof e.left !== 'number') e.left = 0;
     if (score > e.best) e.best = score;
     let firstClear = false;
+    let improved = false;
     if (cleared) {
-      if (stars > e.stars) e.stars = stars;          // 최고 별만 갱신
+      const lf = (typeof left === 'number' && isFinite(left) && left > 0) ? Math.floor(left) : 0;
+      if (stars > e.stars) { e.stars = stars; improved = true; }       // 최고 별만 갱신
+      if (lf > e.left) { e.left = lf; improved = true; }              // 남은 시간 최고 기록만 갱신(줄어드는 갱신 없음)
       if (stage > sv.progress[diff]) { sv.progress[diff] = stage; firstClear = true; }
     }
-    return { firstClear: firstClear, unlocked: firstClear && stage < CONFIG.stages.count ? stage + 1 : 0 };
+    return { firstClear: firstClear, unlocked: firstClear && stage < CONFIG.stages.count ? stage + 1 : 0, improved: improved };
   }
 
   function praiseLevel(maxStep, maxGroup, total) {
@@ -521,10 +565,22 @@
       fireCells: fireCells, grassCells: grassCells, baseScore: baseScore, chainMult: chainMult,
       timeBonusFor: timeBonusFor, applyDifficulty: applyDifficulty,
       fmtTime: fmtTime, fmtDur: fmtDur, stageTarget: stageTarget, starsFor: starsFor, isCleared: isCleared,
-      stageUnlocked: stageUnlocked, applyStageResult: applyStageResult, parseSave: parseSave, defaultSave: defaultSave, gaugeGain: gaugeGain, praiseLevel: praiseLevel, listMoves: listMoves
+      stageUnlocked: stageUnlocked, applyStageResult: applyStageResult, parseSave: parseSave, leftFromTime: leftFromTime, leftFloorForStars: leftFloorForStars, defaultSave: defaultSave, gaugeGain: gaugeGain, praiseLevel: praiseLevel, listMoves: listMoves
     };
   }
   if (typeof document === 'undefined') return;
+
+  /* =====================================================================
+   * 명예의 전당 훅 (spec §19) — ranking.js / ranking-ui.js 가 window.ElementGemsHost 로 연결한다.
+   * 이 파일은 이벤트만 내보낸다: init / renderStart / stageResult. 리스너가 없으면 아무 일도 하지 않는다.
+   * ===================================================================== */
+  const listeners = {};
+  let inited = false;
+  function emit(name, data) {
+    (listeners[name] || []).slice().forEach(function (fn) {
+      try { fn(data); } catch (e) { /* 랭킹 쪽 오류가 게임을 멈추지 않게 삼킨다 */ }
+    });
+  }
 
   /* =====================================================================
    * 상태
@@ -1742,6 +1798,10 @@
     el['screen-start'].hidden = name !== 'start';
     el['screen-stages'].hidden = name !== 'stages';
     el['screen-game'].hidden = name !== 'game';
+    ['profile', 'hall'].forEach(function (n) {       // 명예의 전당 화면(없으면 건너뜀)
+      const s = document.getElementById('screen-' + n);
+      if (s) s.hidden = name !== n;
+    });
   }
   function showOverlay(id, on) {
     el[id].hidden = !on;
@@ -1816,6 +1876,7 @@
   function renderStart() {
     renderLevelUi();
     el.tutorial.hidden = save.tutorialSeen;
+    emit('renderStart');
   }
 
   function resetState() {
@@ -2048,12 +2109,14 @@
     const lv = state.level;
     const stage = state.stage;
     const cleared = isCleared(state.score, state.target);
-    const stars = cleared ? starsFor(state.timeLeft, state.startTime) : 0;
-    const res = applyStageResult(save, lv, stage, state.score, cleared, stars);
+    const left = cleared ? leftFromTime(state.timeLeft) : 0;     // 정수 초(내림). 임계값이 정수라 별 결과는 기존과 같다
+    const stars = cleared ? starsFor(left, state.startTime) : 0;
+    const res = applyStageResult(save, lv, stage, state.score, cleared, stars, left);
     save.plays += 1;
     save.lastScore = state.score;
     if (state.stats.maxChain > save.bestChain) save.bestChain = state.stats.maxChain;
     writeSave();
+    emit('stageResult', { diff: lv, stage: stage, cleared: cleared, stars: stars, left: left, improved: !!res.improved });
     const last = stage >= CONFIG.stages.count;
     el['end-title'].textContent = cleared ? 'STAGE CLEAR!' : 'TIME UP';
     el['end-title'].className = cleared ? 'clear' : '';
@@ -2181,7 +2244,23 @@
     renderChain();
     showScreen('start');
     window.requestAnimationFrame(frame);
+    inited = true;
+    emit('init');
   }
+
+  // 외부 모듈(ranking-ui.js)용 연결점. 저장 객체는 읽기 위해서만 노출한다.
+  window.ElementGemsHost = {
+    CONFIG: CONFIG,
+    on: function (name, fn) {
+      (listeners[name] = listeners[name] || []).push(fn);
+      if (name === 'init' && inited) { try { fn(); } catch (e) { /* 무시 */ } }
+    },
+    getSave: function () { return save; },
+    writeSave: writeSave,
+    showScreen: showScreen,
+    goHome: goHome,
+    getPhase: function () { return state.phase; }
+  };
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
   else init();

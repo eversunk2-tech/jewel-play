@@ -1,0 +1,21 @@
+# element-gems 명예의 전당 Worker 설정 (spec §19.8 CLI 방식용). 비밀 정보는 이 파일에 쓰지 않습니다.
+# 대시보드(붙여넣기) 방식이면 이 파일은 쓰이지 않습니다.
+name = "element-gems-hall"
+main = "dist/worker.js"
+compatibility_date = "2025-06-01"
+
+# D1 바인딩 이름은 반드시 DB 여야 합니다.
+# database_id 는 비밀이 아닙니다. `npx wrangler d1 create element-gems-hall` 출력의 값으로 바꿔 넣으세요.
+[[d1_databases]]
+binding = "DB"
+database_name = "element-gems-hall"
+database_id = "REPLACE_WITH_YOUR_DATABASE_ID"
+
+# 일반 변수(비밀이 아님). 대시보드 Settings > Variables and Secrets 에서도 바꿀 수 있습니다.
+[vars]
+# 쉼표로 여러 개. 끝에 / 를 붙이지 않고, * 는 쓰지 않습니다.
+ALLOWED_ORIGINS = "https://eversunk2-tech.github.io"
+# 긴급 추가 금칙어(쉼표 목록, 서버에만 적용). 평소에는 비워 둡니다.
+EXTRA_BLOCK = ""
+
+# 비밀(Secret)은 여기에 쓰지 않습니다. 필요하면 `npx wrangler secret put IP_SALT` / `ADMIN_KEY` 로 직접 넣으세요.
