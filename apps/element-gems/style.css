@@ -1230,7 +1230,7 @@ body::after {
   .hf-screen { padding: 8px 12px; }
   .hf-card.is-hall { width: min(100%, 780px); display: grid; grid-template-columns: 290px 1fr; column-gap: 14px; grid-auto-rows: min-content; align-content: start; max-height: calc(var(--vh100) - 16px); padding: 10px 14px; }
   .hf-card.is-hall .hf-head { grid-column: 1 / -1; margin-bottom: 4px; }
-  .hf-card.is-hall .hf-head .btn.small { min-height: 40px; }
+  .hf-card.is-hall .hf-head .btn.small { min-height: 44px; }
   .hf-card.is-hall > :not(.hf-head):not(.hf-panel) { grid-column: 1; }
   .hf-card.is-hall .hf-panel { grid-column: 2; grid-row: 2 / span 6; max-height: calc(var(--vh100) - 90px); min-height: 0; }
   .hf-card.is-hall .hf-meta { flex-direction: column; align-items: flex-start; gap: 0; }
