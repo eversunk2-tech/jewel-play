@@ -1013,3 +1013,579 @@ Gemini 생성 후 배경 제거·WebP 변환·용량 점검은 기존 에셋 절
 - before/after 비교: `SP/shots/compare-before-after.png`(390×844, 시작·레벨선택·게임·칸 상태).
 - 390×844: `SP/shots/before-{1-start,2-stages,3-game,4-cell-states,5-aim-popup,6-pause,7-result}.png`, `SP/shots/after-…`(동일 이름). 360×640: `before360-…`/`after360-…`, 1280×800: `beforeD-…`/`afterD-…`, 가로 844×390: `afterL-…`.
 - 한계: HUD 값(점수·바·게이지)은 표시용으로 DOM에 직접 넣은 것(게임 상태는 실제), 물 보석 필터·폰트는 시스템 폰트 기준. 목업은 2026-11-07 13:5x 시점의 `style.css`를 기준으로 하므로 Build 시 현재 파일과 diff 확인.
+
+## 19. 별 챔피언 명예의 전당 — 닉네임·아바타·서버 랭킹 (Plan 추가, 2026-11-07)
+
+> **상태: 초안(사용자 승인 전).** 구현은 승인 후 Build가 한다. 표의 수치·문구는 모두 **초안 값**이다.
+> **사용자가 확정한 결정(2026-11-07)**: ① 랭킹은 **"별 챔피언" 한 가지만**(점수 랭킹·점수 도전 모드는 이번 범위 밖, 2차 후보) ② 호스팅은 **Cloudflare Workers + D1** ③ 닉네임은 **제한된 자유 입력**(단어 조합 방식 아님) + 글자 수·허용 문자·비속어·개인정보 검증을 **클라이언트·서버 양쪽**에서 ④ 닉네임을 정할 때 **본인 아바타 선택**(`assets/avatars/avatar-01~15.webp`, 서버에는 번호 1~15만 저장) ⑤ **대상 사용자: 전체 이용가, 초등학생 이상**(한글을 읽고 쓸 수 있는 연령부터 성인까지) — 공개 순위표에 나가는 정보는 **닉네임·아바타·별 수·순위뿐**이고 이름·학교·학년반·연락처는 받지 않는다. 안전 기준은 초등학생이 써도 안전한 수준으로 **보수적**으로 유지하고, 화면 문구는 초등학생이 읽고 이해할 수 있는 쉬운 말로 쓰되 성인에게 어색하지 않은 중립적인 톤을 쓴다(유아용 그림 위주 UI는 만들지 않는다).
+> **프로젝트 규칙**: `CLAUDE.md`(서버 예외·전체 이용가·서버 규칙)와 `PRD.md`(대상 사용자)는 **메인 세션이 이미 반영**했다 → §19.9에서 중복·충돌을 정리했다. 이 §19는 `CLAUDE.md`를 수정하지 않는다.
+> **충돌 시 §19 우선(대체)**: 없음. 기존 §1~§18은 고치지 않았다. 다만 **§9·§17.7의 저장 구조를 "확장"**한다(스테이지 항목에 `left` 필드 추가, §19.2.4). `§18`의 토큰·컴포넌트를 그대로 재사용한다.
+> **근거 문서**(2026-11-07 확인, §19.14 목록): Cloudflare Workers 한도, D1 가격·한도, D1 시작하기(wrangler), Secrets, Cache API, Rate Limiting 바인딩. **시안**: scratchpad `ranking-plan/`(§19.7).
+
+### 19.1 개요와 결정 요약
+| 항목 | 결정(초안) | 근거 |
+|---|---|---|
+| 순위표 | **별 챔피언 1종**. 탭: 전체 / 초보 / 중수 / 고수. 상위 50명 + 내 순위 + 메달(1~3위) + 새로고침 + 마지막 갱신 시각 | 사용자 결정 ① |
+| 정렬 | **별 수 내림차순 → 남은 시간 합계(초) 내림차순 → 먼저 달성한 순(순위 점수가 마지막으로 오른 시각 오름차순) → 내부 id** | §19.2.1 |
+| 통합 점수 | **세 난이도 별 수의 단순 합**(최대 90). 남은 시간 합계도 단순 합 | §19.2.3 (대안: 난이도 가중) |
+| 남은 시간 합계 | 스테이지별 **최고 기록의 남은 시간(정수 초, 내림)**의 합. **현재 저장 구조(`stages`)에는 없음 → `left` 필드 추가 + 마이그레이션** | §19.2.2, §19.2.4 |
+| 프로필 | 최초 실행에 프로필 화면(아바타 15종 격자 + 닉네임). **"나중에 할래요" 허용**(건너뛰면 랭킹 미참여, 게임은 그대로). 닉네임 변경 **하루 2회**, 아바타 변경은 횟수 제한 없음(제출 간격 제한만) | §19.3 |
+| 닉네임 | 2~8글자, 완성형 한글·영문·숫자만(공백·특수문자·이모지·자모 낱자 불가), 숫자 ≤3개, 같은 글자 3연속 불가, 금칙어·개인정보·사칭 차단. **중복 허용 + 서버가 4자리 번호표(`#0427`) 부여** | §19.3.3 |
+| 서버 | Cloudflare **Worker 1개 + D1 1개**. 엔드포인트: `POST /api/sync`(프로필+진행 통합), `GET /api/leaderboard`, `GET /api/rank`, `POST /api/delete`, `GET /api/health`, (선택) `/api/admin/*` | §19.4.1 |
+| 소유권 | 클라이언트가 만든 무작위 `playerId`(UUID). **서버에는 SHA-256 해시만 저장**, 순위표 응답에는 **어떤 ID도 노출하지 않음** | §19.4.3 |
+| 조작 방어 | 형식·범위·연쇄 해금·별↔남은 시간 일치·최대 시간 상한·**항목별 최대값 병합(감소 불가)**·제출 간격·요청 크기. 완전 방어 불가, 허용 수준 명시 | §19.4.4 |
+| 운영 | 1순위 **D1 SQL 콘솔/`wrangler d1 execute`로 숨김·삭제**(코드·비밀키 불필요). 선택: `ADMIN_KEY`(Worker Secret) 보호 `/api/admin/*` | §19.4.6 |
+| 용량 | **500명 가정: 요청 약 10%, 쓰기 약 13%(안전계수 2배에도 27%), 읽기 약 17%(2배 34%)**. 병목은 **읽기(순위 스캔이 인원에 비례)** → 약 900~1,300명을 넘으면 유료 전환/근사 순위 | §19.4.7 |
+| 오프라인 | 서버가 없거나 실패해도 게임 완전 동작. 진행 제출은 **스냅샷 1개 + 재시도(백오프)**, 순위표는 오류 안내 + 마지막 캐시 표시 | §19.5 |
+| 배포 안내 | 대시보드(붙여넣기) 방식 + wrangler CLI 방식 둘 다. **로그인·결제·비밀키 입력은 사용자가 직접** | §19.8 |
+| 코드 위치 | 서버 코드는 `apps/element-gems/server/`(공개 저장소, **비밀 정보 없음**). 닉네임 규칙 모듈은 클라이언트·서버가 **같은 파일**을 쓴다 | §19.9 |
+
+### 19.2 랭킹 규칙
+
+#### 19.2.1 순위 정렬 (공통)
+```
+ORDER BY 별 수 DESC, 남은 시간 합계 DESC, 순위점수_갱신시각 ASC, id ASC
+```
+| 단계 | 의미 | 비고 |
+|---|---|---|
+| 1 | 총 별 수(많을수록 위) | 전체 0~90, 난이도별 0~30 |
+| 2 | 남은 시간 합계(초, 많을수록 위) | 클리어한 스테이지의 **최고 기록** 남은 시간의 합. 빠르게 깰수록 큼 |
+| 3 | 순위 점수가 **마지막으로 오른 시각**이 이른 사람 | `별` 또는 `남은 시간 합계`가 **올랐을 때만** 갱신(닉네임·아바타 변경은 갱신 안 함). 같은 기록이면 먼저 도달한 사람이 앞 |
+| 4 | 내부 `id`(가입 순) | 완전한 전순서 보장 → **공동 순위 없음**(모든 줄에 1,2,3… 번호) |
+**동점 폭발 방지 평가**: 별만 쓰면 90★ 만점자가 모두 공동 1위가 된다(91개 값). 2단계가 만점자들을 **속도(남은 시간 합계, 정수 초 0~약 1,500)**로 가르므로 "만점 이후에도 시간 단축 경쟁"이 생긴다. 별·시간 합계까지 같은 경우는 극히 드물고, 그때는 3·4단계가 **항상 한 줄로** 정렬한다(동점 처리 규칙이 모호해질 일이 없음). 표시에는 남은 시간 합계를 **보여 주지 않고**(공개 정보 최소화) "별이 같으면 남은 시간이 많은 순"이라고만 안내한다.
+
+#### 19.2.2 "남은 시간 합계"의 정의
+| 항목 | 정의(초안) |
+|---|---|
+| 스테이지 값 `left` | 그 스테이지를 클리어한 판들의 **클리어 순간 남은 시간 중 최댓값**, **정수 초(내림)**. 미클리어는 `-1`(서버 전송 시) / 저장 시 `stars:0` |
+| 합계 | 난이도별 `Σ max(left, 0)`(10 스테이지), 전체 = 세 난이도 합 |
+| 갱신 시점 | **스테이지의 최고 `left`가 커질 때마다**(별이 안 늘어도). 줄어드는 갱신은 없음 |
+| 별과의 관계 | 별은 `left`의 함수다: `left ≥ 시작시간의 50%` → 3★, `≥30%` → 2★, 그 외 1★. 임계값이 **정수**(초보 39/65, 중수 36/60, 고수 30/50초)라 내림해도 기존 `starsFor()` 결과가 **정확히 같다** → 서버는 별을 **받지 않고 `left`에서 계산**한다(불일치 불가능) |
+| 상한(초안) | 서버 허용 `left ≤ 시작시간 + 20` (초보 150 / 중수 140 / 고수 120). 근거: 시간 보너스·빛 스킬(+4~5초)로 시작 시간을 약간 넘길 수 있다(§17.3 "시간 보너스 총량이 판당 약 3~8초" + 빛 스킬). **실제 최대는 Review가 시뮬/플레이로 확인하고, 오탐이 나오면 `CONFIG.time.max`(155/145/120, 게임 내부 상한)로 완화** |
+| 정수 변환 | `left = Math.floor(timeLeft + 1e-6)` (부동소수점 오차 방어) |
+
+#### 19.2.3 통합(전체) 점수 정의 — 결정
+| 안 | 정의 | 장점 | 단점 |
+|---|---|---|---|
+| **A. 단순 합(권장)** | 전체 별 = 초보★ + 중수★ + 고수★ (최대 90) | 한 줄로 설명됨("별 90개 모으기"), 플레이어가 자기 점수를 계산 가능, 서버·클라이언트 구현 단순, 총합이 난이도별 탭과 일치 | 쉬운 난이도로도 만점 가능 → 전체 1위가 "고수 도전자"를 뜻하지 않음 |
+| B. 난이도 가중 | 초보×1 + 중수×1.5 + 고수×2 (최대 135) | 어려운 난이도를 도는 동기 | 규칙이 복잡, 소수점·정렬 키 변환 필요, 난이도별 탭과 총합이 어긋남, "왜 내 별이 이만큼이지?" 질문 발생 |
+**권장 = A.** 이유: ① 이번 범위는 "별 챔피언"이고 **난이도별 탭이 있어** 고수 경쟁은 고수 탭에서 따로 보인다 ② 설명 비용이 가장 낮다(전체 이용가·초등학생 눈높이) ③ 가중치는 나중에 `weights`만 바꿔 재계산할 수 있게 **서버에 난이도별 별·시간을 따로 저장**해 둔다(§19.4.2) → 열린 질문 1.
+
+#### 19.2.4 현재 저장 구조 확인과 추가 필드(마이그레이션)
+**확인한 사실**(`game.js` 읽기 전용): `STORAGE_KEY = 'element-gems:v1'`, 스테이지 항목은 `stages[diff][i] = { best, stars }`뿐이다. `applyStageResult(sv, diff, stage, score, cleared, stars)`는 `best`·`stars`만 갱신하고 **남은 시간은 저장하지 않는다**. `finishStage`가 `starsFor(state.timeLeft, state.startTime)`로 별을 계산한 뒤 `applyStageResult`를 부른다. → **남은 시간 합계를 현재 구조에서 얻을 수 없다(별에서 하한만 추정 가능).**
+
+| 항목 | 변경(초안) |
+|---|---|
+| 필드 | `stages[diff][i] = { best, stars, left }` — `left`: 정수 초 0 이상(`stars ≥ 1`일 때만 의미). 미클리어는 `stars:0, left:0` |
+| `defaultSave()` | 새 항목 `{ best:0, stars:0, left:0 }` |
+| `applyStageResult(sv, diff, stage, score, cleared, stars, left)` | 인자 `left`(선택, 기본 0) 추가. `cleared`이면 `if (left > e.left) e.left = left`, 기존대로 `stars`는 최대값만. **반환 객체에 `improved: boolean`**(별 또는 `left`가 커졌는지) 추가 → 제출 트리거로 사용. 기존 호출·시험(인자 6개)과 호환 |
+| `finishStage` | `const left = Math.floor(state.timeLeft + 1e-6)`; `stars = starsFor(left, state.startTime)`(임계값이 정수라 **기존과 동일 결과**) → `applyStageResult(..., stars, left)` |
+| `parseSave` 검증 | `left`는 `0 ≤ 정수 ≤ 200`, 아니면 0. **보정 규칙**: `stars ≥ 1`이면 `left = max(left, 하한(stars))`, 그리고 `stars = max(stars, starsFor(left, 시작시간))`(손상·옛 데이터에서 별↔시간 불일치 제거) |
+| **마이그레이션**(옛 데이터 유지) | 이미 별이 있는 스테이지는 `left` 없음 → **하한 추정**: ★★★ → `ceil(시작시간×0.5)`, ★★ → `ceil(시작시간×0.3)`, ★ → `0`(시작시간: 초보 130/중수 120/고수 100). 별·진행도·점수는 그대로. 키 접미사 `v2` 분리 **안 함**. 효과: 기존 플레이어의 남은 시간 합계는 보수적으로 시작하고 **다시 깨면 올라간다**(동점 2단계에서만 불리, 별 수에는 영향 없음) |
+| 호환 | `bestByLevel`·`best` 등 기존 키는 그대로. `left`가 없는 옛 저장을 읽어도 오류 없음(Node 시험 포함) |
+`left` 하한표: 초보(130) 3★≥65 / 2★≥39, 중수(120) 3★≥60 / 2★≥36, 고수(100) 3★≥50 / 2★≥30 — 서버가 `starsFor`를 재현할 때 쓰는 **같은 표**(`server/src/core.js`의 상수, `CONFIG.stages.star`·`difficulty[*].time.start`와 일치하는지 Node 시험으로 검증).
+
+#### 19.2.5 순위표 표시
+| 요소 | 규칙(초안) |
+|---|---|
+| 목록 | **상위 50명**, 줄 = `순위(메달) · 아바타 44px · 닉네임#번호 · ★ 별 수`. 1~3위는 금·은·동 **둥근 메달**(숫자 포함 — 색에만 의존하지 않음), 1위 줄은 연노랑 배경 |
+| 탭 | 전체 / 초보 / 중수 / 고수. 선택 탭 색은 기존 난이도 색(초록/노랑/분홍) 재사용 |
+| 내 순위 | 화면 아래 **고정 노란 바**: `내 순위 83위 · 아바타 · 닉네임 · ★ 41`. 상위 50 안이면 해당 줄도 노랗게 강조하고 바는 유지. 프로필이 없으면 "내 이름을 만들면 순위가 보여요" + [프로필 만들기] 버튼. 숨김 처리(`hidden`)된 경우 §19.4.6 문구 |
+| 갱신 | [새로고침] 버튼(5초에 1번), **"마지막 갱신 HH:MM"**(서버 `asOf` 기준, 로컬 시각 표기). 서버는 최대 30~60초 캐시이므로 방금 올린 기록이 몇십 초 늦게 보일 수 있음을 안내 |
+| 안내 줄 | "별이 같으면 남은 시간이 많은 순" · 하단 "상위 50명을 보여 줘요. 보이는 정보는 닉네임·그림·별 수·순위뿐이에요." |
+| 빈 상태 | 해당 탭에 기록이 없으면 "아직 아무도 없어요. 첫 번째 챔피언이 되어 보세요!" |
+| 순위 계산 범위 | `hidden = 0`이고 해당 탭 별 수 > 0인 사람만 순위에 포함(별 0개는 목록·순위에서 제외) |
+
+### 19.3 프로필(닉네임·아바타)
+
+#### 19.3.1 흐름
+| 상황 | 동작 |
+|---|---|
+| 최초 실행(`CONFIG.ranking.api`가 있고 프로필·`skipped` 없음) | 시작 화면 대신 **프로필 만들기 화면**. [저장하고 시작](유효할 때만 활성) / [나중에 할래요] |
+| 나중에 할래요 | `skipped = true` 저장, **랭킹 미참여**, 시작 화면의 프로필 칩이 "＋ 내 프로필 만들기"로 바뀜(다시 묻지 않음, 팝업 없음). 나중에 만들면 **그때 로컬 진행 전체를 한 번에 제출**하므로 건너뛰어도 손해 없음 |
+| 저장 | 서버에 `POST /api/sync`(프로필 포함) → 성공 시 `pid`·`pub`·`tag`를 로컬 프로필에 저장 → 시작 화면 |
+| 수정 | 시작 화면의 프로필 칩 → 같은 화면(수정 모드): 아바타·닉네임 변경, [저장] / [취소] / [프로필 지우기](확인 후 `POST /api/delete`) |
+| 변경 제한(초안) | **닉네임 하루 2회**(한국 시간 날짜 기준, 서버 판정), 아바타는 횟수 제한 없음. 남은 횟수를 화면에 표시("오늘 닉네임 바꾸기 1번 남았어요"). 사유: 닉네임 돌려 쓰기(욕설 시험·사칭)와 D1 쓰기 남용 방지 |
+| 프로필 변경은 **온라인 필수** | 서버가 최종 검증하므로 오프라인이면 "인터넷에 연결되면 다시 해 주세요". 변경을 대기열에 쌓지 않는다(진행 제출만 대기열) |
+| 숨김 처리됨(관리자) | `hidden=2`(이름 변경 요청): 다음 동기화에서 프로필 화면을 열어 "이 이름은 순위표에서 잠시 숨겨졌어요. 새 이름을 정해 주세요." 새 이름이 통과하면 자동 복구. `hidden=1`(완전 숨김): 순위에 안 나오고 내 화면엔 "지금은 순위표에 보이지 않아요" |
+| 프로필 삭제됨 | 서버가 `player_not_found`를 돌려주면 "서버에 있던 프로필이 지워졌어요. 다시 만들 수 있어요" 안내 후 로컬 프로필 초기화(진행 기록은 유지) |
+
+#### 19.3.2 화면 구성(목업 ①, §19.7)
+아바타 5×3 격자(라디오 그룹, 한 개 선택, 선택 시 보라 링+체크) → 닉네임 입력(글자 수 `3/8`, 입력 중 검증 메시지) → 개인정보 안내 박스(노랑) → [저장하고 시작] / [나중에 할래요]. 아바타 이름(스크린리더용): 마법사·기사·고양이 후드·발명가·늑대·유니콘·슬라임 모자·연금술사·고래 후드·숲 요정·해적·우주비행사·곰·토끼·공룡. 기본 선택은 없음(미선택이면 저장 비활성) — 또는 무작위 1개 미리 선택(열린 질문 아님, Build 재량).
+
+#### 19.3.3 닉네임 검증 규칙(제한된 자유 입력) — 클라이언트(UX) + 서버(최종)
+**검증 순서**: ① 정규화(NFC) → ② 형식(길이·문자·숫자·반복) → ③ 예약어(사칭) → ④ 개인정보·연락 유도 패턴 → ⑤ 금칙어 → 통과. 앞 단계에서 걸리면 그 단계의 **한 가지 안내**만 보여 준다.
+
+| # | 규칙(초안) | 코드 | 비고 |
+|---|---|---|---|
+| 1 | 길이 **2~8글자**(NFC 후 코드포인트 수, 한글 음절 1개 = 1) | `nick_length` | 입력 중에는 `maxlength` 대신 글자 수 표시(IME 조합 중 잘림 방지) |
+| 2 | 허용: **완성형 한글(가–힣), 영문 A–Z a–z, 숫자 0–9**. 공백·밑줄·`.`·`@`·특수문자·이모지·한자·일본어·낱자 자모(ㄱ,ㅏ,ㅋㅋ)는 **불가** | `nick_charset` | 낱자 자모를 막으면 **초성·자모 분리 우회(`ㅅㅂ` 등)가 입구에서 차단**된다. 공백·특수문자 삽입 우회도 차단 |
+| 3 | 숫자는 **최대 3개**, 숫자만으로는 불가 | `nick_digits` | 전화번호·긴 숫자열 차단 |
+| 4 | **같은 글자 3번 연속 불가**(영문은 대소문자 무시) | `nick_repeat` | 도배·"아아아" 방지. "하하"처럼 2번은 허용 |
+| 5 | **예약어(사칭)**: 관리자·운영자·운영·공식·선생님·선생·교사·어드민·시스템·원소보석·이그니·아쿠아·리프·볼트·녹스·루미, `admin`·`administrator`·`mod`·`moderator`·`gm`·`staff`·`system`·`official`·`teacher`·`support`·`elementgems` | `nick_reserved` | 예약어를 **포함**하면 불가(조합 포함). 게임 캐릭터명 사칭 방지 포함 |
+| 6 | **개인정보·연락 유도 패턴**(아래 표) | `nick_pii` | 실명은 자동 판별이 불가능 → §19.4.4 한계 |
+| 7 | **금칙어**(욕설·성적 표현·혐오/차별·폭력/자해·약물/도박) — 정규화 후 매칭(아래) | `nick_blocked` | 걸린 단어는 **알려 주지 않는다**(욕설 학습 방지) |
+| 8 | 표시 시 `닉네임#번호`(번호 4자리, 서버 부여). 비교·중복 판정은 **소문자 정규화 키**(`nick_key`) | — | `별빛냥#0427` ≠ `별빛냥#9034` |
+
+**개인정보·연락 유도 패턴(초안, 서버·클라이언트 공용)**
+| 분류 | 차단 예 | 방식 |
+|---|---|---|
+| 전화번호 | `010` `011` `016`~`019`로 시작하는 숫자열, "공일공"류 숫자 한글 표기 | 숫자열·한글 숫자 정규식 |
+| 이메일·주소 | `@`, `.`은 문자 불가로 이미 차단. `http`·`www`·`dotcom`·`골뱅이` 포함 | 부분 문자열 |
+| 연락 유도 | 카톡·카카오·인스타·디코·디스코드·텔레그램·라인·틱톡·페북·`kakao`·`insta`·`discord`·`telegram`·`tiktok` | 목록(소문자·정규화 후 부분 문자열) |
+| 학교·학년·반 | `학교`·`학년`·`초등`·`중학`·`고등`·`학원`·`초딩`·`중딩`·`고딩`, `숫자+반`(`3반`), `한글 2자 이상 + 초/중/고`로 끝남(예: `○○초`) | 부분 문자열 + 정규식 |
+| 실명 추정 | **차단하지 않음**(3음절 성+이름은 별명과 구분 불가, 과차단이 심함) | 안내 문구 + 신고/숨김으로 보완 |
+오탐(예: `반달곰`은 통과, `초등`은 차단, `시발점`류는 보수적으로 차단)은 **허용**한다. 보수적으로 차단하고 부드럽게 안내하는 쪽을 택한다.
+
+**금칙어 매칭(한국어 특성 고려)** — 같은 정규화를 금칙어 목록과 입력 양쪽에 적용한 뒤 비교한다.
+| 뷰(view) | 만드는 법 | 막는 우회 |
+|---|---|---|
+| V1 한글 전용 | 한글 음절만 남김(영문·숫자 끼워넣기 제거) | `멍1청이`, `멍a청이`, `멍0청0이` |
+| V2 한글 **느슨한 자모열**(soft key) | 음절을 초·중성으로 분해 → **된소리 → 평음**(ㅆ→ㅅ, ㅃ→ㅂ, ㄲ→ㄱ, ㄸ→ㄷ, ㅉ→ㅈ), **ㅐ/ㅔ·ㅒ/ㅖ·ㅙ/ㅞ→ㅚ·ㅢ/ㅟ→ㅣ 통합**, **y-활음 접기**(ㅕ→ㅓ, ㅑ→ㅏ, ㅛ→ㅗ, ㅠ→ㅜ), **받침 제거**, **초성 ㅇ 제거** | 된소리·모음 변형·받침 변형(`씨바/시발/씨빨` 계열, `멍쳥이`) |
+| V3 영문 | 소문자화 → 숫자 치환(0→o, 1→i, 3→e, 4→a, 5→s, 7→t, 8→b) → 영문 외 제거 → **연속 중복 글자 압축**(`fuuuck`→`fuck`) | `s7upid`, `stupid99`, 대소문자 혼용 |
+| V4 풀 문자열 | 한글·영문·숫자 소문자 그대로 | 부분 문자열 일반 |
+- **매칭**: 길이가 충분한 단어(V2 키 4자모 이상, 영문 4글자 이상)는 **부분 문자열**, **짧은 단어**(영문 ≤3글자, V2 키 3자모 이하)는 **전체 일치 또는 접두·접미 일치**만(과차단 완화: `class`·`pass`의 `ass`).
+- **POC 검증**(scratchpad `ranking-plan/nick-poc.js`, 시험용 무해한 금칙어 `멍청이`/`stupid` 사용): `멍청이`·`멍1청이`·`멍a청이`·`멍0청0이`·`멍쳥이`·`s7upid`·`stupid99` **차단**, `멍청히`·`멍충이`·`멍멍이`·`studio`·`별빛냥` **통과**. **한계**: `머엉청이`처럼 **음절을 쪼개 삽입하는 우회는 못 잡는다**(받침을 별도 음절로 풀어 쓰는 방식). → 낱자 자모 불가 + 목록 갱신 + 관리자 숨김으로 보완하고, 이 한계를 Review 체크리스트에 명시.
+- **목록 관리**: 단일 파일 `nick-words.js`(`base64` 문자열 배열 — 저장소 스캐너·훑어보기 방지용이며 **기밀이 아님**). 분류별 초안 규모: 한국어 어근 150개 내외, 영어 100개 내외, 개인정보·연락 유도 40개 내외, 예약어 30개 내외 — **목록은 Build 1단계에서 작성(공개 욕설 사전 참고 시 라이선스 확인)하고 사용자가 검수**한다. 갱신: ① 평소 = 파일 수정 → `node server/build.js` → 재배포 + 클라이언트 푸시 ② 긴급 = Worker **일반 변수 `EXTRA_BLOCK`**(쉼표 목록, 대시보드에서 수정, 서버에만 적용). 목록이 바뀐 뒤 기존 닉네임은 **다음 동기화 때 서버가 재검사**해 걸리면 `hidden=2`(이름 변경 요청)로 바꾼다(전수 재검사 엔드포인트는 무료 CPU 10ms 한도 때문에 두지 않음).
+- 클라이언트 검증은 **UX용**(입력 즉시 안내, 조합 중에는 검사하지 않고 `compositionend`/입력 멈춘 뒤 250ms에 검사), **서버가 최종**이다. 서버는 클라이언트가 보낸 어떤 값도 믿지 않는다(통과 표시 같은 필드 없음).
+
+**안내 문구(초안, 초등학생 눈높이·중립 톤)**
+| 코드 | 문구 |
+|---|---|
+| `nick_length` | 이름은 2~8글자로 만들어 주세요. |
+| `nick_charset` | 한글, 영어, 숫자만 쓸 수 있어요. (띄어쓰기, 그림 글자, 특수문자는 안 돼요) |
+| (자모 낱자) | 'ㅋ', 'ㅏ' 같은 낱글자만으로는 만들 수 없어요. 완성된 글자로 써 주세요. |
+| `nick_digits` | 숫자는 3개까지만 쓸 수 있고, 숫자만으로는 만들 수 없어요. |
+| `nick_repeat` | 같은 글자가 3번 이어지면 안 돼요. |
+| `nick_reserved` | 운영하는 사람이나 게임 캐릭터처럼 보이는 이름은 쓸 수 없어요. |
+| `nick_pii` | 학교, 학년·반, 연락처처럼 보이는 이름은 쓸 수 없어요. 나만의 별명으로 바꿔 보세요. |
+| `nick_blocked` | 이 이름은 쓸 수 없어요. 다른 이름을 골라 볼까요? |
+| `nick_change_limit` | 닉네임은 하루에 2번까지 바꿀 수 있어요. 내일 다시 해 보세요. |
+| 통과 | 멋진 이름이에요! 저장하면 뒤에 번호 4자리가 붙어요. |
+
+**중복 닉네임 정책 — 결정**
+| 안 | 장점 | 단점 |
+|---|---|---|
+| **허용 + 4자리 번호표(권장)** | 원하는 이름을 거의 항상 쓸 수 있음(좌절 없음), 동시 등록 경쟁 없음, "이미 사용 중" 메시지로 **누가 그 이름을 쓰는지 추측하는 정보 누출이 없음**, 서버 구현 단순(`UNIQUE(nick_key, tag)`) | 같은 이름이 둘 이상 보임(번호로 구분), 번호까지 외우기는 어려움 |
+| 유일성 강제 | 화면이 깔끔 | 인기 이름은 금방 소진돼 반복 실패 → 숫자 덧붙이기 우회 증가, 이름 선점·사칭 분쟁, 동시성 처리 필요 |
+**권장 = 번호표.** 번호표는 **닉네임이 만들어질 때 서버가 무작위 0000~9999를 부여**하고(충돌 시 최대 5번 재시도 후 순차 탐색), 닉네임을 바꾸면 새 번호를 받는다. 사칭 방지는 번호표 + 예약어 + 관리자 숨김으로 한다 → 열린 질문 2.
+
+#### 19.3.4 개인정보 보호 안내와 공개 범위 고지(화면 문구 초안)
+| 위치 | 문구 |
+|---|---|
+| 프로필 화면 노랑 박스 | **실명, 학교 이름, 학년·반, 연락처는 쓰지 마세요.** 명예의 전당에는 **닉네임·그림·별 수·순위**만 모두에게 보여요. |
+| 프로필 화면 하단 작은 글 | 닉네임·그림·별 수는 순위표를 보여 주려고 서버에 저장돼요. 이름이나 학교, 연락처, 사진은 받지 않아요. 언제든 [프로필 지우기]로 지울 수 있어요. |
+| 순위표 하단 | 상위 50명을 보여 줘요. 보이는 정보는 닉네임·그림·별 수·순위뿐이에요. |
+| 지우기 확인 | 서버에 있는 내 닉네임·그림·별 기록을 지울까요? 게임 기록은 이 기기에 그대로 남아요. [지우기] [취소] |
+**개인정보 처리 원칙(한 줄 안내)**: 이 기능은 **개인정보를 받지 않도록 설계**한다(14세 미만 이용자가 있을 수 있음). **학교·기관에 배포할 때는 해당 기관의 개인정보 방침(제3자 서비스·외부 서버 사용 허용 여부, 보호자 안내 필요 여부)을 먼저 확인**한다(§19.12 열린 질문 5).
+
+### 19.4 서버 설계 (Cloudflare Workers + D1)
+
+#### 19.4.1 API
+공통: 모든 응답은 JSON `{ "ok": true|false, "v": 1, … }`, 오류는 `{ "ok": false, "v": 1, "error": { "code": "...", "message": "쉬운 한국어", "field": "nick" } }`. 요청에는 **`v`(스키마 버전, 현재 1)** 필수 — 모르는 버전은 `unsupported_version`(400). 클라이언트는 `Content-Type: text/plain;charset=UTF-8`로 JSON 문자열을 보내 **CORS 사전 요청(preflight)을 없앤다**(쿠키·헤더 인증이 없고 `pid`가 본문에 있어 CSRF 위험 없음; Worker는 본문을 항상 JSON으로 파싱, `OPTIONS`도 처리). 본문 최대 **2,048바이트**.
+
+| 엔드포인트 | 용도 | 요청 | 성공 응답 |
+|---|---|---|---|
+| `POST /api/sync` | 프로필 생성·수정 + 진행 제출(통합). 두 부분 중 하나 이상 필수 | `{ v:1, pid, profile?:{nick, avatar}, d?:{easy:[10], normal:[10], hard:[10]} }` — `d`의 각 값은 **`-1`(미클리어) 또는 0 이상의 정수 `left`** | `{ ok, v, me:{ pub, nick, tag, avatar, hidden, stars:{easy,normal,hard,all} }, changed, nickChangesLeft, serverTime }` |
+| `GET /api/leaderboard?board=all\|easy\|normal\|hard&limit=50` | 상위 목록(공개, 캐시 30초). `limit` 1~50 | — | `{ ok, v, board, asOf, of, rows:[{rank, nick, tag, avatar, stars}] }` (`of` = 참가자 수) |
+| `GET /api/rank?board=…&pub=…` | **내 순위**(상위 50 밖 포함). `pub`은 공개용 짧은 ID(순위표 응답엔 없음) | — | `{ ok, v, board, asOf, rank, of, stars, nick, tag, avatar }` / 숨김이면 `{ ok:true, hidden:1\|2 }` / 없으면 404 |
+| `POST /api/delete` | 내 서버 기록 삭제 | `{ v:1, pid }` | `{ ok, v, deleted:true }` |
+| `GET /api/health` | 연결 확인(클라이언트·배포 점검용) | — | `{ ok, v, time }` (D1 쿼리 없음) |
+| `POST /api/admin/moderate` (선택) | 관리자 숨김·삭제 | `Authorization: Bearer <ADMIN_KEY>`, `{ id\|pub, action:"hide"\|"unhide"\|"rename"\|"delete" }` | `{ ok }` |
+| `GET /api/admin/search?q=` (선택) | 닉네임 검색 | 같은 인증 | `{ rows:[{id,pub,nick,tag,stars,hidden}] }` |
+- **버전 필드 정책**: 응답·요청 모두 `v:1`. 필드 추가는 하위 호환(클라이언트는 모르는 필드 무시). 호환이 깨지면 `v:2` + 서버가 `v:1`을 일정 기간 함께 지원.
+- **`/api/rank`가 `pub`을 받는 이유**: 비밀 `pid`를 **URL에 넣지 않기 위해**서다(URL은 로그·캐시에 남음). `pub`은 서버가 가입 시 만든 무작위 8자(Crockford base32)이고 **순위표 응답에는 노출하지 않는다**. 순위 정보는 어차피 공개 정보라 `pub`이 알려져도 위험이 거의 없다(`pid`로는 못 바꿈). 클라이언트는 목록에서 내 `닉네임#번호`를 찾으면 `/api/rank`를 생략한다.
+
+**오류 코드**
+| code | HTTP | 뜻 | 클라이언트 동작 |
+|---|---|---|---|
+| `bad_request` / `too_large` | 400 / 413 | JSON·타입·크기 오류 | 재시도 안 함, 콘솔 기록 |
+| `unsupported_version` | 400 | 모르는 `v` | 랭킹 기능 일시 숨김("앱을 새로 고쳐 주세요") |
+| `nick_length` `nick_charset` `nick_digits` `nick_repeat` `nick_reserved` `nick_pii` `nick_blocked` | 400 | §19.3.3 | 입력 아래에 안내 문구 |
+| `avatar_invalid` | 400 | 1~15 정수 아님 | 코드 오류(재시도 안 함) |
+| `nick_change_limit` | 429 | 하루 2회 초과 | 안내 문구 |
+| `progress_invalid` | 400 | `d` 구조·값 범위 오류(`field`에 위치) | **재시도 안 함**, 제출 중단 플래그, 콘솔 기록(Review 대상) |
+| `progress_chain` | 400 | N스테이지 클리어인데 앞 스테이지 미클리어 | 같음 |
+| `profile_required` | 400 | 첫 제출인데 `profile` 없음 | 프로필 화면 열기 |
+| `player_not_found` | 404 | 서버에 `pid` 없음(삭제됨 등) | §19.3.1 "프로필 삭제됨" |
+| `forbidden_origin` | 403 | 허용 목록에 없는 `Origin` | 랭킹 기능 숨김(설정 오류) |
+| `rate_limited` | 429 | 제출 간격·등록 한도 초과(`Retry-After` 헤더) | 백오프 후 재시도 |
+| `db_unavailable` | 503 | D1 오류·일일 한도 초과 | §19.5 오프라인 폴백 |
+| `server_error` | 500 | 예외 | 백오프 재시도 |
+※ Workers 일일 한도 초과 시 Cloudflare가 **Error 1027(JSON 아님)**을 돌려줄 수 있다(문서 확인) → 클라이언트는 **"JSON이 아니거나 `ok`가 없는 응답 = 일시 장애"**로 처리한다.
+
+**`POST /api/sync` 의사코드**
+```
+handle(req):
+  origin 검사 → 허용 목록 밖이면 403 (Origin 헤더가 없으면 통과: curl 등은 다른 방어가 담당)
+  body = JSON.parse(text) (2,048B 초과/파싱 실패 → 400)
+  v==1, pid가 UUID 형식, profile/d 중 하나 이상 → 아니면 400
+  now = 서버 시각
+  h = SHA256(pid) 16진수;  row = SELECT * FROM players WHERE pid_hash = h
+  if row 없음:
+     profile 없음 → profile_required
+     등록 한도(ipHash 시간당 100) 확인·증가 → rate_limited
+  if profile:
+     nick/avatar 검증(§19.3.3 서버판 + EXTRA_BLOCK)  → 해당 오류
+     if (row 있고 nick_key 변경): 하루 2회 확인(kst_day) → nick_change_limit
+  if d: 구조 검증(3난이도×10, 각 값 -1 또는 정수 0..cap) → progress_invalid
+        merged[diff][i] = max(row.prog[diff][i], d[diff][i])      // 감소 불가(최대값 병합)
+        연쇄 검사(merged에서 i번이 ≥0이면 0..i-1도 ≥0) → progress_chain
+        totals 재계산(별 = starsFor(left), 시간합, 최고 레벨)
+        improved = totals(별 또는 시간합)이 올랐는가
+  변경이 없으면(프로필 동일 + 병합 결과 동일) 쓰기 없이 200(changed:false)   // 읽기 1회로 끝남 = 쓰기 한도 절약
+  if 변경이 있고 row && now - row.last_write_at < 3초 → rate_limited(Retry-After)
+  INSERT 또는 UPDATE (한 문장); improved이면 updated_at(해당 보드 up_*)=now
+  nick 변경이었으면 hidden==2 → 0 (이름 변경 요청 해제), 새 tag 부여
+  return me
+```
+
+#### 19.4.2 D1 스키마 (SQL 초안, `server/schema.sql`)
+```sql
+CREATE TABLE IF NOT EXISTS players (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  pid_hash      TEXT    NOT NULL UNIQUE,            -- SHA-256(playerId) 16진수. 원본 ID는 저장하지 않음
+  pub           TEXT    NOT NULL UNIQUE,            -- 공개용 무작위 8자(순위 조회용). 순위표 응답엔 없음
+  nick          TEXT    NOT NULL,                   -- 표시용(대소문자 유지)
+  nick_key      TEXT    NOT NULL,                   -- 소문자 정규화(중복·검색용)
+  tag           INTEGER NOT NULL CHECK (tag BETWEEN 0 AND 9999),
+  avatar        INTEGER NOT NULL CHECK (avatar BETWEEN 1 AND 15),
+  -- 난이도별 스테이지 최고 남은 시간(정수 초, 미클리어 -1) 10개를 쉼표로: "65,40,-1,-1,..."
+  prog_easy     TEXT    NOT NULL DEFAULT '-1,-1,-1,-1,-1,-1,-1,-1,-1,-1',
+  prog_normal   TEXT    NOT NULL DEFAULT '-1,-1,-1,-1,-1,-1,-1,-1,-1,-1',
+  prog_hard     TEXT    NOT NULL DEFAULT '-1,-1,-1,-1,-1,-1,-1,-1,-1,-1',
+  stars_easy    INTEGER NOT NULL DEFAULT 0, stars_normal INTEGER NOT NULL DEFAULT 0, stars_hard INTEGER NOT NULL DEFAULT 0,
+  left_easy     INTEGER NOT NULL DEFAULT 0, left_normal  INTEGER NOT NULL DEFAULT 0, left_hard  INTEGER NOT NULL DEFAULT 0,
+  best_easy     INTEGER NOT NULL DEFAULT 0, best_normal  INTEGER NOT NULL DEFAULT 0, best_hard  INTEGER NOT NULL DEFAULT 0,  -- 최고 클리어 레벨 0~10
+  total_stars   INTEGER NOT NULL DEFAULT 0,         -- 세 난이도 합(정렬 키)
+  total_left    INTEGER NOT NULL DEFAULT 0,
+  up_all        INTEGER NOT NULL DEFAULT 0,         -- 순위 점수가 마지막으로 오른 시각(초, epoch) — 동점 선착순
+  up_easy       INTEGER NOT NULL DEFAULT 0, up_normal INTEGER NOT NULL DEFAULT 0, up_hard INTEGER NOT NULL DEFAULT 0,
+  hidden        INTEGER NOT NULL DEFAULT 0 CHECK (hidden IN (0,1,2)),   -- 0 보임 / 1 관리자 숨김 / 2 이름 변경 요청(순위 제외)
+  nick_changes  INTEGER NOT NULL DEFAULT 0,         -- 오늘 닉네임 변경 횟수
+  nick_day      INTEGER NOT NULL DEFAULT 0,         -- 위 횟수가 속한 한국 시간 날짜 번호
+  created_at    INTEGER NOT NULL,
+  last_write_at INTEGER NOT NULL,                   -- 마지막 쓰기(제출 간격 제한용)
+  UNIQUE (nick_key, tag)
+);
+-- 순위 조회용 부분 인덱스(숨김·별 0개 제외). 정렬 키와 같은 순서 → ORDER BY가 인덱스를 그대로 사용
+CREATE INDEX IF NOT EXISTS idx_rank_all    ON players (total_stars DESC, total_left DESC, up_all ASC,    id ASC) WHERE hidden = 0 AND total_stars > 0;
+CREATE INDEX IF NOT EXISTS idx_rank_easy   ON players (stars_easy  DESC, left_easy   DESC, up_easy ASC,   id ASC) WHERE hidden = 0 AND stars_easy  > 0;
+CREATE INDEX IF NOT EXISTS idx_rank_normal ON players (stars_normal DESC, left_normal DESC, up_normal ASC, id ASC) WHERE hidden = 0 AND stars_normal > 0;
+CREATE INDEX IF NOT EXISTS idx_rank_hard   ON players (stars_hard  DESC, left_hard   DESC, up_hard ASC,   id ASC) WHERE hidden = 0 AND stars_hard  > 0;
+
+-- 등록(프로필 생성) 한도용: IP 해시 + 시간 창. 원본 IP는 저장하지 않음. 오래된 행은 가끔 DELETE
+CREATE TABLE IF NOT EXISTS rate_limits ( k TEXT PRIMARY KEY, n INTEGER NOT NULL, win INTEGER NOT NULL );
+```
+**쿼리 예**
+```sql
+-- 상위 50 (전체). 난이도 탭은 컬럼만 교체
+SELECT nick, tag, avatar, total_stars AS stars FROM players
+ WHERE hidden = 0 AND total_stars > 0
+ ORDER BY total_stars DESC, total_left DESC, up_all ASC, id ASC LIMIT ?1;
+-- 내 순위 = 나보다 앞선 사람 수 + 1  (인덱스 범위 스캔)
+SELECT COUNT(*) + 1 FROM players
+ WHERE hidden = 0 AND total_stars > 0 AND (
+   total_stars > ?1 OR (total_stars = ?1 AND (total_left > ?2 OR (total_left = ?2 AND (up_all < ?3 OR (up_all = ?3 AND id < ?4))))));
+```
+| 설계 결정 | 이유 |
+|---|---|
+| 저장 항목 | 닉네임·아바타 번호·난이도별 별·최고 클리어 레벨·남은 시간 합계·스테이지별 `left`·갱신 시각·익명 ID 해시·공개 `pub`로 **최소화**. **이름·IP 원문·학교·기기 정보·User-Agent 저장 안 함** |
+| `prog_*`를 문자열 열로 | 스테이지별 최대값 병합(§19.4.4)과 단조 증가 검사를 위해 필요. 30개 값이라 행 하나에 담아 **쓰기 1행**으로 끝낸다(스테이지 테이블 분리 시 쓰기·읽기 증가) |
+| 난이도별 `up_*` | 난이도 탭의 "먼저 달성" 기준이 다른 난이도 진행에 흔들리지 않게 분리 |
+| **`board` 구분 컬럼을 두지 않음** | 별 챔피언은 `players` 한 행에 모든 값이 있다. 2차(점수 랭킹)는 모양이 다르다(레벨별·판별 점수, 기간별 순위) → **나중에 별도 테이블(`board_scores(player_id, board, score, …)`)을 추가**하는 편이 인덱스·쓰기량 면에서 낫다. 지금 범용 `board` 컬럼을 넣으면 인덱스가 모호해지고 조회가 느려지는 비용만 든다. `players`는 그대로 재사용 |
+| 인덱스 사용 | 부분 인덱스는 쿼리의 `WHERE`가 인덱스 조건(`hidden = 0 AND … > 0`)과 **같아야** 쓰인다 → Build가 `EXPLAIN QUERY PLAN`(목 서버·`wrangler d1 execute`)으로 4개 보드와 순위 `COUNT` 쿼리가 인덱스를 타는지 확인 |
+| 정리 | 마지막 쓰기가 오래된(예: 365일) 행은 선택적으로 Cron Trigger로 삭제(2단계, 무료 플랜에서도 사용 가능한지 Build가 확인) |
+
+#### 19.4.3 playerId와 공개 ID
+| 항목 | 설계 |
+|---|---|
+| 생성 | 클라이언트가 프로필을 처음 만들 때 `crypto.randomUUID()`(없으면 `getRandomValues` 폴백) → `localStorage` 프로필에 저장. **서버에는 SHA-256 해시만 저장** → DB가 유출되어도 ID로 제출할 수 없음 |
+| 의미 | 이 ID가 곧 **소유권 증명**(비밀번호 없음). 128비트라 추측 불가 |
+| 위험·한계 | ① **같은 브라우저를 여러 명이 쓰면 한 프로필을 공유**한다(게임 진행도 이미 브라우저 단위) ② 브라우저 저장소를 지우면 **ID를 잃어 기록을 되찾을 수 없다**(새 프로필이 생기고 옛 항목은 순위에 남음 → 관리자 삭제/정리) ③ 개발자 도구로 ID를 복사하면 그 기기·사람이 같은 프로필을 쓸 수 있음(본인이 의도한 경우뿐) ④ 계정 복구·기기 간 이어하기는 **이번 범위 밖**(2차 후보: 복구 코드) |
+| 노출 차단 | 순위표 응답은 `nick`·`tag`·`avatar`·`stars`·`rank`만. `pid`는 요청 본문에만 쓰고 URL·응답·로그에 넣지 않는다(Worker 코드에서 `console.log` 금지). `pub`은 응답의 `me`에만 있고 목록에는 없다 |
+
+#### 19.4.4 서버측 검증(조작 방어)과 위험 허용 수준
+| 검증 | 내용(초안) | 막는 것 |
+|---|---|---|
+| 구조·타입 | `d`는 3난이도 × 길이 10, 값은 `-1` 또는 정수 0..`cap`. 닉네임·아바타 타입·범위 | 쓰레기 값, 거대한 값 |
+| `left` 상한 | 난이도별 `cap`: 150 / 140 / 120(§19.2.2) | "남은 시간 99999" |
+| **별 = `left`에서 계산** | 별을 받지 않고 서버가 `starsFor`를 재현 | 별만 3개로 위조 |
+| 연쇄 해금 | 병합 결과에서 레벨 N이 클리어이면 1..N-1도 클리어 | 레벨 10만 클리어 위조 |
+| **단조 증가(병합)** | 스테이지별 `max(저장값, 제출값)`. 낮은 값이 와도 **거부하지 않고 무시**(기기 2대·오프라인 재전송에서 정상 플레이를 막지 않기 위함) → 합계는 줄어들 수 없음 | 기록 깎기, 오래된 스냅샷 덮어쓰기 |
+| 합계 상한 | 난이도 별 ≤ 30, 전체 ≤ 90(구조상 보장) | — |
+| 제출 간격 | 같은 `pid`의 쓰기는 **3초에 1번**(변경 없는 제출은 쓰기가 없으므로 제외). 닉네임 변경 하루 2회 | 쓰기 폭주 |
+| 등록 한도 | `rate_limits`: **IP 해시당 시간당 100명 등록**(교실·학교 공용 IP를 고려해 넉넉히). IP 해시 = `SHA256(IP + 날짜 + IP_SALT)` 앞 16자, **원본 IP 저장·로그 금지** | 가짜 계정 대량 생성 |
+| 요청 크기 | 본문 ≤ 2,048B | 거대 요청 |
+| 선택 | Workers **Rate Limiting 바인딩**(`period`는 10 또는 60초만 허용, 위치별 근사치, 무료 플랜 제공 여부 문서에 명시 없음 → **Build가 확인 후** 가능하면 보조로 사용) | 단순 폭주 |
+**솔직한 한계와 위험 허용 수준**: 서버는 **"형식·논리적으로 가능한 값"만** 검증할 수 있다. 개발자 도구나 직접 호출로 **그럴듯한 기록(예: 90★, 남은 시간 상한 가까이)을 만들어 올리는 것은 막을 수 없다**(게임이 클라이언트에서만 돌아가므로 서버는 실제 플레이를 재현·검증하지 못함). 이 순위표는 **친구·가족·교실 규모의 가벼운 경쟁용**(상금·성적 반영 없음)으로 정의하고, 위조는 ① 관리자 숨김·삭제 ② 이상치 점검 SQL(§19.4.6: 모든 스테이지 `left`가 `cap`에 붙은 사람) ③ 닉네임 신고로 **사후 대응**한다. 허용하는 위험: 상위권 위조 가능, 다중 계정 가능, 실명 닉네임을 자동으로 못 잡음(§19.3.3). 허용하지 않는 위험: 개인정보 저장, 비밀키 노출, 타인의 `pid` 탈취(해시 저장·128비트), XSS(닉네임은 항상 `textContent`로 출력, HTML 삽입 금지).
+
+#### 19.4.5 CORS
+| 항목 | 설계(초안) |
+|---|---|
+| 허용 오리진 | 변수 `ALLOWED_ORIGINS`(쉼표 목록, **일반 변수**, 대시보드에서 수정 가능): 운영 = `https://eversunk2-tech.github.io`. 로컬 시험 = `.dev.vars`에서 `http://localhost:8765,http://127.0.0.1:8765`를 **추가**(운영 설정에는 넣지 않음) |
+| 응답 헤더 | `Access-Control-Allow-Origin: <요청 Origin이 목록에 있을 때만 그대로>`, `Vary: Origin`, `Access-Control-Allow-Methods: GET, POST, OPTIONS`, `Access-Control-Allow-Headers: Content-Type`, `Access-Control-Max-Age: 86400`. 목록 밖 `Origin`은 `403 forbidden_origin`(CORS 헤더 없음) |
+| 의미 | CORS는 **다른 웹사이트의 브라우저 스크립트**가 이 API를 쓰지 못하게 할 뿐이며 `curl` 같은 직접 호출은 막지 못한다(그래서 §19.4.4가 별도로 있음) |
+| 오리진 추가 방법 | Vercel 등 새 도메인에 배포하면 `ALLOWED_ORIGINS`에 `https://새도메인`을 쉼표로 추가 → 저장(자동 배포) → 클라이언트 `CONFIG.ranking.api`는 그대로. `*` 사용 금지 |
+| 관리자 API | **CORS를 열지 않는다**(브라우저에서 호출하지 않음, `curl`/도구 전용) |
+
+#### 19.4.6 운영·관리(부적절 닉네임 대응)
+**1순위(권장): D1 SQL 콘솔 또는 `wrangler d1 execute` — 코드·비밀키 불필요.** 대시보드 → D1 → 해당 DB → **Console**에 붙여넣고 Execute. 부분 인덱스가 자동으로 갱신되어 숨김 즉시 순위표에서 빠진다(캐시 30~60초 후 반영).
+| 상황 | SQL |
+|---|---|
+| 닉네임 찾기 | `SELECT id, nick, tag, avatar, total_stars, hidden FROM players WHERE nick LIKE '%키워드%' ORDER BY id DESC LIMIT 20;` |
+| 순위표에서 **숨기기** | `UPDATE players SET hidden = 1 WHERE id = ?;` |
+| **이름 바꾸게 하기**(본인이 다음 접속에 새 이름 입력) | `UPDATE players SET hidden = 2 WHERE id = ?;` |
+| 복구 | `UPDATE players SET hidden = 0 WHERE id = ?;` |
+| **삭제**(요청이 있거나 심한 경우) | `DELETE FROM players WHERE id = ?;` |
+| 최근 가입 확인 | `SELECT id, nick, tag, datetime(created_at,'unixepoch','+9 hours') AS 가입 FROM players ORDER BY id DESC LIMIT 20;` |
+| 이상치 점검(예: 남은 시간 합계 비정상) | `SELECT id, nick, tag, total_stars, total_left FROM players WHERE total_stars = 90 AND total_left >= 1300 ORDER BY total_left DESC;` (기준값은 운영하며 조정) |
+| 전체 인원 | `SELECT COUNT(*) FROM players;` |
+- 명령줄: `npx wrangler d1 execute element-gems-hall --remote --command "UPDATE players SET hidden=1 WHERE id=12;"`.
+- **선택(2단계)**: `/api/admin/*`. Worker Secret `ADMIN_KEY`가 **설정된 경우에만** 동작하고, `Authorization: Bearer` 비교는 **상수 시간 비교**, 실패 5회/10분/IP 해시 초과 시 429. 사용 예는 `curl -H "Authorization: Bearer $ADMIN_KEY" …`(키는 **쉘 환경 변수로만** 사용, 명령 기록·저장소에 남기지 않는다). 관리자 호출이 드물면 구현하지 않고 SQL 방식만 쓴다.
+- **비밀키·토큰은 저장소에 커밋하지 않는다**: ① 운영 비밀 = `wrangler secret put` 또는 대시보드 Secret(저장소에 값 없음) ② 로컬 시험 비밀 = `server/.dev.vars`(**`.gitignore`로 제외**: `.dev.vars*`, `.env*`, `.wrangler/`, `node_modules/`) ③ 저장소에는 `wrangler.toml`(비밀 없음, `database_id`는 비밀이 아님 — 계정 접근 권한 없음)과 `.dev.vars.example`(가짜 값)만 ④ Build·Review는 커밋 전 `git grep -nE "ADMIN_KEY|Bearer [A-Za-z0-9]|IP_SALT\s*=" -- . ':!*.md'` 로 실제 값이 없는지 확인.
+- **삭제 요청 창구**: 플레이어 본인은 앱 안 [프로필 지우기]. 그 외(다른 사람의 부적절 닉네임 신고, 삭제 대행)는 **배포한 사람(관리자)**이 위 SQL로 처리한다(앱에 외부 링크·연락처는 넣지 않는다 — 전체 이용가 규칙).
+
+#### 19.4.7 용량·무료 한도 계산
+**확인한 무료 한도(2026-11-07 문서)**: Workers Free **100,000 요청/일**, 요청당 **CPU 10ms**, 일일 초과 시 Error 1027, 매일 00:00 UTC(한국 09:00)에 초기화. D1 Free **읽은 행 5,000,000/일**, **쓴 행 100,000/일**, 저장 **5GB**(계정), DB 1개 최대 500MB, 쿼리당 바인딩 100개, 일일 한도 초과 시 **쿼리 실패(오류 반환)**, 유료 전환 시 한도 해제.
+**가정(초안)**: 플레이어 N = 500, 하루에 **기록이 오르는 제출 S = 6회/인**(프로필 생성 직후 첫 날 최대), 순위표 조회 **M = 6회/인**, 프로필 생성 500·변경 100. **쓴 행**은 "표 1행 + 갱신되는 인덱스 행"까지 세어(보수적) 제출 1회 = 3행, 생성 1회 = 8행, 변경 1회 = 4행. 순위표 읽기는 상위 50 조회 ≈ 150행(인덱스+표, 보수적), 내 순위 스캔 ≈ 순위 위치만큼(평균 N/2), 내 순위 요청 비율 80%, 상위 50 캐시 적중 50%.
+| 항목 | 계산 | 하루 사용량 | 무료 한도 | 사용률 | 안전계수 2배 |
+|---|---|---|---|---|---|
+| Worker 요청 | 제출 3,000 + 생성·변경 600 + 조회 3,000×(1+0.8) = 5,400, 합 9,000 + 재시도 10% | **≈ 9,900** | 100,000 | **약 10%** | 20% |
+| D1 쓴 행 | 제출 3,000×3 + 생성 500×8 + 변경 100×4 | **≈ 13,400** | 100,000 | **약 13%** | 27% |
+| D1 읽은 행 | 제출·생성·변경 ≈ 20,000 + 조회 3,000×(75 + 0.8×250) | **≈ 850,000** | 5,000,000 | **약 17%** | 34% |
+| D1 저장 | 행 ≈ 0.5KB(인덱스 포함) × 500 | ≈ 0.25MB | 5GB | ≈ 0% | — |
+| CPU/요청 | 해시·JSON·닉네임 검증 ≈ 1~3ms | — | 10ms | 30% 이내 | **Build가 `wrangler dev`로 실측**(닉네임 검증이 가장 큼) |
+**결론**: 500명 규모는 **무료 한도에서 안전**하다(최대 사용률 34%). 인원이 늘면 **읽기가 먼저 한계**에 닿는다(내 순위 스캔이 인원에 비례): 읽기 한도 도달 ≈ 1,300명(안전계수 2배 기준 ≈ 900명), 쓰기 ≈ 3,700명, 요청 ≈ 5,000명. **약 900명을 넘으면** 유료 플랜(요금은 Cloudflare 공식 가격표로 확인) 또는 "상위 50 밖은 별 수로 구간 표시(근사 순위)"로 전환한다. **한도 초과 시 동작**: 서버가 `db_unavailable`(503)이나 Error 1027을 돌려주면 클라이언트는 ① 순위표에 안내 문구 + **마지막으로 받은 캐시(있으면)** 표시 ② 제출은 대기열에 두고 백오프(5초→15초→1분→5분→15분 상한) ③ 게임 플레이에는 영향 없음. 한도는 **09:00 KST에 초기화**된다.
+**읽기 줄이기(캐시)**: ① 상위 50 응답은 Worker **isolate 메모리에 30초** 캐시 + `Cache-Control: public, max-age=30`(브라우저 캐시) ② `/api/rank`는 `max-age=15` ③ 참가자 수(`of`)는 60초 캐시 ④ 클라이언트 새로고침 5초 제한 + 이미 목록에서 내 줄을 찾으면 `/api/rank` 생략. **Cache API(`caches.default`)는 문서상 "custom domain에서 동작"으로만 명시**되어 `*.workers.dev`에서는 보장되지 않으므로 기본안에서 제외(사용자 도메인 연결 시 선택).
+
+#### 19.4.8 로컬 시험
+| 방법 | 내용 |
+|---|---|
+| **계정 없는 목(mock) 서버(권장, 필수 산출물)** | `server/mock/server.js` — **Node 내장 `node:sqlite`**(설치 불필요, Node 24에서 SQLite 3.53 동작 확인)에 **같은 `schema.sql`**을 적용하고, **같은 `worker.js`의 `handle(request, env)`**를 Node `http` 서버에 연결(`env.DB`는 D1 호환 얇은 어댑터: `prepare().bind().first()/all()/run()`, `batch()`). → 로직·SQL을 Cloudflare 없이 그대로 시험. 실행 `node server/mock/server.js --port 8788` |
+| Worker 자체(계정 불필요) | `npx wrangler dev`(로컬 모드, 로컬 D1은 `.wrangler/state`에 저장) + `npx wrangler d1 execute element-gems-hall --local --file=./schema.sql`. 로그인 없이 가능(문서: `--local`은 로컬 DB만 초기화) |
+| 자동 시험 | `node --test server/test/` — 닉네임 우회 목록, `core` 병합·검증·단조 증가, `parseSave` 마이그레이션, 정렬·동점, API 오류 코드 전부, CORS, 요청 크기, 제출 간격 |
+| 클라이언트 시험 | 정적 서버(`localhost:8765`) + 목 서버(`localhost:8788`), `CONFIG.ranking.api = 'http://localhost:8788'`(로컬 변경만, **커밋하지 않음**) |
+
+### 19.5 클라이언트 동작
+
+#### 19.5.1 설정과 저장 키
+```js
+// CONFIG에 한 줄 추가(비어 있으면 랭킹·프로필·명예의 전당 UI 전부 숨김 = 배포 전 안전)
+ranking: { api: '' /* 예: 'https://element-gems-hall.<계정>.workers.dev' */,
+           timeoutMs: 8000, retryMs: [5000, 15000, 60000, 300000, 900000],
+           refreshMinMs: 5000, nickChangePerDay: 2, pageSize: 50 }
+```
+| `localStorage` 키 | 내용 | 비고 |
+|---|---|---|
+| `element-gems:v1` (기존) | `stages[diff][i] = {best, stars, left}` | §19.2.4 |
+| `element-gems:profile:v1` | `{ pid, pub, nick, tag, avatar, skipped, createdAt, hidden }` | 프로필 없음 = 랭킹 미참여 |
+| `element-gems:sync:v1` | `{ dirty, lastOkAt, fails, nextTryAt, blocked }` | 제출 대기 표시(스냅샷은 매번 `save`에서 만들므로 **대기열 본문 없음**) |
+| `element-gems:hall:v1` | `{ board: { asOf, rows, me } }` | 마지막 성공 순위표(오프라인에서 "○○:○○ 기준"으로 표시) |
+모든 접근은 기존처럼 `try/catch`(차단 환경 지원, 메모리 폴백).
+
+#### 19.5.2 제출(진행 동기화)
+| 항목 | 규칙 |
+|---|---|
+| 시점 | ① 스테이지 클리어 직후 **`applyStageResult(...).improved`가 참일 때만**(별 또는 `left` 상승). 결과 화면이 뜨고 **1.2초 뒤**(컷인·결과 연출과 겹치지 않음) ② 프로필 저장 시 ③ 앱 시작·`online`·`visibilitychange(visible)` 때 `dirty`면 재시도 |
+| 내용 | 항상 **현재 로컬 전체 스냅샷** `d={easy:[…10],normal:[…10],hard:[…10]}`(`stars≥1 ? left : -1`) — 서버가 **최대값 병합**하므로 중복·재전송·순서 뒤바뀜이 안전(멱등) |
+| 대기열 | 이벤트를 쌓지 않는다. `dirty=true`만 저장 → 성공 시 `false`. 오프라인에서 여러 번 깨도 **마지막 스냅샷 한 번**으로 충분 |
+| 중복·연타 방지 | 동시에 1개만 전송(single-flight), 전송 중 새 변경은 끝난 뒤 한 번 더. `AbortController` 타임아웃 8초 |
+| 실패 | JSON이 아니거나 5xx/429/네트워크 오류 → `fails++`, 백오프 `retryMs[min(fails-1,4)]`. 400계(`progress_*`) → `blocked=true`(자동 재시도 중단, 순위표 화면에 "기록을 올릴 수 없어요" 한 줄, 콘솔 기록) |
+| 결과 화면 표시 | 프로필이 있을 때만 작은 한 줄: "명예의 전당에 기록을 올렸어요" / "기록은 저장됐어요. 연결되면 올릴게요"(결과 패널 레이아웃 변화 없는 기존 `.muted` 줄 1개) |
+| 게임 영향 | 모든 호출은 `await` 없이 비동기, 게임 루프·입력·애니메이션과 무관. 예외는 전부 삼킨다 |
+
+#### 19.5.3 화면 배치(§18 스카이 캔디 토큰 사용)
+| 화면 | 설계 |
+|---|---|
+| 시작 화면 | 로고 아래에 **프로필 칩**(흰 알약: 아바타 40px · `닉네임#번호` · "수정"), 프로필이 없으면 "＋ 내 프로필 만들기". **[시작] 아래에 [명예의 전당] 젤리 버튼**(라벤더, ★ 아이콘 + 보조 글 "별 챔피언 순위 보기", 높이 52px). `CONFIG.ranking.api`가 비면 둘 다 숨김. 낮은 가로 화면은 기존처럼 스크롤 |
+| 프로필 화면 | 새 섹션 `#screen-profile`(`.stages-card` 흰 카드 재사용). 아바타 5×3(버튼 ≥44px, 실제 약 60px), 큰 입력(54px), 메시지 줄(`role="alert"`), 노랑 안내 박스, [저장하고 시작] / [나중에 할래요]. 수정 모드에는 [취소]·[프로필 지우기] |
+| 명예의 전당 | 새 섹션 `#screen-hall`. 머리줄 [뒤로] / 제목 / [새로고침], 탭 4개, 메타 줄(마지막 갱신·정렬 규칙), 목록(`<ol>`, 스크롤), **고정 내 순위 바**, 안내 줄. **가로·낮은 화면(max-height 500px)**: 2열 분할 — 왼쪽(탭·내 순위·안내) / 오른쪽(목록 스크롤)(목업 확인, 844×390) |
+| 오류 | ④ 순위표를 못 불러오면 구름 아이콘 + "순위표를 불러오지 못했어요" + [다시 시도] / [게임으로 돌아가기]. 마지막 캐시가 있으면 목록을 보여 주고 노랑 배너 "인터넷이 불안정해요. 14:32에 본 순위를 보여 주고 있어요" + "올릴 기록 1개 대기 중" 칩 |
+| 흐름 | 시작 → (프로필 칩) 프로필 / (버튼) 명예의 전당 / (시작) 레벨 선택. 명예의 전당 [뒤로] → 시작. 레벨 선택 화면에도 [명예의 전당] 진입점은 **넣지 않는다**(1단계, 화면 높이 보호) |
+| 반응형 | 360×640 / 390×844 / 768×1024 / 1280×800 / 가로 844×390 — `.hf-card`는 `min(100%, 440px)`, 목록은 flex로 남은 높이를 채워 스크롤, 내 순위 바는 항상 보임(목업 §19.7 확인) |
+
+#### 19.5.4 접근성·성능
+| 항목 | 규칙 |
+|---|---|
+| 접근성 | 탭은 `role="tablist/tab"`(화살표키 이동), 아바타 격자는 `role="radiogroup"`(화살표키, 이름은 `aria-label`), 목록 줄은 `aria-label="3위, 별빛냥 번호 1138, 별 88개"`, 오류·상태 메시지 `role="alert"/"status"`, 터치 타깃 ≥44px, `:focus-visible` 보라 링, 순위는 **숫자 + 메달 모양**(색에만 의존 안 함), `prefers-reduced-motion` 존중 |
+| 대비 | 목업에 쓴 조합을 WCAG 대비로 계산: 에러 문구 `#8a1126`/`#ffe9ec` 8.3, 별 수 `#8a4a00`/흰 6.9, 순위 알약 `#5b5394`/`#ece6ff` 5.6, 내 순위 라벨 `#6a4300`/`#ffd23f` 6.0, 이름 `#4a2600`/`#ffc531` 8.5, 안내 박스 `#2a2160`/`#fff4cc` 12.8, 명예의 전당 버튼 제목 `#2a2160`/`#cdbeff` 8.4 — **모두 4.5 이상**(설계 중 `#5b5394`/`#cdbeff` 4.0을 `#2a2160`으로 교체) |
+| 아바타 | 목록은 `loading="lazy" decoding="async" width/height` 지정, 서로 다른 이미지는 최대 15장(약 135KB)이라 캐시로 충분. 프로필 화면 격자 15장은 화면 진입 시 한 번 로드 |
+| 목록 렌더 | 50줄을 `DocumentFragment`로 한 번에, 닉네임은 **`textContent`만**(HTML 삽입 금지), 줄에 `content-visibility:auto`, 재렌더 시 `replaceChildren` |
+| 네트워크 | 순위표 진입 시 1회 + [새로고침]. 백그라운드 폴링 없음 |
+
+### 19.6 데이터 흐름 요약
+```
+[클리어] finishStage → applyStageResult(left, stars) → writeSave(localStorage, element-gems:v1)
+            └ improved? → sync.dirty=true → (1.2초 뒤) POST /api/sync { v:1, pid, d:{easy,normal,hard} }
+                              서버: 검증 → 스테이지별 max 병합 → 별·시간합 재계산 → D1 UPDATE(개선 시에만) → { me }
+[순위표] GET /api/leaderboard?board=all  ──(30초 캐시)──> 상위 50 렌더
+         내 줄이 목록에 없으면 GET /api/rank?board=all&pub=… → 고정 바에 "내 순위 N위"
+[오프라인/오류] 게임은 계속 동작 · dirty 유지 · 백오프 재시도 · 순위표는 안내 + 마지막 캐시
+```
+
+### 19.7 화면 목업·스크린샷 (scratchpad, 프로젝트 폴더 밖)
+기준 폴더 `SP` = `/private/tmp/claude-501/-Users-sungchul-Desktop-play2-jewel-play/a531f417-6e12-4899-8faf-38c202023dbb/scratchpad/ranking-plan`
+- 방법: 현재 `style.css`(스카이 캔디, 실제 파일 복사본)와 `assets/`(아바타 15장·로고·배경 복사본)를 그대로 쓰고, 명예의 전당용 신규 컴포넌트는 `SP/mock.css`(제안 CSS)로 덧붙였다. 생성기 `SP/gen.js`, 촬영 `SP/shoot.sh`(headless Chrome, iframe으로 정확한 뷰포트). **프로젝트 파일은 수정하지 않았다.**
+| # | 화면 | 390×844 스크린샷 | 목업 HTML |
+|---|---|---|---|
+| ① | 프로필 만들기 — **검증 오류 예시**(`3학년2반` → 학교·학년 안내, 저장 비활성) | `SP/shots/01-profile-error_390x844.png` | `SP/01-profile-error.html` |
+| ①b | 프로필 만들기 — 통과 예시(`별빛냥`, 아바타 선택) | `SP/shots/01b-profile-ok_390x844.png` | `SP/01b-profile-ok.html` |
+| ② | 시작 화면 — 내 프로필 칩 + [명예의 전당] 버튼 | `SP/shots/02-start_390x844.png` | `SP/02-start.html` |
+| ③ | 명예의 전당 — 전체 탭, 메달 1~3위, 고정 내 순위(83위, 상위 50 밖) | `SP/shots/03-hall_390x844.png` | `SP/03-hall.html` |
+| ④ | 서버 오류/오프라인 — 빈 상태 + 다시 시도 | `SP/shots/04-offline_390x844.png` | `SP/04-offline.html` |
+| ④b | 오프라인이지만 **캐시된 순위 + "14:32 기준" 배너 + 올릴 기록 대기 칩** | `SP/shots/04b-stale_390x844.png` | `SP/04b-stale.html` |
+| 추가 | 360×640: `01-profile-error_360x640.png`, `02-start_360x640.png`, `03-hall_360x640.png` / 가로 844×390: `03-hall_844x390.png`, `04b-stale_844x390.png` | `SP/shots/…` | 위와 동일 |
+- 확인한 점: 5×3 아바타 격자(한 장 약 60px, 선택 링), 닉네임 입력·오류 줄, 메달 3종, 노란 "내 순위" 바, 360px에서도 줄바꿈·잘림 없음, 가로 모드 2열 분할 정상. 닉네임·순위 데이터는 **모두 지어낸 예시**다(실제 사람·학교와 무관).
+- **한계**: 정적 목업이라 상호작용(탭 전환·IME 입력)은 구현 단계에서 확인한다. 폰트는 시스템 폰트 기준.
+- **제안 CSS 요약**(Build의 출발점은 `SP/mock.css` 약 13KB): 줄 `.hr`(그리드 `38px 44px 1fr auto`, 최소 56px, 흰→`#f4efff`, 두께 `0 3px 0 #cfc3f7`), 메달 `.m1/.m2/.m3`(금 `#fff7c2→#ffc531→#e08a00`, 은 `#fff→#d8deef→#9aa6c8`, 동 `#ffe6d0→#f0a066→#c0672a`), 내 순위 `.myrank`(`#fff1a3→#ffc531`, 흰 3px 테두리), 탭 `.hf-tab`(난이도 색 재사용), 프로필 격자 `.av-btn`(`--focus` 링 6px). 토큰은 §18.3 그대로.
+
+### 19.8 배포 안내서 (사용자는 계정을 직접 만든다)
+> **중요**: ① Cloudflare **가입·로그인·결제 정보·비밀키(Secret) 입력은 사용자가 직접** 한다. Claude/에이전트는 계정 정보를 다루지 않는다. ② 무료 플랜은 **결제 수단 없이** 쓸 수 있다(2026-11-07 문서 기준, 가입 시 요구 사항이 바뀌었는지는 가입 화면에서 확인). ③ 대시보드 화면 이름은 자주 바뀐다. 아래 이름과 다르면 상단 검색창에 키워드(`D1`, `Workers`)를 입력해 찾는다. ④ 이름·ID 예시 `element-gems-hall`은 바꿔도 된다.
+
+#### (a) Cloudflare 가입
+1. 브라우저에서 Cloudflare 공식 사이트에서 **Sign up**(이메일·비밀번호 직접 입력, 이메일 인증).
+2. 로그인 후 왼쪽 메뉴 **Workers & Pages**가 보이는지 확인(처음엔 "workers.dev 하위 도메인 이름 정하기" 안내가 나오면 원하는 영문 이름을 입력 — 이것이 API 주소의 일부가 된다).
+
+#### (b) D1 데이터베이스 만들기 — 대시보드
+1. 왼쪽 메뉴 **Storage & Databases → D1 SQL database → Create Database**(문서의 "D1 SQL database 페이지 → Create Database").
+2. 이름 `element-gems-hall` 입력(위치 힌트는 비워 둠, Optional) → **Create**.
+
+#### (c) 스키마 적용
+- **대시보드 방식**: D1 → `element-gems-hall` 선택 → **Console** → 저장소의 `apps/element-gems/server/schema.sql` **내용 전체를 붙여넣고 Execute** → **Tables**에서 `players`, `rate_limits`가 보이면 성공.
+- **CLI 방식**: `cd apps/element-gems/server` → `npx wrangler d1 execute element-gems-hall --remote --file=./schema.sql`(확인 질문에 `y`). 확인: `npx wrangler d1 execute element-gems-hall --remote --command "SELECT name FROM sqlite_master WHERE type='table';"`
+
+#### (d) Worker 배포
+- **대시보드 방식(코드 붙여넣기)**: ① **Workers & Pages → Create → "Start with Hello World!"** → 이름 `element-gems-hall` → **Deploy** ② **Edit code** → 기존 코드를 지우고 저장소의 **`apps/element-gems/server/dist/worker.js`(단일 파일, 빌드 산출물) 내용 전체 붙여넣기** → **Deploy** ③ Worker의 **Settings**에서 **D1 바인딩 추가**: 변수 이름 **`DB`**(반드시 이 이름), 데이터베이스 `element-gems-hall` 선택 → 저장·Deploy(메뉴 이름은 Settings → Bindings 또는 Settings → Functions 아래에 있음 — 화면에서 "Bindings/D1"을 찾는다. *정확한 메뉴 위치는 2026-11-07 문서에서 확인하지 못함*).
+- **CLI 방식**: ① `cd apps/element-gems/server` ② `npx wrangler login`(브라우저가 열리면 **본인이 로그인·허용**) ③ `npx wrangler d1 create element-gems-hall` 출력의 `database_id`를 `wrangler.toml`의 `REPLACE_WITH_YOUR_DATABASE_ID`에 입력(이 ID는 비밀이 아니다) ④ (c)의 스키마 적용 ⑤ `npx wrangler deploy` → 출력의 `https://element-gems-hall.<이름>.workers.dev`가 **API 주소**.
+- 어느 방식이든 주소 확인: 브라우저로 `https://…workers.dev/api/health` 열기 → `{"ok":true,…}`가 보이면 성공.
+
+#### (e) 관리자 비밀키 설정 (선택 — SQL 방식만 쓰면 생략 가능)
+- 대시보드: Worker → **Settings → Variables and Secrets → Add** → 유형 **Secret** → 이름 `ADMIN_KEY` → 값(길고 무작위한 문자열을 **본인이 직접 생성·입력**, 어디에도 적어 두지 말고 비밀번호 관리자에 보관) → **Deploy**. 같은 방법으로 `IP_SALT`(임의 문자열)도 Secret으로 추가(IP 해시용, 없으면 날짜만 사용).
+- CLI: `npx wrangler secret put ADMIN_KEY`(프롬프트에 직접 입력).
+- **저장소에는 절대 커밋하지 않는다.** 로컬 시험용 값은 `server/.dev.vars`(gitignore)에만.
+
+#### (f) 허용 오리진(CORS) 설정
+- 대시보드: Worker → **Settings → Variables and Secrets → Add** → 유형 **Text(일반 변수)** → 이름 `ALLOWED_ORIGINS` → 값 `https://eversunk2-tech.github.io`(여러 개면 쉼표로, 끝에 `/` 없이) → Deploy. CLI는 `wrangler.toml`의 `[vars]`.
+- 새 도메인(Vercel 등)은 같은 변수에 쉼표로 추가.
+
+#### (g) 게임에 API 주소 넣기
+`apps/element-gems/game.js`의 `CONFIG.ranking.api`에 (d)의 주소를 `'https://element-gems-hall.<이름>.workers.dev'`(끝에 `/` 없이)로 입력 → 커밋·푸시(GitHub Pages 배포) → 배포 사이트에서 확인. 로컬 확인은 `http://localhost:8765` + 목 서버로.
+
+#### (h) 동작 확인 체크리스트
+- [ ] `…/api/health`가 `{"ok":true}`
+- [ ] 배포 사이트 시작 화면에 프로필 칩·[명예의 전당] 버튼이 보임(주소가 비면 안 보임)
+- [ ] 프로필 만들기(아바타 + 닉네임) → 저장 → 칩에 `닉네임#번호` 표시
+- [ ] 스테이지를 깨고 몇 초 뒤 명예의 전당 [새로고침]에 내 순위·별이 보임(최대 30~60초 지연)
+- [ ] D1 Console에서 `SELECT nick, tag, total_stars FROM players;`에 내 행이 보이고 **이름·IP가 없는 것**을 확인
+- [ ] 비행기 모드(오프라인)에서 게임이 정상 동작하고 순위표엔 오류 안내만 뜸, 다시 연결하면 기록이 올라감
+- [ ] 다른 사이트(예: 임의의 로컬 파일 `file://`)에서 호출하면 `forbidden_origin`이 되는지(선택)
+- [ ] 저장소(`git status`, `git grep`)에 `ADMIN_KEY`·`.dev.vars` 값이 없음
+
+#### (i) 문제 해결
+| 증상 | 원인·해결 |
+|---|---|
+| 브라우저 콘솔에 CORS 오류 | `ALLOWED_ORIGINS`에 **정확한 주소**(`https://eversunk2-tech.github.io`, 경로·끝 `/` 없이)가 있는지, 변경 후 Deploy 했는지 |
+| `/api/health`는 되는데 프로필 저장이 `server_error`/500 | D1 **바인딩 이름이 `DB`**인지, (c) 스키마를 **같은 DB**에 적용했는지(Console에서 Tables 확인) |
+| `db_unavailable`(503) | D1 일일 한도 초과 가능성(§19.4.7). 09:00 KST에 초기화. 반복되면 사용량 확인·캐시 강화·유료 전환 |
+| Error 1027 / 순위표가 갑자기 안 열림 | Workers 일일 요청 한도(100,000) 초과 가능성. 대시보드 Metrics에서 확인 |
+| `wrangler d1 execute`가 "binding/database not found" | `wrangler.toml`의 `database_name`/`database_id` 확인, `--remote`를 붙였는지 |
+| 로컬 `wrangler dev`에서 DB가 비어 있음 | `--local`로 스키마를 먼저 적용(로컬 DB는 `.wrangler/state`에 따로 있음) |
+| 닉네임이 계속 "쓸 수 없어요" | 정상 동작(금칙어·개인정보 패턴). 다른 이름 시도. 오탐이 잦으면 관리자가 `nick-words.js` 조정 |
+| 코드 수정 후 반영 안 됨 | 대시보드는 **Deploy**를 눌러야 반영, CLI는 `wrangler deploy` |
+| 순위가 바로 안 바뀜 | 서버 캐시 30~60초 + 브라우저 캐시. [새로고침] 후 잠시 대기 |
+
+### 19.9 프로젝트 규칙 영향 (`CLAUDE.md`는 수정하지 않음)
+**이미 반영된 내용(메인 세션, 2026-11-07 확인)**: `CLAUDE.md`에 ① 대상 사용자 "전체 이용가, 초등학생 이상"과 안전 기준(폭력·선정·공포·도박·과금·외부 링크 유도 없음, 쉬운 말) ② **서버 예외 1건**(명예의 전당 한정 Cloudflare Workers + D1, 예외 밖 서버 기능은 새 승인, 서버 실패에도 게임 완전 동작) ③ "서버(명예의 전당) 규칙"(비밀 커밋 금지, 계정·로그인·결제·비밀키 입력은 사용자, 서버 값 검증, 한도 계산·초과 시 깨지지 않기) ④ 닉네임 등 입력 검증을 클라이언트·서버 양쪽에서, 개인정보 미수집, 서버 저장 최소화 ⑤ 서브에이전트 임시 파일은 scratchpad만 — 이 들어 있다. `PRD.md`에도 대상 사용자가 반영되어 있다. **§19는 위와 충돌하지 않으며 같은 문구를 반복 제안하지 않는다.**
+**보완 제안(승인 후 메인 세션이 반영, 필요한 것만)**
+| # | 위치 | 제안 문구(초안) | 이유 |
+|---|---|---|---|
+| 1 | `CLAUDE.md` 웹앱 규칙 | "서버 코드(Worker·SQL·시험용 목 서버)는 **`apps/element-gems/server/`**에 두고 **비밀 정보 없이** 공개 저장소에 커밋한다. 로컬 시험 비밀·빌드 산출물은 `.gitignore`(`.dev.vars*`, `.env*`, `.wrangler/`, `node_modules/`)로 제외한다." | 코드 위치·공개 범위를 한 줄로 확정(아래 결정 참고) |
+| 2 | `CLAUDE.md` 서버 규칙 | "서브에이전트는 `wrangler login/deploy/secret`, 대시보드 조작을 **실행하지 않는다**(배포 안내서만 작성). 배포·비밀키 입력은 사용자가 직접 한다." | 기존 "계정·결제·비밀키는 사용자"를 **명령 단위**로 구체화 |
+| 3 | `CLAUDE.md` 서버 규칙 | "학교·기관에 배포할 때는 해당 기관의 개인정보 방침(외부 서버 사용·보호자 안내 필요 여부)을 먼저 확인한다. 이 앱은 닉네임·아바타·별 수 외 개인정보를 받지 않도록 설계한다." | 14세 미만 가능성 대비 한 줄 안내 |
+| 4 | `PRD.md` 비목표(현재) | 현재 "온라인 랭킹·계정, 백엔드"가 남아 있다(PRD 23행) → "**점수 랭킹, 로그인 계정, 명예의 전당 외 서버 기능**(별 챔피언 명예의 전당은 §19로 승인된 예외)"으로 정리 | PRD와 CLAUDE.md 불일치 해소 |
+| 5 | `CLAUDE.md` 개요 | 위 기존 "예외" 줄에 "**승인된 서버 설계는 spec §19**"를 덧붙임 | 정답지 위치 명시 |
+**서버 코드 위치 결정**: `apps/element-gems/server/`(권장). 이유: ① `CLAUDE.md`의 "`/apps/{앱이름}/` 안에 자체 완결" 규칙을 지키고, 닉네임 규칙 모듈(`nickname.js`)을 **클라이언트·서버가 같은 파일**로 공유해 규칙이 어긋나지 않는다 ② 비밀 정보가 저장소에 없으므로(§19.4.6) GitHub Pages로 **공개돼도 안전**하다 — 공개 코드는 투명성에 유리하고, 보안은 코드 비공개가 아니라 서버 검증·해시 저장에 기댄다(알려진 영향: 금칙어 목록·검증 상한이 보임 → 기밀 아님을 전제로 설계) ③ 별도 저장소·최상위 `/server`는 규칙·공유 모듈·배포 안내와 어긋난다. 대신 `server/` 폴더의 `.dev.vars`·`.wrangler/`·`node_modules/`가 Pages에 올라가지 않도록 **루트 `.gitignore`**를 Build 1단계에 둔다.
+
+### 19.10 구현 영향 범위와 단계 분해 (Build용)
+**파일 구조(추가)**
+```
+apps/element-gems/
+├─ index.html        # (수정) #screen-profile, #screen-hall, 시작 화면 프로필 칩·[명예의 전당], 스크립트 태그 3개
+├─ style.css         # (수정) 끝에 "명예의 전당" 블록(목업 mock.css 기반)
+├─ game.js           # (수정) CONFIG.ranking, parseSave/applyStageResult/finishStage(left), 시작 화면 연결 훅
+├─ nickname.js       # (신규) 순수 함수 UMD(브라우저 전역 + module.exports): validateNick(nick, extraBlock)
+├─ nick-words.js     # (신규) 금칙어·예약어·연락 유도 목록(base64 배열)
+├─ ranking.js        # (신규) 클라이언트 API·프로필 저장·동기화·캐시(순수 함수 분리, Node 시험 가능)
+├─ ranking-ui.js     # (신규) 프로필·명예의 전당 화면 렌더링/이벤트
+└─ server/           # (신규) 아래 참고. .gitignore 제외 대상 주의
+   ├─ schema.sql  ├─ wrangler.toml  ├─ .dev.vars.example  ├─ build.js(단일 파일 dist 생성, --check)
+   ├─ src/core.js(검증·병합·정렬·상수) ├─ src/worker.js(라우팅·D1 어댑터·CORS·`handle`)
+   ├─ dist/worker.js(대시보드 붙여넣기용 단일 파일, 커밋)
+   ├─ mock/server.js(Node + node:sqlite) └─ test/*.test.js(node --test)
+```
+`file://`로도 열려야 하므로 ES module 금지(클래식 스크립트, 순서 `nick-words.js → nickname.js → game.js → ranking.js → ranking-ui.js`). `game.js`는 이미 2,000줄 이상이라 새 코드는 별도 파일로 두고 `game.js`에는 **훅만** 추가한다.
+| 단계 | 산출물 | 완료 기준(시험) |
+|---|---|---|
+| ① 서버 코드 + D1 스키마 + 목 서버 | `schema.sql`, `src/core.js`, `src/worker.js`, `mock/server.js`, `wrangler.toml`, `.gitignore`, 테스트 | `node --test` 통과(§19.11 서버 항목), 목 서버에서 `curl`로 sync→leaderboard→rank→delete 한 바퀴, 가짜 값(`left=9999`, 연쇄 위반, 감소 제출) 거부·무시 확인 |
+| ② 닉네임 검증 모듈(순수 함수) | `nickname.js`, `nick-words.js`, 시험 벡터 파일(우회 목록 ≥ 60개) | Node 시험 통과, **서버·클라이언트가 같은 결과**(같은 파일 로드 확인), POC 한계 케이스 문서화 |
+| ③ 저장 확장 + 프로필·순위표 UI | `parseSave`/`applyStageResult`/`finishStage` 수정(`left`·마이그레이션), `ranking-ui.js`, HTML/CSS | 옛 저장(`left` 없음) 마이그레이션 시험, 390·360·가로 화면, 목업과 일치, API 주소가 비면 UI 숨김 |
+| ④ 제출·재시도·오프라인 | `ranking.js`(single-flight, 백오프, `online`/`visibilitychange`, 캐시) | 서버 중지/복구 시나리오, 목 서버 지연·5xx·비 JSON(1027 흉내), 게임 입력 지연 없음 |
+| ⑤ 통합 회귀 + 배포 점검 | 전체 흐름, `dist/worker.js` 최신성(`node server/build.js --check`), 비밀 검사 | §19.11 전체 + 기존 §17·§18 체크리스트 회귀 |
+**변경 대상 정리**: `game.js` — `CONFIG.ranking`, `defaultSave`/`parseSave`(left 검증·보정·하한 마이그레이션), `applyStageResult`(left·`improved`), `finishStage`(left 계산·제출 호출·결과 한 줄), `module.exports`(시험용), 시작 화면 렌더 훅. `index.html` — 두 화면·칩·버튼·스크립트. `style.css` — 끝에 블록 추가(기존 규칙 수정 금지). 기존 §17 순수 함수 시그니처는 **호환 유지**.
+
+### 19.11 검증 체크리스트 (Review용)
+**닉네임 검증**(클라이언트·서버 같은 결과)
+- [ ] 길이 1·2·8·9, 공백·`_`·`.`·`@`·이모지·한자·일본어 → 각 오류 코드. 낱자 자모(`ㅋㅋㅋ`, `ㅅㅂ` 형태 전부) → 입구에서 차단
+- [ ] 숫자 3개 허용/4개 거부, 숫자만(`123`) 거부, 같은 글자 3연속(`아아아`, `AAA`, `aAa`) 거부, `하하` 허용
+- [ ] **금칙어 우회 목록**(시험용 금칙어로 작성, 실제 목록은 Build가 시험 파일에): ① 중간에 숫자·영문 끼움(`멍1청이`, `멍a청이`, `멍0청0이`) ② 된소리·모음·받침 변형(`멍쳥이`) ③ 영문 숫자 치환·대소문자·반복(`S7uPiD`, `stuuupid`, `stupid99`) ④ 한글+영문 혼용 ⑤ 짧은 단어 오탐(`class`·`pass`류는 통과) ⑥ **알려진 한계(음절 쪼개기 `머엉청이`)는 통과해도 "한계"로 기록**(Review가 숨김 절차 확인)
+- [ ] 개인정보: `010`·`01012`, "공일공", `3학년2반`, `3반`, `서울초`, `학교`, `카톡`, `kakao`, `http`/`www` 거부 / `반달곰`·`초코우유`(초코는 `초` 끝 아님) 통과
+- [ ] 예약어: `관리자`, `Admin`, `운영자1`, `이그니`, `ElementGems` 거부
+- [ ] 안내 문구가 금칙어를 **알려 주지 않음**, 초등학생이 이해할 쉬운 말, 성인에게 어색하지 않은 톤
+- [ ] 입력 중 한글 IME 조합이 끊기지 않음(`compositionend` 후 검사), 붙여넣기 정상
+**서버**
+- [ ] 조작 값 거부: `left` 범위 밖·소수·문자열·배열 길이 오류·난이도 키 누락, 레벨 10만 클리어(연쇄), 별만 위조(받지 않음)
+- [ ] **단조 증가**: 낮은 값 제출이 기존 값을 낮추지 않음, 오래된 스냅샷 재전송이 안전, 기기 2대 병합(최대값)
+- [ ] 별↔`left` 임계값 정확(초보 39/65, 중수 36/60, 고수 30/50 경계 ±1), `CONFIG`와 상수 일치
+- [ ] 제출 간격 3초, 닉네임 하루 2회(KST 날짜 경계), 등록 한도, 요청 2,048B 초과 → 413, 변경 없는 제출이 **쓰기 0**
+- [ ] CORS: 허용 오리진 OK, 목록 밖 `Origin` 403, `Vary: Origin`, `OPTIONS` 204, 로컬 오리진은 `.dev.vars`에서만
+- [ ] 개인정보 미저장: DB 덤프에 이름·IP·UA 없음, `pid` 원본 없음(해시만), 로그에 `pid`·IP 없음, 순위표 응답에 `pid`·`pub` 없음
+- [ ] 비밀키: `git grep`에 `ADMIN_KEY` 값·`.dev.vars` 없음, `.gitignore` 적용, `dist/worker.js`에 비밀 없음, `/api/admin/*`는 `ADMIN_KEY` 미설정이면 404, 틀린 키 429 제한
+**순위·표시**
+- [ ] 정렬: 별 → 남은 시간 합 → 먼저 달성 → id, 동점 시나리오 4종(별 동점, 시간 동점, 같은 시각, 같은 시각+같은 값), 공동 순위 없음
+- [ ] 난이도 탭은 해당 난이도 값만, 전체 = 합. 숨김(`hidden≠0`)·별 0 제외. 상위 50 제한, `of` 참가자 수
+- [ ] 내 순위: 상위 50 안(줄 강조), 밖(고정 바 83위 같은 값), 프로필 없음, 숨김 처리, 순위 계산이 목록과 일치(SQL COUNT vs 정렬 결과)
+- [ ] 1~3위 메달 표시, 1위 줄 강조, 새로고침 5초 제한, "마지막 갱신" 시각, 닉네임이 HTML로 해석되지 않음(`<b>` 시험은 형식상 막히지만 `textContent` 확인)
+**클라이언트·오프라인·회귀**
+- [ ] `CONFIG.ranking.api` 비어 있으면 프로필·순위 UI 없음 + 게임 완전 동작
+- [ ] 서버 중지/지연/5xx/비 JSON/타임아웃/D1 한도 흉내(503): 게임 입력·애니메이션 지연 없음, 순위표 오류 화면, 캐시 표시, 복구 후 자동 제출, 오프라인에서 여러 번 깨도 마지막 스냅샷 한 번
+- [ ] 연타·중복 제출 없음(single-flight), 컷인·결과 화면과 충돌 없음(제출은 결과 표시 1.2초 뒤)
+- [ ] 마이그레이션: `left` 없는 옛 저장(별 있음) → 하한값, `best/bestByLevel/level` 보존, 깨진 JSON·`stages` 오류에도 게임 가능, `starsFor` 결과가 이전과 동일(임계값 정수)
+- [ ] 프로필: 건너뛰기 → 나중에 생성 시 전체 진행 제출, 닉네임 변경·지우기·삭제된 프로필 복구, `hidden=2` 흐름
+- [ ] **기존 기능 회귀 없음**: 난이도·레벨·스킬·컷인·일시정지·결과 화면·사운드, §17·§18 체크리스트 재실행
+- [ ] 레이아웃: 360×640·390×844·768×1024·1280×800·가로 844×390, 가로 스크롤 0, 터치 타깃 ≥44px, 콘솔 오류 0, 목록 50줄 렌더 성능(저사양 스크롤 끊김 없음)
+- [ ] 접근성: 키보드만으로 프로필 저장·탭 이동·새로고침, 스크린리더 라벨, `prefers-reduced-motion`
+**시험 안전**: 브라우저 시험은 새 탭 + `tabId` 명시 + 로컬 서버(`localhost`)만, `localStorage` 접근 전 `location.origin` 확인, **배포 주소와 기존 탭은 건드리지 않는다**(CLAUDE.md).
+
+### 19.12 열린 질문 (승인 시 결정, 최대 5)
+1. **통합 점수**: 세 난이도 별의 **단순 합(권장)**으로 확정할까요, 아니면 어려운 난이도에 가중치(초보 1·중수 1.5·고수 2)를 줄까요? (가중치는 나중에 서버 재계산으로 바꿀 수 있게 난이도별 값을 따로 저장해 둡니다.)
+2. **닉네임 중복**: **허용 + 4자리 번호표(권장)**로 갈까요, 아니면 중복을 막을까요(원하는 이름이 이미 있으면 다시 정해야 함)?
+3. **프로필 건너뛰기**: "나중에 할래요"를 **허용(권장)**할까요, 아니면 랭킹 참여를 필수로 할까요? (허용해도 건너뛴 기록은 나중에 프로필을 만들 때 전부 올라갑니다.)
+4. **변경 제한**: 닉네임 변경 **하루 2회**, 아바타는 제한 없음(초안)이면 충분한가요? 더 엄격하게(예: 주 1회) 할까요?
+5. **학교·기관 단위 배포·관리**: 여러 학교나 기관이 같은 서버를 함께 쓸 때 부적절한 닉네임 신고와 삭제를 **누가 어떤 창구로** 처리할까요? (현재 설계는 배포한 사람이 SQL로 처리하고, 앱 안에는 외부 링크·연락처를 넣지 않습니다.) 기관에 배포하기 전에는 **해당 기관의 개인정보 방침**(외부 서버 사용·보호자 안내 필요 여부)을 확인해 주세요.
+
+### 19.13 범위 밖(2차 확장 후보로만 기록)
+점수 랭킹·점수 도전 모드(별도 `board_scores` 테이블, 기간별 순위), 계정 복구 코드·기기 간 이어하기, 친구·그룹 순위, 신고 버튼, 닉네임 자동 재검사 크론, 서버 측 플레이 검증(리플레이 해시) — 모두 이번 승인 대상이 **아니다**. 서버 범위 확대는 `CLAUDE.md` 규칙에 따라 새 승인이 필요하다.
+
+### 19.14 출처와 확인 일자, 한계
+확인일 **2026-11-07**(Cloudflare 공식 문서를 직접 열어 확인):
+| 주제 | URL | 확인한 내용 |
+|---|---|---|
+| D1 가격·무료 한도 | `https://developers.cloudflare.com/d1/platform/pricing/` | 무료: 읽은 행 5,000,000/일, 쓴 행 100,000/일, 저장 5GB(계정), 한도 초과 시 쿼리 불가, 00:00 UTC 초기화, 유료 전환 시 해제 |
+| D1 한도 | `https://developers.cloudflare.com/d1/platform/limits/` | 무료 DB 최대 500MB, 쿼리당 바인딩 100개, SQL 100KB, `batch()` 지원 |
+| Workers 한도 | `https://developers.cloudflare.com/workers/platform/limits/` | 무료: 요청 100,000/일, 요청당 CPU 10ms, 일일 초과 시 Error 1027, 00:00 UTC 초기화 |
+| D1 시작하기 | `https://developers.cloudflare.com/d1/get-started/` | `wrangler d1 create`, `wrangler.toml`의 `[[d1_databases]]`, `wrangler d1 execute --local/--remote --file`, 대시보드 D1 SQL database → Create Database / Console, `wrangler dev` 로컬 D1(`.wrangler/state`) |
+| Secrets | `https://developers.cloudflare.com/workers/configuration/secrets/` | `wrangler secret put`, 대시보드 Settings → Variables and Secrets, 로컬 `.dev.vars`, **`.dev.vars*`·`.env*`를 gitignore에 추가하라는 안내** |
+| Cache API | `https://developers.cloudflare.com/workers/runtime-apis/cache/` | custom domain에서 동작한다고만 명시(`workers.dev`는 명시 없음 → 기본안에서 제외) |
+| Rate Limiting 바인딩 | `https://developers.cloudflare.com/workers/runtime-apis/bindings/rate-limit/` | `ratelimits` 설정, `period` 10/60초만, 위치별 근사치, **무료 플랜 제공 여부 명시 없음 → 보조 수단으로만 검토** |
+- **한계**: ① 무료 한도·화면 이름은 바뀔 수 있어 **배포 직전 재확인**한다(특히 D1 "쓴 행"에 인덱스 갱신이 포함되는지 — 본 계산은 포함하는 보수적 가정) ② 대시보드에서 D1 바인딩을 추가하는 정확한 메뉴 경로는 이번 조사에서 문서로 확인하지 못했다 ③ Workers CPU 10ms 한도 내 닉네임 검증 성능은 Build가 실측해야 한다 ④ 용량 계산은 **가정 기반**(실제 사용 패턴은 달라질 수 있음) ⑤ 닉네임 POC는 시험용 단어로만 검증했고 **실제 금칙어 목록은 아직 없다**(Build 1·2단계 작성 → 사용자 검수).
