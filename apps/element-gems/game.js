@@ -30,7 +30,7 @@
       chainMax: 5,
       skillCell: 10
     },
-    timeBonus: { 3: 0.5, 4: 1.0, 5: 1.5, chainExtra: 0.5 },
+    timeBonus: { 3: 0.25, 4: 0.5, 5: 1.0, chainExtra: 0 },   // Review 후 하향 조정(기존 0.5/1.0/1.5/+0.5): 한 판이 60~90초에 끝나도록
     gauge: { extraPerOver3: 1 },          // gain = size + (size - 3) -> 3/5/7/9 (spec 표 기준)
     skills: {
       fire: { radius: 1 },

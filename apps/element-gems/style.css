@@ -607,7 +607,12 @@ body::before {
 
 .cutin-char { left: 50%; bottom: 0; height: min(calc(var(--vh100) * .78), 140vw); transform: translateX(-50%); }
 .cutin-char-anim { height: 100%; opacity: 0; will-change: transform, opacity; }
-.cutin-char img { display: block; height: 100%; width: auto; max-width: none; filter: drop-shadow(0 0 12px rgba(var(--accent-rgb), .9)); -webkit-user-drag: none; }
+.cutin-char img { display: block; height: 100%; width: auto; max-width: none; filter: drop-shadow(0 0 12px rgba(var(--accent-rgb), .9)); -webkit-user-drag: none;
+  /* Review 지적: 이펙트가 이미지 가장자리까지 이어져 직사각형 경계가 보임 -> 좌우·상단 가장자리 페이드 */
+  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 9%, #000 91%, transparent 100%), linear-gradient(to bottom, transparent 0, #000 8%, #000 100%);
+  -webkit-mask-composite: source-in;
+  mask-image: linear-gradient(to right, transparent 0, #000 9%, #000 91%, transparent 100%), linear-gradient(to bottom, transparent 0, #000 8%, #000 100%);
+  mask-composite: intersect; }
 .cutin.no-img .cutin-char { display: none; }
 
 .cutin-bubble {
