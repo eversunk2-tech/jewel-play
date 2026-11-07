@@ -95,7 +95,7 @@ curl localhost:8787/__mock/state
 
 ## 배포 (요약 — 정답은 spec §19.8)
 
-1. D1 만들기(`element-gems-hall`) → `schema.sql` 적용(대시보드 Console에 붙여넣기 또는 `npx wrangler d1 execute element-gems-hall --remote --file=./schema.sql`)
+1. D1 만들기(`element-gems-db`) → `schema.sql` 적용(대시보드 Console에 붙여넣기 또는 `npx wrangler d1 execute element-gems-db --remote --file=./schema.sql`)
 2. Worker: 대시보드에서 `dist/worker.js` 전체 붙여넣기, 또는 `wrangler.toml`의 `database_id`를 채우고 `npx wrangler deploy`
 3. D1 바인딩 이름 `DB`, 일반 변수 `ALLOWED_ORIGINS` 설정
 4. `https://…workers.dev/api/health` 확인 → `game.js`의 `CONFIG.ranking.api`에 주소 입력
