@@ -621,6 +621,7 @@
     idle: 0
   };
 
+  let startGate = null;     // [시작] 눌렀을 때 먼저 물어볼 함수(없으면 바로 진행)
   let gemSeq = 0;
   let liveParticles = 0;
   const reduceMotion = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
@@ -1969,6 +1970,12 @@
 
   function openStages() {
     if (state.phase !== 'start') return;
+    // 외부 모듈(ranking-ui.js)이 [시작]을 가로챌 수 있다(프로필 안내 팝업). false 를 돌려주면 여기서 멈춘다.
+    if (startGate) { let go = true; try { go = startGate() !== false; } catch (e) { go = true; } if (!go) return; }
+    goStages();
+  }
+  function enterStages() {      // 게이트를 거치지 않고 레벨 선택으로 (팝업·프로필 저장 뒤에 이어갈 때)
+    if (state.phase !== 'start') return;
     goStages();
   }
 
@@ -2259,6 +2266,8 @@
     writeSave: writeSave,
     showScreen: showScreen,
     goHome: goHome,
+    setStartGate: function (fn) { startGate = typeof fn === 'function' ? fn : null; },
+    enterStages: enterStages,
     getPhase: function () { return state.phase; }
   };
 

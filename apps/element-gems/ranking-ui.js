@@ -47,7 +47,9 @@
     debounce: 0,
     resultPending: false,
     renamePrompted: false,
-    lastHidden: 0
+    lastHidden: 0,
+    pendingStart: false,        // 프로필 안내 팝업 -> [프로필 만들기]로 왔는가(저장하면 레벨 선택으로 이어간다)
+    askOpen: false
   };
   const el = {};
 
@@ -57,6 +59,7 @@
   function cacheDom() {
     ['btn-profile-chip', 'me-note', 'btn-hall', 'end-rank', 'screen-profile', 'screen-hall', 'pf-title', 'pf-sub', 'pf-rename', 'pf-avatars', 'pf-nick', 'pf-count',
       'pf-msg-wrap', 'pf-left', 'pf-save', 'pf-skip', 'pf-cancel', 'pf-delete', 'pf-confirm', 'pf-confirm-yes', 'pf-confirm-no',
+      'overlay-profile-ask', 'pa-close', 'pa-create', 'pa-without', 'btn-start', 'screen-start',
       'hall-title', 'hall-back', 'hall-refresh', 'hall-banner', 'hall-tabs', 'hall-asof', 'hall-rule', 'hall-weight', 'hall-panel', 'hall-list', 'hall-empty', 'hall-me', 'hall-foot'
     ].forEach(function (id) { el[id] = $(id); });
   }
@@ -101,7 +104,7 @@
     return n;
   }
   function visible(node) { return node && !node.hidden; }
-  function home() { host.goHome(); window.scrollTo(0, 0); }
+  function home() { ui.pendingStart = false; host.goHome(); window.scrollTo(0, 0); }
   function onHallScreen() { return visible(el['screen-hall']); }
   function onProfileScreen() { return visible(el['screen-profile']); }
   function tagText(tag) { return '#' + R.pad4(tag); }
@@ -148,6 +151,7 @@
     } else {
       el['me-note'].hidden = true;
     }
+    if (ui.askOpen) closeAsk(false);
     if (onHallScreen() || onProfileScreen()) home();
   }
 
@@ -235,8 +239,9 @@
     return '오늘 닉네임 바꾸기 ' + n + '번 남았어요.';
   }
 
-  function openProfile(mode) {
+  function openProfile(mode, opts) {
     const p = client.profile();
+    ui.pendingStart = !!(opts && opts.pendingStart) && mode !== 'edit';
     ui.mode = mode === 'edit' && p.registered ? 'edit' : 'create';
     ui.busy = false;
     ui.composing = false;
@@ -244,7 +249,7 @@
     const edit = ui.mode === 'edit';
     el['pf-title'].textContent = edit ? '내 프로필 고치기' : '내 프로필 만들기';
     el['pf-sub'].textContent = edit ? '그림이나 이름을 바꿀 수 있어요.' : '명예의 전당에서 나를 보여 줄 그림과 이름을 골라요.';
-    el['pf-save'].textContent = edit ? '저장' : '저장하고 시작';
+    el['pf-save'].textContent = edit || !ui.pendingStart ? '저장' : '저장하고 시작';
     el['pf-skip'].hidden = edit;
     el['pf-cancel'].hidden = !edit;
     el['pf-delete'].hidden = !edit;
@@ -281,7 +286,8 @@
     el['pf-save'].textContent = label;
     if (!onProfileScreen()) return;
     if (res.ok) {
-      home();
+      if (ui.pendingStart) { ui.pendingStart = false; host.enterStages(); window.scrollTo(0, 0); }   // 원래 가려던 곳(난이도·레벨 선택)으로 이어간다
+      else home();
       return;
     }
     if (res.kind === 'disable') { disableUi(res.code); return; }
@@ -296,8 +302,7 @@
   }
 
   function skipProfile() {
-    client.skipProfile();
-    home();
+    home();                                                    // 시작 화면으로 돌아온다(게임으로 보내지 않고, 영구 저장도 하지 않는다)
   }
 
   function askDelete() {
@@ -321,6 +326,61 @@
     if (res.ok) { home(); return; }
     el['pf-confirm'].hidden = true;
     setMsg('err', res.message || R.MESSAGES.generic);
+  }
+
+  /* ---------------------------------------------------------------------
+   * 프로필 안내 팝업: 프로필이 없을 때 [시작]을 누르면 뜬다
+   * ------------------------------------------------------------------- */
+  function askButtons() { return [el['pa-close'], el['pa-create'], el['pa-without']]; }
+
+  function openAsk() {
+    if (ui.askOpen) return;
+    ui.askOpen = true;
+    el['screen-start'].inert = true;                           // 뒤 화면은 키보드·스크린리더로도 건드릴 수 없게
+    el['overlay-profile-ask'].hidden = false;
+    el['pa-create'].focus({ preventScroll: true });
+  }
+
+  /** 닫는다. toStart=true 면 [시작] 버튼으로 포커스를 돌려준다 */
+  function closeAsk(toStart) {
+    if (!ui.askOpen) return;
+    ui.askOpen = false;
+    el['overlay-profile-ask'].hidden = true;
+    el['screen-start'].inert = false;
+    if (toStart && visible(el['screen-start'])) el['btn-start'].focus({ preventScroll: true });
+  }
+
+  function askCreate() {
+    closeAsk(false);
+    openProfile('create', { pendingStart: true });
+  }
+
+  function askWithout() {
+    client.setSessionOptOut(true);                             // 이번 접속에서만. 서버로 아무것도 보내지 않는다
+    closeAsk(false);
+    host.enterStages();
+    window.scrollTo(0, 0);
+  }
+
+  function bindAsk() {
+    el['pa-create'].addEventListener('click', askCreate);
+    el['pa-without'].addEventListener('click', askWithout);
+    el['pa-close'].addEventListener('click', function () { closeAsk(true); });
+    el['overlay-profile-ask'].addEventListener('click', function (e) { if (e.target === el['overlay-profile-ask']) closeAsk(true); });   // 바깥(딤)을 누르면 닫기
+    el['overlay-profile-ask'].addEventListener('keydown', function (e) {
+      if (e.key !== 'Tab') return;                             // Tab 포커스 가두기
+      const list = askButtons();
+      const i = list.indexOf(document.activeElement);
+      if (e.shiftKey && i <= 0) { e.preventDefault(); list[list.length - 1].focus(); }
+      else if (!e.shiftKey && (i < 0 || i === list.length - 1)) { e.preventDefault(); list[0].focus(); }
+    });
+  }
+
+  /** [시작] 게이트: 프로필 안내가 필요하면 팝업을 띄우고 false(여기서 멈춤), 아니면 true */
+  function startGate() {
+    if (!client.needsProfilePrompt()) return true;
+    openAsk();
+    return false;
   }
 
   function bindProfile() {
@@ -697,10 +757,11 @@
   function bindGlobal() {
     document.addEventListener('keydown', function (e) {
       if (e.key !== 'Escape') return;
+      if (ui.askOpen) { closeAsk(true); return; }
       if (onHallScreen()) { home(); return; }
       if (onProfileScreen()) {
         if (!el['pf-confirm'].hidden) { cancelDelete(); return; }
-        if (ui.mode === 'edit') home();                 // 만들기 화면은 Esc 로 닫지 않는다(실수로 건너뛰는 것 방지)
+        home();                                         // 시작 화면으로 돌아온다
       }
     });
     window.addEventListener('online', client.onOnline);
@@ -712,14 +773,15 @@
     bindProfile();
     bindHall();
     bindStart();
+    bindAsk();
     bindGlobal();
+    host.setStartGate(startGate);
     renderStartExtras();
     client.start();
     const p = client.profile();
     ui.lastHidden = p.hidden;
-    // 최초 실행(프로필도 "나중에"도 없음)이면 시작 화면 대신 프로필 만들기, 이름 변경 요청이면 수정 화면
-    if (!p.registered && !p.skipped && host.getPhase() === 'start') openProfile('create');
-    else if (p.registered && p.hidden === 2 && !ui.renamePrompted) { ui.renamePrompted = true; openProfile('edit'); }
+    // 첫 화면은 항상 시작 화면이다(프로필 만들기는 [시작]의 안내 팝업이나 칩에서). 이름 변경 요청만 수정 화면을 바로 연다
+    if (p.registered && p.hidden === 2 && !ui.renamePrompted) { ui.renamePrompted = true; openProfile('edit'); }
   }
 
   host.on('renderStart', function () {

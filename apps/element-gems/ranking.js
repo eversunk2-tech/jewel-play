@@ -304,6 +304,19 @@
   }
 
   /* ---------------------------------------------------------------------
+   * [시작] 버튼 판정 (프로필 만들기 순서: 메인 화면 먼저, [시작]에서 안내 팝업)
+   * 'prompt' = 프로필 안내 팝업을 띄운다 / 'go' = 바로 난이도·레벨 선택으로 간다
+   * 랭킹이 꺼져 있거나(apiBase 없음) 프로필이 있거나 이번 접속에서 "프로필 없이 시작"을 골랐으면 'go'
+   * ------------------------------------------------------------------- */
+  function startGate(s) {
+    const o = s || {};
+    if (!o.enabled) return 'go';
+    if (o.registered) return 'go';
+    if (o.sessionOptOut) return 'go';
+    return 'prompt';
+  }
+
+  /* ---------------------------------------------------------------------
    * 클라이언트 본체
    * opts: { config(CONFIG.ranking), store, fetch, now, timers:{set,clear}, getSave, stageCount, caps, crypto,
    *         emit(name,data), isOffline(), log }
@@ -332,6 +345,7 @@
     let timerAt = 0;
     let lastSendAt = 0;
     let chain = Promise.resolve();
+    let sessionOptOut = false;                              // 이번 접속에서 "프로필 없이 시작"을 골랐는가(메모리에만 둔다 — 새로 열면 다시 묻는다)
     const boardFlights = {};
 
     function apiBase() { return String(cfg.apiBase || cfg.api || '').replace(/\/+$/, ''); }
@@ -430,6 +444,7 @@
         const j = c.json || {};
         const me = j.me || {};
         profile.skipped = false;
+        sessionOptOut = false;                              // 프로필을 만들었으니 "프로필 없이" 선택은 끝
         profile.notice = '';
         profile.createdAt = profile.createdAt || now();
         if (!profile.pub && typeof me.pub !== 'string') { return failResult({ kind: 'retry', code: 'bad_response' }); }
@@ -475,6 +490,12 @@
       emit('profile', publicProfile());
     }
 
+    /** 이번 접속에서만 "프로필 없이 시작". 켜져 있는 동안 서버로 진행을 보내지 않는다(저장하지 않음) */
+    function setSessionOptOut(on) { sessionOptOut = !!on; }
+    function needsProfilePrompt() {
+      return startGate({ enabled: enabled(), registered: registered(), sessionOptOut: sessionOptOut }) === 'prompt';
+    }
+
     function dismissNotice() {
       if (!profile.notice) return;
       profile.notice = '';
@@ -508,7 +529,7 @@
 
     /** 기록이 올랐을 때 부른다. delayMs 뒤에 한 번 제출(연출과 겹치지 않게) */
     function markDirty(delayMs) {
-      if (!enabled() || !registered()) return false;
+      if (!enabled() || !registered() || sessionOptOut) return false;
       sync.dirty = true;
       saveSync();
       // 실패 백오프 중이면 그 시각을 지킨다(서버가 아플 때 판마다 두드리지 않음)
@@ -518,7 +539,7 @@
     }
 
     async function flush() {
-      if (!enabled() || !registered() || !sync.dirty || sync.blocked) return { skipped: true };
+      if (!enabled() || !registered() || sessionOptOut || !sync.dirty || sync.blocked) return { skipped: true };
       if (inflight) return inflight;                        // single-flight: 끝나면 스냅샷이 달라졌는지 보고 다시 보낸다
       const wait = lastSendAt + gapMs - now();
       if (lastSendAt && wait > 0) { schedule(wait); return { skipped: true }; }
@@ -672,6 +693,7 @@
     return {
       enabled: enabled, status: status, profile: publicProfile, registered: registered,
       saveProfile: saveProfileRemote, deleteProfile: deleteProfileRemote, skipProfile: skipProfile, dismissNotice: dismissNotice,
+      setSessionOptOut: setSessionOptOut, sessionOptOut: function () { return sessionOptOut; }, needsProfilePrompt: needsProfilePrompt,
       markDirty: markDirty, flush: flush, start: start, onOnline: onOnline, onVisible: onVisible,
       fetchBoard: fetchBoard, loadCache: loadCache, snapshot: snapshot,
       _internals: { getSync: function () { return sync; }, getProfile: function () { return profile; } }
@@ -685,6 +707,6 @@
     newPlayerId: newPlayerId, buildSnapshot: buildSnapshot, buildSyncBody: buildSyncBody, classify: classify, messageFor: messageFor,
     findNickFn: findNickFn, fallbackNickCheck: fallbackNickCheck, checkNick: checkNick,
     createStore: createStore, normalizeProfile: normalizeProfile, normalizeSync: normalizeSync, normalizeRows: normalizeRows,
-    createClient: createClient
+    createClient: createClient, startGate: startGate
   };
 });
