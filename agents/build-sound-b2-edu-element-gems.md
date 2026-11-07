@@ -32,3 +32,11 @@
 
 ## 완료 보고 (짧게)
 변경 파일·줄 수 표, 시험 결과(개수), 브라우저 호출 로그 요약(일반용과 같은 항목 + 교육용 전용 항목), 일반용 대비 `game.js` 차이 요약, 충돌을 손으로 합친 곳, spec과 다르게 한 곳, 확인하지 못한 것.
+
+## 추가 지시 (메인 세션, B1 완료 후 — 위 내용과 충돌하면 이 절이 우선)
+- **일반용 변경은 커밋 `46952d5`에 있다**(`git show 46952d5 --stat`). 동기화 명령은 `git diff base-general-v1 -- apps/element-gems/<파일>`(`game.js`·`index.html`·`test/game.test.js`·`test/audio.test.js`)로 만든다. 교육용 에셋은 이미 복사되어 있다(버튼 효과음은 **S3 젤리 보잉**, `click.wav` 19,448바이트·0.22초 — 지침의 S1 표기보다 이 값이 맞다).
+- **B1이 알려 준 충돌·주의 위치**: ① 교육용 `audio` 객체(942행 부근)와 호출부(`toggleSound`·`goStages`·`startStage`·`goHome`), ② `bindUi` 끝의 `visibilitychange` + 첫 입력 핸들러(`bindFirstInput`·`FIRST_INPUT_EVENTS`) 블록, ③ 교육용 `__EG_TEST__` 시험 연결점(2753행 부근). 교육용 `[EDU]` 문제 팝업의 `audio.duck()`(1536·1555·1563행)은 `duck`의 의미가 바뀌지 않았으므로 그대로 동작해야 한다.
+- **`test/audio.test.js` 이식 시**: 일반용 시험은 `game.js` 끝줄(`if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);`) 앞에 연결점을 **메모리에서만** 끼워 `__EG_TEST__.internals`를 만드는데, 교육용 `game.js`는 이미 같은 이름을 만든다 → 덮어쓰기 충돌. 키를 `audioInternals`처럼 따로 쓰거나 교육용 연결점에 `audio`·`finishStage`·`toggleSound`·`openConfirm` 등을 추가해 맞춘다. 교육용 DOM에는 문제 팝업·선물상자가 있어 샌드박스 `FakeEl`이 더 필요할 수 있다. 목표 점수 시험은 교육용 표(×1.2, §22.2.4)로, `index.html` 자리표시자 시험은 교육용 `index.html`에 맞춘다. 곡 5개 크기 합 7,007,299B와 `click.wav` 19,448B는 그대로 쓴다.
+- **시험 실행은 `node --test apps/element-gems-edu/test/*.test.js`(글롭)** 로 한다. 디렉터리 인자(`.../test/`)는 Node v24에서 시험이 0개로 끝난다. 요약은 `ℹ tests/pass/fail/skipped` 줄이다.
+- B1이 spec과 다르게 한 곳(보고서 기준): `CONFIG.audio.fadeStepMs: 30` 추가, `musicPrepare`는 `load()`를 부르지 않고 `src`만 설정, 무음 데이터 URI로 BGM 요소 잠금 해제(네트워크 0), `NotAllowedError` 거절 시 첫 입력 핸들러 재설치, 시작 화면 곡 실패 시 `CONFIG.assets.bgm`을 대신 사용. 교육용에도 **같은 코드**를 쓴다(교육용만의 변형을 만들지 않는다).
+- **커밋은 하지 않는다**(메인 세션이 B2 보고를 확인한 뒤 커밋). 교육용 `assets/`는 읽기 전용(이미 복사됨).
