@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#9fb6ff">
+<title>원소 보석 교육용 - Element Gems</title>
+<link rel="stylesheet" href="style.css">
+<!-- [EDU] 교육용 전용 스타일(일반용 style.css 는 그대로) -->
+<link rel="stylesheet" href="edu.css">
+</head>
+<body>
+
+<!-- 보석 SVG 스프라이트: 색 + 외곽 모양 + 내부 원소 기호 -->
+<svg class="sprite" width="0" height="0" aria-hidden="true" focusable="false">
+  <defs>
+    <linearGradient id="shine" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity=".55"/>
+      <stop offset=".5" stop-color="#fff" stop-opacity="0"/>
+      <stop offset="1" stop-color="#000" stop-opacity=".18"/>
+    </linearGradient>
+    <!-- [EDU] 선물상자 몸통 색 -->
+    <linearGradient id="gift-body" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ff8fd0"/>
+      <stop offset="1" stop-color="#d12a8e"/>
+    </linearGradient>
+  </defs>
+
+  <!-- 불: 삼각형 + 불꽃 -->
+  <symbol id="gem-fire" viewBox="0 0 100 100">
+    <polygon points="50,6 95,90 5,90" fill="#e5484d" stroke="#8c1d22" stroke-width="5" stroke-linejoin="round"/>
+    <polygon points="50,6 95,90 5,90" fill="url(#shine)" stroke="none"/>
+    <path d="M50 42 C53 52 61 56 61 67 C61 75 56 80 50 80 C44 80 39 75 39 67 C39 61 43 58 44 52 C47 55 49 53 50 42 Z" fill="#fff" fill-opacity=".93"/>
+  </symbol>
+
+  <!-- 물: 원 + 물방울 -->
+  <symbol id="gem-water" viewBox="0 0 100 100">
+    <circle cx="50" cy="50" r="44" fill="#3b82f6" stroke="#1b448f" stroke-width="5"/>
+    <circle cx="50" cy="50" r="44" fill="url(#shine)"/>
+    <path d="M50 22 C50 22 70 45 70 58 C70 69 61 78 50 78 C39 78 30 69 30 58 C30 45 50 22 50 22 Z" fill="#fff" fill-opacity=".93"/>
+  </symbol>
+
+  <!-- 풀: 둥근 사각형 + 잎 -->
+  <symbol id="gem-grass" viewBox="0 0 100 100">
+    <rect x="7" y="7" width="86" height="86" rx="24" fill="#30a46c" stroke="#16603c" stroke-width="5"/>
+    <rect x="7" y="7" width="86" height="86" rx="24" fill="url(#shine)"/>
+    <path d="M28 72 C26 46 44 28 74 26 C76 56 58 74 30 74 Z" fill="#fff" fill-opacity=".93"/>
+    <path d="M30 72 L62 40" stroke="#30a46c" stroke-width="3.5" stroke-linecap="round" fill="none"/>
+  </symbol>
+
+  <!-- 번개: 4각 별 + 번개 -->
+  <symbol id="gem-lightning" viewBox="0 0 100 100">
+    <path d="M50 3 L62 38 L97 50 L62 62 L50 97 L38 62 L3 50 L38 38 Z" fill="#f5c518" stroke="#946f00" stroke-width="5" stroke-linejoin="round"/>
+    <path d="M50 3 L62 38 L97 50 L62 62 L50 97 L38 62 L3 50 L38 38 Z" fill="url(#shine)"/>
+    <path d="M55 30 L40 53 L50 53 L46 72 L61 47 L51 47 Z" fill="#4a3800"/>
+  </symbol>
+
+  <!-- 어둠: 육각형 + 달 -->
+  <symbol id="gem-dark" viewBox="0 0 100 100">
+    <polygon points="50,5 89,27.5 89,72.5 50,95 11,72.5 11,27.5" fill="#8e4ec6" stroke="#4b2272" stroke-width="5" stroke-linejoin="round"/>
+    <polygon points="50,5 89,27.5 89,72.5 50,95 11,72.5 11,27.5" fill="url(#shine)"/>
+    <path d="M58 24 A27 27 0 1 0 76 62 A22 22 0 0 1 58 24 Z" fill="#fff" fill-opacity=".93"/>
+  </symbol>
+
+  <!-- 빛: 마름모 + 해 -->
+  <symbol id="gem-light" viewBox="0 0 100 100">
+    <polygon points="50,4 95,50 50,96 5,50" fill="#f4f4f5" stroke="#85858f" stroke-width="5" stroke-linejoin="round"/>
+    <polygon points="50,4 95,50 50,96 5,50" fill="url(#shine)"/>
+    <circle cx="50" cy="50" r="9" fill="#b7791f"/>
+    <g stroke="#b7791f" stroke-width="5" stroke-linecap="round">
+      <line x1="50" y1="26" x2="50" y2="34"/><line x1="50" y1="66" x2="50" y2="74"/>
+      <line x1="26" y1="50" x2="34" y2="50"/><line x1="66" y1="50" x2="74" y2="50"/>
+      <line x1="33" y1="33" x2="39" y2="39"/><line x1="67" y1="33" x2="61" y2="39"/>
+      <line x1="33" y1="67" x2="39" y2="61"/><line x1="67" y1="67" x2="61" y2="61"/>
+    </g>
+  </symbol>
+
+  <!-- [EDU] ? 선물상자(조커): 리본 매듭이 위로 솟은 분홍 상자 + 금색 리본 + 큰 '?' 글자. 6보석(삼각형·물방울·둥근 사각형·4각 별·육각형·마름모)과 모양·글자로 구별 -->
+  <symbol id="gem-gift" viewBox="0 0 100 100">
+    <rect x="13" y="45" width="74" height="47" rx="10" fill="url(#gift-body)" stroke="#7d1458" stroke-width="5" stroke-linejoin="round"/>
+    <rect x="7" y="31" width="86" height="20" rx="8" fill="#ff9bd8" stroke="#7d1458" stroke-width="5" stroke-linejoin="round"/>
+    <rect x="42" y="31" width="16" height="61" fill="#ffc21a" stroke="#9a6200" stroke-width="3.5"/>
+    <path d="M50 31 C38 4 12 9 18 24 C21 33 40 32 50 31 Z M50 31 C62 4 88 9 82 24 C79 33 60 32 50 31 Z" fill="#ffc21a" stroke="#9a6200" stroke-width="4" stroke-linejoin="round"/>
+    <rect x="43" y="25" width="14" height="12" rx="4" fill="#ffd95c" stroke="#9a6200" stroke-width="3.5"/>
+    <rect x="13" y="45" width="74" height="47" rx="10" fill="url(#shine)"/>
+    <path d="M38 62 C38 47 62 47 62 62 C62 71 50 70 50 78" fill="none" stroke="#5b0f40" stroke-width="13" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="50" cy="87" r="6.5" fill="#5b0f40"/>
+    <path d="M38 62 C38 47 62 47 62 62 C62 71 50 70 50 78" fill="none" stroke="#fff" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="50" cy="87" r="3.6" fill="#fff"/>
+  </symbol>
+</svg>
+
+<main id="app">
+
+  <!-- 시작 화면 -->
+  <section id="screen-start" class="screen start">
+    <div class="start-card">
+      <div class="sc-brand">
+      <img id="logo-img" class="logo" src="assets/title-logo.webp" width="900" height="605" alt="원소 보석 ELEMENT GEMS" draggable="false">
+      <div id="title-fallback" hidden>
+        <h1 class="title">원소 보석</h1>
+        <p class="subtitle">ELEMENT GEMS</p>
+      </div>
+      </div>
+      <div class="sc-menu">
+      <!-- [EDU] 학습 단원 요약 칩(edu.js 가 채운다) -->
+      <div id="eg-unit-card" class="eg-unit">
+        <p class="eg-unit-top"><span class="eg-ribbon">교육용</span><span class="eg-unit-cap">학습 단원</span></p>
+        <p id="eg-unit-label" class="eg-unit-label">아직 단원을 고르지 않았어요</p>
+        <p id="eg-unit-stat" class="eg-unit-stat" hidden></p>
+        <p id="eg-unit-warn" class="eg-unit-warn" role="status" hidden></p>
+        <button id="eg-unit-btn" class="btn" type="button">학습단원 선택</button>
+      </div>
+      <button id="btn-profile-chip" class="me-chip" type="button" hidden></button>
+      <p id="me-note" class="me-note" role="status" hidden></p>
+      <p class="best-line">클리어 <strong id="start-clear">0/10</strong> · 별 <strong id="start-stars">0</strong></p>
+      <div id="level-select" class="level-select" role="radiogroup" aria-label="난이도">
+        <button class="level-btn lv-easy" type="button" role="radio" aria-checked="false" data-level="easy" tabindex="-1">초보</button>
+        <button class="level-btn lv-normal on" type="button" role="radio" aria-checked="true" data-level="normal">중수</button>
+        <button class="level-btn lv-hard" type="button" role="radio" aria-checked="false" data-level="hard" tabindex="-1">고수</button>
+      </div>
+      <p id="level-desc" class="level-desc">기본 규칙. 균형 잡힌 2분 승부!</p>
+      <button id="btn-start" class="btn primary big" type="button">시작</button>
+      <button id="btn-hall" class="btn hall" type="button" hidden><span class="st" aria-hidden="true">&#9733;</span>명예의 전당<span class="hall-sub">별 챔피언 순위 보기</span></button>
+      </div>
+      <div class="sc-info">
+      <ul class="rules">
+        <li id="rule-stage"><b>스테이지</b> 제한 시간(초보 2분 10초 / 중수 2분 / 고수 1분 40초) 안에 목표 점수를 넘기면 클리어! 레벨 1~10에 도전하세요.</li>
+        <li><b>스왑</b> 인접한 보석 두 개를 바꿔 같은 모양 3개 이상, 또는 2×2 정사각형을 맞추세요.</li>
+        <li><b>게이지</b> 색마다 게이지가 따로 차고, 가득 차면 버튼이 반짝여요.</li>
+        <li><b>스킬</b> 게이지 버튼을 눌러 원소 스킬을 쓰세요.</li>
+      </ul>
+      <p id="tutorial" class="tutorial" hidden>처음이시군요! 불과 풀 스킬은 버튼을 누른 뒤 보드의 칸을 한 번 더 눌러 조준해요.</p>
+      <div class="toggles">
+        <button id="btn-sound-start" class="btn ghost" type="button" aria-pressed="true">소리 켜짐</button>
+        <button id="btn-cutin-start" class="btn ghost" type="button" aria-pressed="true">컷인 연출 켜짐</button>
+      </div>
+      <!-- [EDU] 모드 선택 화면을 거쳐 왔을 때만 보이는 작은 링크(edu.js, sessionStorage eg-from-chooser) -->
+      <p id="eg-home-wrap" class="eg-home" hidden><a id="eg-home-link" href="../../">처음 화면(모드 고르기)</a></p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 레벨 선택 화면 -->
+  <section id="screen-stages" class="screen stages" hidden>
+    <div class="stages-card">
+      <div class="stages-head">
+        <button id="btn-stages-back" class="btn small" type="button">뒤로</button>
+        <div class="stages-title"><i id="stages-chip" class="level-chip lv-normal">중수</i> 레벨 선택</div>
+        <span id="stages-time" class="stages-time">제한 시간 2:00</span>
+      </div>
+      <p id="stages-summary" class="stages-sub">클리어 0/10 · 별 0</p>
+      <div id="stage-grid" class="stage-grid" role="group" aria-label="레벨 선택"></div>
+      <p class="stages-hint">이전 레벨을 클리어하면 다음 레벨이 열려요.</p>
+    </div>
+  </section>
+
+  <!-- 프로필 만들기/수정 화면 (명예의 전당, spec §19). CONFIG.ranking.apiBase 가 비어 있으면 열리지 않는다 -->
+  <section id="screen-profile" class="screen hf-screen" hidden aria-labelledby="pf-title">
+    <div class="hf-card panel stages-card">
+      <div class="hf-head"><span></span><h2 id="pf-title" class="hf-title" tabindex="-1">내 프로필 만들기</h2><span></span></div>
+      <p id="pf-sub" class="hf-sub">명예의 전당에서 나를 보여 줄 그림과 이름을 골라요.</p>
+      <p id="pf-rename" class="pf-msg err" role="status" hidden><i aria-hidden="true">!</i><span>이 이름은 순위표에서 잠시 숨겨졌어요. 새 이름을 정해 주세요.</span></p>
+      <div class="pf-col-a">
+      <span class="pf-label" id="pf-av-label">그림 고르기</span>
+      <div id="pf-avatars" class="av-grid" role="radiogroup" aria-labelledby="pf-av-label"></div>
+      </div>
+      <div class="pf-col-b">
+      <label class="pf-label" for="pf-nick">닉네임 <small>2~8글자 · 한글, 영어, 숫자</small></label>
+      <div class="nick-wrap">
+        <input id="pf-nick" class="nick-input" type="text" maxlength="24" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="done" aria-describedby="pf-msg-wrap pf-left">
+        <span id="pf-count" class="nick-count" aria-hidden="true">0/8</span>
+      </div>
+      <div id="pf-msg-wrap" class="pf-msg-wrap" aria-live="polite"></div>
+      <p id="pf-left" class="pf-left" hidden></p>
+      <div class="pf-notice"><b>실명, 학교 이름, 학년·반, 연락처는 쓰지 마세요.</b><br>명예의 전당에는 <b>닉네임·그림·별 수·순위</b>만 모두에게 보여요.</div>
+      <div class="pf-actions">
+        <button id="pf-save" class="btn primary big" type="button" disabled>저장하고 시작</button>
+        <button id="pf-skip" class="btn ghost" type="button">나중에 할래요</button>
+        <button id="pf-cancel" class="btn ghost" type="button" hidden>취소</button>
+        <button id="pf-delete" class="btn ghost" type="button" hidden>프로필 지우기</button>
+      </div>
+      <div id="pf-confirm" class="pf-confirm" role="alertdialog" aria-labelledby="pf-confirm-text" hidden>
+        <p id="pf-confirm-text">서버에 있는 내 닉네임·그림·별 기록을 지울까요? 게임 기록은 이 기기에 그대로 남아요.</p>
+        <div class="row">
+          <button id="pf-confirm-yes" class="btn primary" type="button">지우기</button>
+          <button id="pf-confirm-no" class="btn" type="button">취소</button>
+        </div>
+      </div>
+      <p class="pf-small">닉네임·그림·별 수는 순위표를 보여 주려고 서버에 저장돼요. 이름이나 학교, 연락처, 사진은 받지 않아요. 언제든 [프로필 지우기]로 지울 수 있어요.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 명예의 전당(별 챔피언 순위표) 화면 -->
+  <section id="screen-hall" class="screen hf-screen" hidden aria-labelledby="hall-title">
+    <div class="hf-card is-hall panel stages-card">
+      <div class="hf-head">
+        <button id="hall-back" class="btn small" type="button">뒤로</button>
+        <h2 id="hall-title" class="hf-title" tabindex="-1">명예의 전당</h2>
+        <button id="hall-refresh" class="btn small icon-refresh" type="button" aria-label="순위표 새로고침">&#8635;</button>
+      </div>
+      <p id="hall-banner" class="hf-banner" role="status" hidden></p>
+      <div id="hall-tabs" class="hf-tabs" role="tablist" aria-label="순위표 종류">
+        <button class="hf-tab" id="hall-tab-all" type="button" role="tab" aria-selected="true" aria-controls="hall-panel" data-board="all">전체</button>
+        <button class="hf-tab t-easy" id="hall-tab-easy" type="button" role="tab" aria-selected="false" tabindex="-1" aria-controls="hall-panel" data-board="easy">초보</button>
+        <button class="hf-tab t-normal" id="hall-tab-normal" type="button" role="tab" aria-selected="false" tabindex="-1" aria-controls="hall-panel" data-board="normal">중수</button>
+        <button class="hf-tab t-hard" id="hall-tab-hard" type="button" role="tab" aria-selected="false" tabindex="-1" aria-controls="hall-panel" data-board="hard">고수</button>
+      </div>
+      <div class="hf-meta"><span id="hall-asof"></span><span id="hall-rule" class="rule">점수가 같으면 남은 시간이 많은 순</span></div>
+      <p id="hall-weight" class="hf-weight">고수 별은 3점, 중수 별은 2점, 초보 별은 1점이에요.</p>
+      <div id="hall-panel" class="hf-panel" role="tabpanel" aria-labelledby="hall-tab-all">
+        <ol id="hall-list" class="hf-list" aria-label="별 챔피언 순위 상위 50명" tabindex="0" hidden></ol>
+        <div id="hall-empty" class="hf-empty" role="status" hidden></div>
+      </div>
+      <div id="hall-me" class="myrank" hidden></div>
+      <p id="hall-foot" class="hf-foot">상위 50명을 보여 줘요. 보이는 정보는 닉네임·그림·별 수·순위뿐이에요.</p>
+    </div>
+  </section>
+
+  <!-- [EDU] 학습단원 선택 화면 (spec §21.9.2 B안: 과목·학년·학기 칩 + 소단원 목록). 칩·목록은 edu.js 가 EDU_CATALOG 로 만든다 -->
+  <section id="screen-edu-pick" class="screen eg-pick-screen" hidden aria-labelledby="eg-pick-title">
+    <div class="eg-pick-card">
+      <div class="eg-pick-head">
+        <button id="eg-pick-back" class="btn small" type="button">뒤로</button>
+        <h2 id="eg-pick-title" class="eg-pick-title" tabindex="-1">학습단원 선택</h2>
+        <span class="eg-pick-gap" aria-hidden="true"></span>
+      </div>
+      <div id="eg-pick-body" class="eg-pick-body">
+        <div id="eg-pick-side" class="eg-pick-side"></div>
+        <div class="eg-pick-main">
+          <p id="eg-pick-hint" class="eg-label">단원을 골라요</p>
+          <div id="eg-pick-list" class="eg-pick-list"></div>
+        </div>
+      </div>
+      <div class="eg-foot">
+        <p id="eg-pick-msg" class="eg-pick-msg" role="status" aria-live="polite" hidden></p>
+        <button id="eg-pick-ok" class="btn primary big" type="button" disabled>이 단원으로 정했어요</button>
+        <button id="eg-pick-skip" class="btn ghost" type="button" hidden>문제 없이 퍼즐만 할래요</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- 게임 화면 -->
+  <section id="screen-game" class="screen" hidden>
+    <div class="game" id="game">
+      <div class="timer" id="timer" role="timer" aria-label="남은 시간">
+        <div class="timer-fill" id="timer-fill"></div>
+        <span class="timer-text" id="timer-text">2:00</span>
+        <span class="freeze-text" id="freeze-text" hidden></span>
+      </div>
+
+      <div class="scorebar" id="scorebar">
+        <div class="score-box">
+          <span class="label">점수 <i id="level-chip" class="level-chip lv-normal">중수</i></span>
+          <strong id="score">0</strong>
+        </div>
+        <div class="chain-box" id="chain">CHAIN</div>
+        <div class="mult-box">
+          <strong id="mult">x1</strong>
+          <span class="dark-badge" id="dark-badge" hidden>&times;2 <i id="dark-left"></i></span>
+        </div>
+      </div>
+
+      <div class="goal" id="goal" role="progressbar" aria-label="목표 점수 진행" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+        <div class="goal-fill" id="goal-fill"></div>
+        <span class="goal-text" id="goal-text">0 / 9,200</span>
+      </div>
+
+      <div class="board-wrap" id="board-wrap">
+        <div class="board" id="board" role="application" aria-label="보석 판. 방향키로 이동, 스페이스로 선택"></div>
+        <div class="fx" id="fx"></div>
+        <div class="popup" id="popup" aria-live="polite"></div>
+        <div class="aim-msg" id="aim-msg" hidden>대상 칸을 선택하세요</div>
+        <div class="flash" id="flash"></div>
+      </div>
+
+      <div class="gauges" id="gauges"></div>
+
+      <div class="buttons">
+        <button id="btn-hint" class="btn small" type="button">힌트</button>
+        <button id="btn-menu" class="btn small" type="button">메뉴</button>
+        <button id="btn-reset" class="btn small" type="button">리셋</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- 카운트다운 -->
+  <div id="overlay-count" class="overlay clear" hidden>
+    <div class="count-info" id="count-info">레벨 1 · 목표 6,500점</div>
+    <div class="count-num" id="count-num">3</div>
+    <div class="count-unit" id="count-unit" hidden></div><!-- [EDU] 학습 단원 한 줄(edu.js) -->
+  </div>
+
+  <!-- 일시정지 -->
+  <div id="overlay-pause" class="overlay" hidden role="dialog" aria-modal="true" aria-labelledby="pause-title">
+    <div class="panel">
+      <h2 id="pause-title">일시정지</h2>
+      <p id="pause-level" class="muted">중수 · 레벨 1 · 목표 6,500</p>
+      <p id="pause-unit" class="muted" hidden></p><!-- [EDU] 학습 단원 한 줄(edu.js) -->
+      <button id="btn-resume" class="btn primary" type="button">계속하기</button>
+      <button id="btn-restart" class="btn" type="button">다시 시작</button>
+      <button id="btn-sound-pause" class="btn ghost" type="button" aria-pressed="true">소리 켜짐</button>
+      <button id="btn-cutin-pause" class="btn ghost" type="button" aria-pressed="true">컷인 연출 켜짐</button>
+      <button id="btn-quit" class="btn ghost" type="button">나가기</button>
+    </div>
+  </div>
+
+  <!-- 리셋 확인 -->
+  <div id="overlay-confirm" class="overlay" hidden role="dialog" aria-modal="true" aria-labelledby="confirm-title">
+    <div class="panel">
+      <h2 id="confirm-title">다시 시작할까요?</h2>
+      <p class="muted">지금까지의 점수는 저장되지 않아요.</p>
+      <div class="row">
+        <button id="btn-confirm-yes" class="btn primary" type="button">다시 시작</button>
+        <button id="btn-confirm-no" class="btn" type="button">취소</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 결과 (클리어 / 실패) -->
+  <div id="overlay-end" class="overlay" hidden role="dialog" aria-modal="true" aria-labelledby="end-title">
+    <div class="panel">
+      <img class="logo small" src="assets/title-logo.webp" alt="" draggable="false" onerror="this.hidden=true">
+      <h2 id="end-title">TIME UP</h2>
+      <p id="end-level" class="muted">중수 · 레벨 1</p>
+      <div class="end-stars" id="end-stars" aria-label="별" hidden>★★★</div>
+      <div class="end-score" id="end-score">0</div>
+      <p class="muted" id="end-target">목표 6,500 / 내 점수 0</p>
+      <p class="end-unlock" id="end-unlock" hidden></p>
+      <p class="muted end-rank" id="end-rank" role="status" hidden></p>
+      <p class="muted end-quiz" id="end-quiz" role="status" hidden></p><!-- [EDU] 선물상자 문제 요약(edu.js) -->
+      <p class="muted">이 레벨 최고 점수 <strong id="end-best">0</strong></p>
+      <dl class="stats">
+        <div><dt>최대 연쇄</dt><dd id="end-chain">0</dd></div>
+        <div><dt>스킬 사용</dt><dd id="end-skills">0</dd></div>
+        <div><dt>총 매치</dt><dd id="end-matches">0</dd></div>
+      </dl>
+      <div class="end-buttons">
+        <button id="btn-next" class="btn primary" type="button" hidden>다음 레벨</button>
+        <button id="btn-again" class="btn" type="button">다시 하기</button>
+        <button id="btn-home" class="btn ghost" type="button">레벨 선택</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 프로필 안내 팝업: 프로필이 없을 때 [시작]을 누르면 뜬다 (명예의 전당, ranking-ui.js). CONFIG.ranking.apiBase 가 비어 있으면 뜨지 않는다 -->
+  <div id="overlay-profile-ask" class="overlay" hidden role="dialog" aria-modal="true" aria-labelledby="pa-title" aria-describedby="pa-desc">
+    <div class="panel pa-panel">
+      <button id="pa-close" class="pa-close" type="button" aria-label="닫기">&times;</button>
+      <h2 id="pa-title">프로필을 만들어 주세요</h2>
+      <p id="pa-desc" class="muted">프로필을 만들면 명예의 전당에 내 이름과 별이 올라가요.</p>
+      <button id="pa-create" class="btn primary" type="button">프로필 만들기</button>
+      <button id="pa-without" class="btn ghost" type="button">프로필 없이 시작</button>
+      <p class="pa-note">프로필 없이 시작하면 순위에는 올라가지 않아요. 프로필은 나중에 시작 화면에서 만들 수 있어요.</p>
+    </div>
+  </div>
+
+</main>
+
+<!-- [EDU] 선물상자 문제 팝업 (spec §21.7.6·§21.9.4). 열려 있는 동안 배경(#app)은 inert. 문제·보기·해설은 edu.js 가 textContent 로만 채운다 -->
+<div id="eg-quiz" class="eg-overlay" hidden>
+  <div class="eg-quiz" role="dialog" aria-modal="true" aria-labelledby="eg-q-text" aria-describedby="eg-q-meta">
+    <div class="eg-quiz-main">
+      <div class="eg-quiz-top">
+        <svg class="gi" viewBox="0 0 100 100" aria-hidden="true" focusable="false"><use href="#gem-gift"></use></svg>
+        <div><strong>선물상자 문제</strong><small id="eg-q-meta"></small></div>
+      </div>
+      <p id="eg-q-text" class="eg-quiz-q" tabindex="-1"></p>
+      <div id="eg-q-opts" class="eg-quiz-opts" role="group" aria-labelledby="eg-q-text"></div>
+    </div>
+    <div class="eg-quiz-side">
+      <div id="eg-q-result" class="eg-quiz-result" role="status" aria-live="polite"></div>
+      <button id="eg-q-next" class="btn primary big" type="button" hidden>계속하기</button>
+      <p id="eg-q-id" class="eg-quiz-id"></p>
+    </div>
+  </div>
+</div>
+
+<!-- 스킬 컷인 레이어 (탭하면 건너뛰기) -->
+<div id="cutin" class="cutin" hidden aria-hidden="true">
+  <div class="cutin-dim"></div>
+  <div class="cutin-bg"></div>
+  <div class="cutin-lines"></div>
+  <div class="cutin-char"><div class="cutin-char-anim"><img id="cutin-img" alt="" draggable="false"></div></div>
+  <div class="cutin-bubble">
+    <span class="cb-shout" id="cb-shout"></span>
+    <span class="cb-skill" id="cb-skill"></span>
+  </div>
+  <div class="cutin-name"><span class="cn-gem" id="cn-gem"></span><span class="cn-text" id="cn-text"></span></div>
+  <div class="cutin-skip">탭하여 건너뛰기</div>
+  <div class="cutin-flash"></div>
+</div>
+
+<script src="nick-words.js"></script>
+<script src="nickname.js"></script>
+<!-- [EDU] 문제 카탈로그(소단원 목록). 소단원 문제 파일은 선택한 단원만 edu.js 가 나중에 불러온다 -->
+<script src="edu-data/catalog.js"></script>
+<script src="game.js"></script>
+<script src="ranking.js"></script>
+<script src="ranking-ui.js"></script>
+<script src="edu.js"></script>
+</body>
+</html>

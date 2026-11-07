@@ -1,0 +1,248 @@
+/* element-gems-edu — edu.css (교육용 전용 스타일; 일반용 style.css 는 고치지 않는다)
+ * 학습단원 선택 화면 · 문제 팝업 · 시작 화면 단원 칩 · ? 선물상자 빛 · 게임 화면 한 줄 요약
+ * style.css 의 "스카이 캔디" 토큰(--ink, --ink-2, --lip, --focus, --surface-2, --line, --sh-card …)을 그대로 쓴다.
+ * 와이드 조건은 §20 과 같다(min-width 800px + min-height 501px + landscape). 휴대폰 가로는 max-height 500px.
+ */
+
+/* ---------- 시작 화면: 학습 단원 칩 ---------- */
+.eg-unit { margin: 2px 0 10px; padding: 10px 12px; background: #fff7d6; border: 2px solid #ffd34d; border-radius: 18px; text-align: left; box-shadow: 0 3px 0 #e0b02a; word-break: keep-all; overflow-wrap: break-word; }
+.eg-unit-top { display: flex; align-items: center; gap: 8px; margin: 0 0 4px; }
+.eg-ribbon { display: inline-block; padding: 2px 12px; border-radius: 999px; background: #c21d7e; color: #fff; font-weight: 900; font-size: .8rem; line-height: 1.5; }
+.eg-unit-cap { color: #7a5a00; font-weight: 800; font-size: .78rem; }
+.eg-unit-label { margin: 0 0 8px; color: var(--ink); font-weight: 800; font-size: .95rem; line-height: 1.4; }
+.eg-unit.empty .eg-unit-label { color: var(--ink-2); font-weight: 700; }
+.eg-unit-stat { margin: -4px 0 8px; color: var(--ink-2); font-size: .78rem; font-weight: 700; }
+.eg-unit-warn { margin: -2px 0 8px; color: #7a4a00; font-size: .8rem; font-weight: 700; line-height: 1.35; }
+.eg-unit-warn.err { color: #8a1f28; }
+.eg-unit .btn { width: 100%; min-height: 44px; }
+
+.eg-home { margin: 8px 0 0; text-align: center; }
+.eg-home a { display: inline-flex; align-items: center; min-height: 44px; padding: 0 16px; border-radius: 999px; background: rgba(255, 255, 255, .9); color: var(--ink); font-size: .85rem; font-weight: 800; text-decoration: underline; box-shadow: 0 2px 0 rgba(120, 90, 220, .3); }
+.eg-home a:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+
+/* 휴대폰 가로(낮은 화면)의 시작 화면.
+ * 칩 카드가 세로로 쌓이면 [시작]이 화면 아래로 밀리므로(844×390 에서 위쪽 기준 450px 넘게) 두 가지를 한다.
+ *  1) 단원 칩을 한 줄(배지 · 선택 요약 · [학습단원 선택])로 줄인다. 요약 글은 말줄임 없이 칸 안에서 줄을 바꾼다.
+ *  2) 폭 640px 이상이면 와이드 화면(§20)처럼 2열로 나눈다: 왼쪽 = 로고 + 게임 규칙, 오른쪽 = 메뉴(단원 칩·프로필·클리어/별·난이도·[시작]).
+ *     (칩만 줄여서는 [시작]이 아직 화면 밖이다: 일반용 318~378px + 칩 약 70px.) 폭 640px 미만은 1열 그대로 둔다.
+ * 와이드(min-height 501px 이상)·세로 화면은 이 조건에 걸리지 않아 그대로다. */
+@media (orientation: landscape) and (max-height: 500px) {
+  .eg-unit { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; grid-template-areas: "top label btn" "top stat btn" "warn warn warn"; align-items: center; column-gap: 10px; row-gap: 0; min-height: 60px; margin: 0 0 6px; padding: 6px 8px 6px 10px; border-radius: 16px; box-shadow: 0 2px 0 #e0b02a; }
+  .eg-unit-top { grid-area: top; flex-direction: column; align-items: center; gap: 1px; margin: 0; }
+  .eg-ribbon { padding: 1px 10px; font-size: .78rem; line-height: 1.5; }
+  .eg-unit-cap { font-size: .72rem; }
+  .eg-unit-label { grid-area: label; margin: 0; font-size: .82rem; line-height: 1.3; }
+  .eg-unit-stat { grid-area: stat; margin: 1px 0 0; font-size: .72rem; line-height: 1.25; }
+  .eg-unit-warn { grid-area: warn; margin: 4px 0 0; font-size: .78rem; line-height: 1.3; }
+  .eg-unit .btn { grid-area: btn; width: auto; min-width: 96px; min-height: 44px; padding: 0 12px; font-size: .88rem; white-space: nowrap; }
+}
+@media (orientation: landscape) and (max-height: 500px) and (min-width: 640px) {
+  .start { padding: 6px max(14px, env(safe-area-inset-right)) 6px max(14px, env(safe-area-inset-left)); }
+  .start-card { width: min(100%, 800px); display: grid; grid-template-columns: minmax(190px, 1fr) minmax(0, 440px); grid-template-areas: "brand menu" "info menu"; column-gap: 20px; align-items: start; padding: 0 4px 12px; }
+  .sc-brand { display: block; grid-area: brand; }
+  .sc-menu { display: block; grid-area: menu; min-width: 0; }
+  .sc-info { display: block; grid-area: info; min-width: 0; }
+  .sc-info .rules { margin: 6px 0 8px; padding: 0 12px; }
+  .sc-info .rules li { padding: 6px 0; font-size: .82rem; line-height: 1.4; }
+  .sc-menu .best-line { margin: 0 auto 6px; }
+  .sc-menu .level-select { margin: 0 0 6px; padding: 4px; }
+  .sc-menu .level-desc { margin-bottom: 8px; }
+  .sc-menu .me-chip { margin-bottom: 6px; }
+}
+
+/* ---------- 학습단원 선택 화면 (B안) ----------
+ * 카드 = [머리] + [스크롤되는 본문: 칩 + 단원 목록] + [아래 고정: 안내 줄 + 확정 버튼]. 단원이 많아도 [이 단원으로 정했어요]가 항상 보인다. */
+.eg-pick-screen { display: flex; justify-content: center; align-items: center; padding: 14px; height: var(--vh100); min-height: 0; overflow: hidden; }
+.eg-pick-card { width: min(100%, 560px); max-height: 100%; display: flex; flex-direction: column; padding: 14px 14px 12px; background: linear-gradient(180deg, #fff, var(--surface-2)); border: 3px solid #fff; border-radius: var(--r-card); box-shadow: var(--sh-card); color: var(--ink); text-align: left; word-break: keep-all; overflow-wrap: break-word; }
+.eg-pick-head { flex: none; display: grid; grid-template-columns: 76px 1fr 76px; align-items: center; gap: 8px; margin-bottom: 4px; }
+.eg-pick-head .btn.small { flex: none; min-height: 44px; padding: 6px 14px; }
+.eg-pick-title { margin: 0; text-align: center; font-size: 1.3rem; font-weight: 900; color: var(--ink); text-shadow: none; }
+.eg-pick-title:focus { outline: none; }
+.eg-pick-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 0 2px 6px 0; }
+.eg-label { display: block; margin: 8px 0 4px; font-weight: 900; color: var(--ink); font-size: .9rem; }
+.eg-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.eg-chip { min-height: 44px; min-width: 60px; padding: 6px 14px; border-radius: 999px; border: 2px solid var(--line); background: #fff; color: var(--ink); font-weight: 900; font-size: 1rem; box-shadow: 0 3px 0 var(--lip); }
+.eg-chip:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--lip); }
+.eg-chip.on { background: var(--focus); border-color: var(--focus); color: #fff; box-shadow: 0 3px 0 #3a22b8; }
+.eg-chip.on::before { content: "✓ "; }
+.eg-chip.off { background: #eee9fb; color: #5f5990; border-style: dashed; box-shadow: none; cursor: default; }
+.eg-chip.off:active { transform: none; }
+.eg-chip small { display: block; font-size: .66rem; font-weight: 700; line-height: 1.1; }
+.eg-chip:focus-visible, .eg-sub:focus-visible, .eg-opt:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; box-shadow: 0 0 0 6px #fff; }
+.eg-note { margin: 8px 0 0; font-size: .78rem; line-height: 1.4; color: var(--ink-2); font-weight: 600; }
+.eg-pick-list { margin-top: 2px; }
+.eg-unit-h { margin: 12px 0 4px; padding: 5px 10px; background: var(--surface-2); border-radius: 10px; font-size: .92rem; font-weight: 900; color: var(--ink); line-height: 1.35; }
+.eg-sub { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 56px; margin: 5px 0; padding: 8px 12px; text-align: left; border: 2px solid var(--line); border-radius: 16px; background: #fff; color: var(--ink); box-shadow: 0 3px 0 var(--lip); }
+.eg-sub:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--lip); }
+.eg-sub b { flex: none; min-width: 2.6em; font-size: 1rem; color: var(--focus); }
+.eg-sub span { flex: 1; min-width: 0; font-weight: 800; font-size: .95rem; line-height: 1.3; }
+.eg-sub em { display: block; margin-top: 1px; font-style: normal; font-weight: 600; font-size: .8rem; color: var(--ink-2); }
+.eg-sub.on { border-color: var(--focus); background: #ece6ff; box-shadow: 0 3px 0 #8f7be8; }
+.eg-sub.on::after { content: "✓"; flex: none; width: 28px; height: 28px; border-radius: 50%; background: var(--focus); color: #fff; text-align: center; line-height: 28px; font-weight: 900; }
+.eg-foot { flex: none; margin-top: 6px; padding-top: 8px; display: grid; gap: 8px; border-top: 2px dashed var(--line); }
+.eg-foot .btn { width: 100%; }
+.eg-foot .btn.ghost { min-height: 48px; }
+.eg-pick-msg { margin: 0; padding: 8px 12px; border-radius: 14px; background: #fff1d6; border: 2px solid #d98a00; color: #7a4a00; font-weight: 700; font-size: .9rem; line-height: 1.4; }
+.eg-pick-msg.err { background: #ffe6e8; border-color: #c0303a; color: #8a1f28; }
+
+/* 와이드: 왼쪽 칩 / 오른쪽 목록 2열(각각 따로 스크롤), 확정 버튼은 목록 아래 */
+@media (min-width: 800px) and (min-height: 501px) and (orientation: landscape) {
+  .eg-pick-screen { padding: 16px; }
+  .eg-pick-card { width: min(100%, 980px); padding: 18px 24px 16px; }
+  .eg-pick-title { font-size: 1.5rem; }
+  .eg-pick-body { display: grid; grid-template-columns: 230px minmax(0, 1fr); column-gap: 22px; overflow: hidden; padding: 0; }
+  .eg-pick-side { padding-right: 16px; border-right: 2px dashed var(--line); overflow-y: auto; min-height: 0; }
+  .eg-pick-main { min-width: 0; min-height: 0; overflow-y: auto; padding: 0 6px 4px 0; }
+  .eg-pick-main .eg-label:first-child { margin-top: 0; }
+  .eg-pick-list .eg-unit-h:first-child { margin-top: 2px; }
+  .eg-sub { min-height: 54px; margin: 4px 0; }
+  .eg-foot { margin-left: 252px; border-top: 0; padding-top: 10px; }
+}
+/* 휴대폰 가로(낮은 화면): 2열 + 각 칸 스크롤 */
+@media (orientation: landscape) and (max-height: 500px) {
+  .eg-pick-screen { padding: 6px 10px; }
+  .eg-pick-card { width: min(100%, 780px); padding: 8px 12px 8px; }
+  .eg-pick-head { margin-bottom: 2px; }
+  .eg-pick-title { font-size: 1.1rem; }
+  .eg-pick-body { display: grid; grid-template-columns: 210px minmax(0, 1fr); column-gap: 14px; overflow: hidden; padding: 0; }
+  .eg-pick-side { overflow-y: auto; min-height: 0; padding-right: 10px; border-right: 2px dashed var(--line); }
+  .eg-pick-side .eg-note { display: none; }
+  .eg-pick-main { min-width: 0; min-height: 0; overflow-y: auto; padding-right: 4px; }
+  .eg-pick-main .eg-label:first-child { margin-top: 0; }
+  .eg-foot { margin-top: 4px; padding-top: 6px; margin-left: 224px; border-top: 0; }
+  .eg-foot .btn.big { min-height: 48px; font-size: 1.1rem; }
+  .eg-chip { min-height: 44px; padding: 4px 12px; }
+  .eg-sub { min-height: 48px; margin: 4px 0; padding: 5px 10px; }
+  .eg-label { margin: 4px 0 2px; }
+}
+
+/* ---------- 문제 팝업 ---------- */
+.eg-overlay { position: fixed; inset: 0; z-index: 40; display: flex; align-items: center; justify-content: center; padding: 12px; background: rgba(42, 33, 96, .55); overscroll-behavior: contain; }
+.eg-quiz { width: min(100%, 520px); max-height: calc(var(--vh100) * .94); overflow-y: auto; overscroll-behavior: contain; padding: 16px 16px 14px; background: #fff; border: 3px solid #fff; border-radius: 26px; box-shadow: var(--sh-card); color: var(--ink); text-align: left; word-break: keep-all; overflow-wrap: break-word; }
+.eg-quiz-top { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+.eg-quiz-top .gi { width: 44px; height: 44px; flex: none; filter: drop-shadow(0 2px 2px rgba(60, 20, 100, .3)); }
+.eg-quiz-top strong { display: block; font-size: .98rem; color: var(--ink); }
+.eg-quiz-top small { display: block; color: var(--ink-2); font-size: .74rem; font-weight: 700; line-height: 1.3; }
+.eg-quiz-q { margin: 8px 0 12px; font-size: 1.22rem; line-height: 1.5; font-weight: 900; color: var(--ink); }
+.eg-quiz-q:focus { outline: none; }
+/* 문제 문장의 **강조**: 굵게 + 밑줄 + 짙은 분홍(색에만 의존하지 않음, 흰 바탕 대비 AA 이상) */
+.eg-quiz-q .eg-em { font-weight: 900; color: #b0136f; text-decoration: underline; text-decoration-thickness: 3px; text-underline-offset: 4px; }
+.eg-quiz-opts { display: grid; gap: 8px; }
+.eg-opt { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 52px; padding: 8px 12px; text-align: left; border: 2px solid var(--line); border-radius: 16px; background: #fff; color: var(--ink); font-weight: 800; font-size: 1.02rem; line-height: 1.35; box-shadow: 0 3px 0 var(--lip); }
+.eg-opt:disabled { color: var(--ink); cursor: default; }
+.eg-opt:not(:disabled):active { transform: translateY(2px); box-shadow: 0 1px 0 var(--lip); }
+.eg-opt i { flex: none; width: 32px; height: 32px; border-radius: 50%; background: var(--surface-2); border: 2px solid var(--line); text-align: center; line-height: 28px; font-style: normal; font-weight: 900; color: var(--focus); }
+.eg-opt .eg-opt-t { flex: 1; min-width: 0; }
+.eg-opt .eg-opt-tag { flex: none; font-style: normal; font-size: .78rem; font-weight: 900; }
+.eg-opt.right { border-color: #0f7a43; background: #dff6e8; box-shadow: 0 3px 0 #6fc596; }
+.eg-opt.right i { background: #0f7a43; color: #fff; border-color: #0f7a43; }
+.eg-opt.right .eg-opt-tag { color: #0b5a31; }
+.eg-opt.mine-wrong { border-color: #c0303a; background: #ffe6e8; box-shadow: 0 3px 0 #e8a0a6; }
+.eg-opt.mine-wrong i { background: #c0303a; color: #fff; border-color: #c0303a; }
+.eg-opt.mine-wrong .eg-opt-tag { color: #8a1f28; }
+.eg-opt.dim { opacity: .75; }
+/* OX: 큰 버튼 두 개 (O 파란 원 / X 주황 네모 + 글자 — 색약 안전) */
+.eg-quiz-opts.is-ox { grid-template-columns: 1fr 1fr; gap: 12px; }
+.eg-quiz-opts.is-ox .eg-opt { min-height: 96px; flex-direction: column; justify-content: center; gap: 4px; font-size: 1.1rem; text-align: center; }
+.eg-quiz-opts.is-ox .eg-opt .eg-opt-t { flex: none; }
+.eg-quiz-opts.is-ox .eg-opt i { width: 46px; height: 46px; line-height: 42px; font-size: 1.7rem; }
+.eg-quiz-opts.is-ox .eg-opt .eg-opt-tag:empty { display: none; }
+.eg-quiz-opts.is-ox .o i { background: #e4f0ff; color: #1b5fd0; border-color: #1b5fd0; }
+.eg-quiz-opts.is-ox .x i { background: #ffe9d6; color: #a34400; border-color: #a34400; border-radius: 12px; }
+.eg-quiz-opts.is-ox .right i { background: #0f7a43; color: #fff; border-color: #0f7a43; }
+.eg-quiz-opts.is-ox .mine-wrong i { background: #c0303a; color: #fff; border-color: #c0303a; }
+/* 결과: 아이콘 + 글자 + 해설 + [계속하기] */
+.eg-quiz-result:empty { display: none; }
+.eg-quiz-fb { margin: 12px 0 6px; padding: 10px 12px; border-radius: 16px; font-weight: 900; font-size: 1.05rem; line-height: 1.4; display: flex; gap: 8px; align-items: center; }
+.eg-quiz-fb b { flex: none; font-size: 1.4rem; line-height: 1; }
+.eg-quiz-fb.ok { background: #dff6e8; color: #0b5a31; border: 2px solid #0f7a43; }
+.eg-quiz-fb.no { background: #fff1d6; color: #7a4a00; border: 2px solid #d98a00; }
+.eg-quiz-exp { margin: 0 0 10px; padding: 10px 12px; background: var(--surface-2); border-radius: 14px; font-size: .95rem; line-height: 1.55; font-weight: 600; color: var(--ink); }
+.eg-quiz-exp small { display: block; color: var(--ink-2); font-weight: 800; margin-bottom: 2px; }
+.eg-quiz-side .btn.big { width: 100%; }
+.eg-quiz-id { margin: 8px 0 0; font-size: .72rem; color: #5f5990; text-align: right; }
+@keyframes egPop { from { transform: translateY(10px) scale(.97); opacity: 0; } to { transform: none; opacity: 1; } }
+#eg-quiz:not([hidden]) .eg-quiz { animation: egPop .22s ease-out; }
+.eg-quiz-fb.ok { animation: egOk .35s ease-out; }
+@keyframes egOk { from { transform: scale(.96); } 60% { transform: scale(1.03); } to { transform: none; } }
+
+/* 와이드: 보드 위 가운데에 조금 넓게 */
+@media (min-width: 800px) and (min-height: 501px) and (orientation: landscape) {
+  .eg-quiz { width: min(100%, 580px); padding: 20px 22px 16px; }
+  .eg-quiz-q { font-size: 1.35rem; }
+  .eg-opt { font-size: 1.08rem; }
+}
+@media (min-width: 1500px) and (min-height: 900px) and (orientation: landscape) {
+  .eg-quiz { width: min(100%, 640px); }
+  .eg-quiz-q { font-size: 1.5rem; }
+  .eg-opt { font-size: 1.15rem; min-height: 58px; }
+  .eg-quiz-exp { font-size: 1.02rem; }
+}
+/* 휴대폰 가로: 왼쪽 문제·보기 / 오른쪽 결과·해설·[계속하기] */
+@media (orientation: landscape) and (max-height: 500px) {
+  .eg-overlay { padding: 6px 10px; }
+  .eg-quiz { width: min(100%, 800px); max-height: calc(var(--vh100) - 12px); display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, .9fr); column-gap: 14px; padding: 8px 14px 8px; border-radius: 20px; }
+  .eg-quiz-main, .eg-quiz-side { min-width: 0; }
+  .eg-quiz-top .gi { width: 34px; height: 34px; }
+  .eg-quiz-q { margin: 2px 0 8px; font-size: 1.05rem; line-height: 1.4; }
+  .eg-opt { min-height: 44px; padding: 4px 10px; font-size: .95rem; }
+  .eg-opt i { width: 28px; height: 28px; line-height: 24px; }
+  .eg-quiz-opts { gap: 6px; }
+  .eg-quiz-opts.is-ox .eg-opt { min-height: 64px; }
+  .eg-quiz-opts.is-ox .eg-opt i { width: 34px; height: 34px; line-height: 30px; font-size: 1.3rem; }
+  .eg-quiz-fb { margin: 2px 0 6px; padding: 6px 10px; font-size: .98rem; }
+  .eg-quiz-exp { margin-bottom: 8px; padding: 8px 10px; font-size: .88rem; line-height: 1.45; }
+  .eg-quiz-side .btn.big { min-height: 48px; font-size: 1.15rem; }
+  .eg-quiz-id { margin-top: 4px; }
+}
+/* 낮은 세로 화면(높이 700px 이하, 예: 360×640): 간격·글자를 조금 줄여 스크롤 없이 보이는 경우를 늘린다(답 버튼은 48px 이상 유지) */
+@media (max-height: 700px) and (orientation: portrait) {
+  .eg-quiz { padding: 12px 12px 10px; }
+  .eg-quiz-top { margin-bottom: 2px; }
+  .eg-quiz-top .gi { width: 36px; height: 36px; }
+  .eg-quiz-q { margin: 4px 0 8px; font-size: 1.1rem; line-height: 1.4; }
+  .eg-opt { min-height: 48px; padding: 5px 10px; font-size: .98rem; }
+  .eg-quiz-opts { gap: 6px; }
+  .eg-quiz-opts.is-ox .eg-opt { min-height: 80px; }
+  .eg-quiz-fb { margin: 8px 0 4px; padding: 7px 10px; font-size: 1rem; }
+  .eg-quiz-exp { margin-bottom: 8px; padding: 8px 10px; font-size: .9rem; line-height: 1.45; }
+  .eg-quiz-side .btn.big { min-height: 52px; font-size: 1.3rem; }
+  .eg-quiz-id { margin-top: 4px; }
+}
+/* 아주 좁은 폭(360px 이하): 글자를 조금 줄이고 OX 버튼 높이도 줄인다 */
+@media (max-width: 380px) and (orientation: portrait) {
+  .eg-quiz { padding: 14px 12px 12px; }
+  .eg-quiz-q { font-size: 1.12rem; }
+  .eg-opt { font-size: .98rem; padding: 6px 10px; }
+  .eg-quiz-opts.is-ox .eg-opt { min-height: 84px; }
+}
+
+/* ---------- ? 선물상자 (보드 위) ---------- */
+.gem[data-type="gift"] .gi { filter: drop-shadow(0 0 4px rgba(255, 247, 168, .95)) drop-shadow(0 0 1px #fff); }
+.gem[data-type="gift"]:not(.selected):not(.hint):not(.removing):not(.shake):not(.zapped):not(.reshuffle):not(.intro) .gi { animation: egGlow 1.8s ease-in-out infinite alternate; }
+@keyframes egGlow {
+  from { filter: drop-shadow(0 0 2px rgba(255, 247, 168, .55)) drop-shadow(0 0 1px #fff); }
+  to { filter: drop-shadow(0 0 7px rgba(255, 247, 168, 1)) drop-shadow(0 0 2px #fff); }
+}
+
+/* ---------- 게임 화면 한 줄 요약 ---------- */
+.count-unit { position: absolute; left: 0; right: 0; bottom: 20%; padding: 0 16px; text-align: center; font-weight: 900; font-size: clamp(.95rem, 4vw, 1.25rem); color: #fff; paint-order: stroke fill; -webkit-text-stroke: 4px var(--stroke); text-shadow: 0 3px 0 var(--stroke); word-break: keep-all; overflow-wrap: break-word; }
+#pause-unit { font-weight: 700; font-size: .9rem; }
+.end-quiz { font-weight: 800; color: var(--ink); }
+@media (orientation: landscape) and (max-height: 500px) {
+  .count-unit { bottom: 6%; font-size: .95rem; }
+  .end-quiz { font-size: .8rem; line-height: 1.15; margin: 0; }
+  /* 일시정지 창(휴대폰 가로): 소단원 줄이 들어가면 5줄 버튼이 화면보다 길어져 안에서 스크롤이 생겼다(844×390 에서 약 17px, 360px 높이에서 약 40px).
+   * 버튼을 2열로 놓아(계속하기·다시 시작 / 소리·컷인 / 나가기) 3줄로 줄인다. 버튼 높이 44px 이상은 그대로. */
+  #overlay-pause .panel { width: min(100%, 480px); display: grid; grid-template-columns: 1fr 1fr; gap: 6px 8px; }
+  #overlay-pause #pause-title { justify-self: center; }
+  #overlay-pause #pause-title, #overlay-pause #pause-level, #overlay-pause #pause-unit, #overlay-pause #btn-quit { grid-column: 1 / -1; }
+  #pause-unit { font-size: .82rem; line-height: 1.3; }
+}
+
+/* ---------- 움직임을 줄이는 설정 ---------- */
+@media (prefers-reduced-motion: reduce) {
+  #eg-quiz:not([hidden]) .eg-quiz, .eg-quiz-fb.ok { animation: none; }
+  .gem[data-type="gift"] .gi, .gem[data-type="gift"]:not(.selected):not(.hint):not(.removing):not(.shake):not(.zapped):not(.reshuffle):not(.intro) .gi { animation: none; filter: drop-shadow(0 0 5px rgba(255, 247, 168, .95)) drop-shadow(0 0 1px #fff); }
+  .eg-chip:active, .eg-sub:active, .eg-opt:not(:disabled):active { transform: none; }
+}
