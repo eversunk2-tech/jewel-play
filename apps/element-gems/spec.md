@@ -1,6 +1,6 @@
 # element-gems — 원소 스킬 보석 퍼즐 (spec.md)
 
-> 상태: **승인됨 (2026-11-07, 열린 질문 5개는 모두 권장 초안 적용)**. Build 진행. **§17 2분 + 스테이지(레벨 1~10)는 2026-11-07 승인(열린 질문 5개 모두 권장안: 목표 달성 즉시 클리어, 별 등급 포함[남은 시간 30%/50%], 시작 120초 유지, 레벨 9~10 현행 유지, 60초 시절 기록 보존)**. **§15 난이도·§16 2×2 매치는 2026-11-07 승인(열린 질문 모두 권장안 + §15.8 질문 2 '경과 90초 이후 시간 보너스 ×0.5' 채택, §16 질문은 기본안: 보상 동일·정사각형 전용 연출은 2차·시작 화면 규칙 문구에 2×2 안내 포함)**. 모든 수치는 "초안 값"이며 Build 단계에서 상수 테이블(`CONFIG`) 한 곳에 모아 조정 가능하게 한다.
+> 상태: **승인됨 (2026-11-07, 열린 질문 5개는 모두 권장 초안 적용)**. Build 진행. **§18 UI 리디자인 "스카이 캔디"는 2026-11-07 승인(열린 질문 모두 권장안: 컨셉 ① 스카이 캔디 + 어두운 보드 트레이 유지 / 시스템 폰트만 사용 / 새 로고는 `assets/title-logo.webp`를 같은 경로로 교체 / 새 배경 이미지·폰트 파일·컷인 캐릭터 재생성 없음 / 장식 모션 최소 + `prefers-reduced-motion` 대응)**. **§17 2분 + 스테이지(레벨 1~10)는 2026-11-07 승인(열린 질문 5개 모두 권장안: 목표 달성 즉시 클리어, 별 등급 포함[남은 시간 30%/50%], 시작 120초 유지, 레벨 9~10 현행 유지, 60초 시절 기록 보존)**. **§15 난이도·§16 2×2 매치는 2026-11-07 승인(열린 질문 모두 권장안 + §15.8 질문 2 '경과 90초 이후 시간 보너스 ×0.5' 채택, §16 질문은 기본안: 보상 동일·정사각형 전용 연출은 2차·시작 화면 규칙 문구에 2×2 안내 포함)**. 모든 수치는 "초안 값"이며 Build 단계에서 상수 테이블(`CONFIG`) 한 곳에 모아 조정 가능하게 한다.
 
 ## 1. 개요
 - **한 줄 소개**: 보석 색마다 원소 속성이 있는 매치-3 퍼즐. 색을 모아 스킬 게이지를 채우고, 원소 스킬로 판을 뒤집는 60초 타임어택.
@@ -744,3 +744,272 @@ squareAt(g,r,c): for dr,dc in {-1,0}x{-1,0}: top-left=(r+dr,c+dc) in bounds and 
 3. **시작 시간**: 중수 120초로 하면 시간 소진 판의 체감은 약 2분 45초입니다(컷인·정지 때문). 실제로 2분 안팎이 되게 **시작 100초**(체감 약 2분 17초, 스킬 12회, 목표 점수 약 -18% 재산정 필요)로 낮출까요? 초안은 사용자가 말한 "2분 = 타이머 표기 2:00"을 우선했습니다.
 4. **목표 곡선 상단**: 현재 레벨 10은 캐주얼 9%이지만 계획을 조금 세우는 중급 플레이는 중수 65%·고수 44%가 깹니다. 레벨 9~10을 더 올려(예: 중수 L10 18,000) 숙련자 전용으로 만들까요?
 5. **기존 최고 점수**: 60초 판 기록(`best`/`bestByLevel`)은 UI에서 숨기고 보존만 합니다(초안). 완전히 삭제(0으로 초기화)할까요? 그리고 시간 보너스를 아예 없애 더 단순하게 만들까요(목표 점수 약 -4% 조정, 초안은 25% 유지)?
+
+
+## 18. UI 리디자인 — "스카이 캔디" (Plan 추가, 2026-11-07)
+
+> **상태: 초안(시안 승인 전).** 아래 모든 수치(HEX·px·그림자)는 **초안 값**이며, 시안 승인 후 확정한다. 기존 §1~§17의 규칙·수치·레이아웃 높이는 **바꾸지 않는다**(시각만 교체).
+> **근거 목업**: 실제 `index.html`/`game.js`를 복사해 `style.css` 끝에 덮어쓰기 블록만 붙여 실제 DOM으로 렌더링했다(코드 수정 없이 CSS만으로 구현 가능함을 확인). 위치는 18.9 참고.
+> **조사 한계**: WebSearch는 이 환경에서 광고·SEO성 페이지가 대부분이라 근거로 쓸 만한 결과가 거의 없었다(확인된 것: Pixune의 2026 모바일 게임 UI 리뷰 — 미니멀 HUD, 마이크로 모션, 큰 터치 버튼, 글래스 계열, 색약 대응 / 에셋 마켓의 매치-3 타일 설명 — 둥근 사각형 타일, 파스텔 팔레트, 낮은 대비의 배경 패턴). 18.1의 나머지 트렌드는 **일반 지식 기반의 디자인 패턴**이며, 특정 게임의 에셋·상표·고유 형태는 쓰지 않는다.
+
+### 18.1 트렌드 분석 (요소 / 최신 트렌드 / 현재 우리 UI / 개선 방향)
+| 요소 | 최신 트렌드(일반 패턴) | 현재 우리 UI | 개선 방향 |
+|---|---|---|---|
+| 배경 | 밝고 채도 높은 파스텔 하늘/섬/구름의 **단순화된 일러스트**, 중앙은 비워 UI·보드 가독성 확보, 게임 중에는 흐릿·저대비 | 사실적인 정글 사진풍 배경(디테일 과다, 보석과 질감 충돌) | 하늘 그라디언트 + 구름·섬 실루엣(CSS) + 반짝임 점. 사실적 디테일 제거 |
+| 팔레트 | 밝은 배경 + **흰/크림 카드** + 포인트 1~2색(노랑 CTA), 보조는 같은 명도의 파스텔 | 짙은 보라 유리 + 금색 테두리 + 분홍 버튼(고채도 3색 혼재) | 흰 카드 + 노랑 CTA 1색 + 민트/라벤더/핑크 파스텔 보조 |
+| 패널/카드 | 둥근 큰 반경(20~28px), **아래쪽 두께(3D lip)**, 은은한 큰 그림자, 흰 테두리 | 반투명 유리(blur) + 금색 2중 테두리 = "구식 RPG 창" | 흰 카드 + 아래 립 6px + 부드러운 그림자. blur 제거 |
+| 버튼 | 통통한 **젤리 버튼**: 밝은 면 + 윗면 하이라이트 + 아래 두께, 눌리면 아래로 3px 이동 | 금색 테두리 + 분홍/보라 광택 그라디언트 | 같은 구조 유지하되 색·테두리를 파스텔/흰 테두리로 교체, 역할별 색(주요=노랑, 힌트=민트, 메뉴=라벤더, 리셋=핑크) |
+| 타이포 | 굵고 둥근 폰트, **큰 숫자·타이틀은 흰 글자 + 짙은 외곽선 + 아래 그림자**, 본문은 짙은 남색 | 시스템 고딕, 금색/연보라 글자 + 어두운 그림자 | 본문 짙은 남색(#2a2160) on 흰 카드, 큰 글자는 외곽선 레시피(18.3) |
+| HUD 바(타이머·진행) | 큰 캡슐 바, 윗면 광택, 채움이 밝게 움직임, 숫자는 바 위에 외곽선 글자 | 어두운 트랙 + 금색 테두리 | 흰 반투명 트랙 + 안쪽 그림자, 채움 상단 광택, 숫자 외곽선 |
+| 점수/배율 | 배율은 **알약(pill) 배지**로 강조, 점수는 큰 굵은 숫자 | 노란 글자만(대비 낮아질 위험) | 배율 노란 알약, 점수 남색 굵게 |
+| **보드/칸** | 보드는 반투명·어두운 **트레이 위 둥근 사각 타일**, 칸 사이 틈 2~3px, 교차 2톤, 보석이 가장 밝은 요소 | 갈색 체크무늬 + 금색 프레임(사각 격자라 칸 개념이 약함, 보석과 톤 불일치) | 짙은 남보라 트레이 + **둥근 사각 타일 64개(SVG 1장 반복)**, 교차 2톤, 흰 프레임 |
+| 보석 | 큰 실루엣, 부드러운 바닥 그림자, 선택 시 칸 하이라이트 + 살짝 확대 | 무거운 drop-shadow 필터 64개 | 바닥 그림자를 배경 타원으로 대체(필터 제거), 선택/힌트는 칸 하이라이트 |
+| 게이지/파워업 | 채워지면 **발광 + 반짝 아이콘**, 색뿐 아니라 형태 변화로 "사용 가능" 표시 | 색 채움 + 흰 테두리 펄스 | 흰 카드 + 원소색 채움, 가득 차면 원소색 링 + ★ 배지(색 외 단서) |
+| 모션 | 버튼 눌림, 별 획득 팝, 바 채움 이징, 대기 중 CTA 살짝 뜀, 구름 느린 이동 — **짧고 가볍게**, 감소 모션 옵션 | 보드·컷인 모션은 풍부, UI 모션은 눌림 정도 | CTA 바운스, 구름 드리프트, 칸 힌트 펄스(opacity만). `prefers-reduced-motion` 대응 |
+| 레벨 선택 | 상태별 색 카드(완료=초록, 현재=노랑 발광, 잠김=회색) + 별 | 분홍 카드 위주 | 완료 민트 / 현재 노랑(펄스) / 잠김 회색 라벤더 |
+| 오버레이 | 흰 카드 팝업 + **리본 제목**, 큰 별 3개 | 유리 패널 + 금색 | 흰 카드 + 알약 리본 제목(클리어=노랑), 별은 외곽선 |
+| 접근성 | 색 외 단서(형태·아이콘), 큰 터치 타깃, 대비 | 보석 모양 구분은 이미 충족 | 유지 + 게이지 ★ 배지, 텍스트 AA 측정 |
+
+### 18.2 디자인 방향 3안 → 추천 1안
+| | ① **스카이 캔디** (추천) | ② 보석 왕국 / 하늘 섬 | ③ 네온 글로우 다크 |
+|---|---|---|---|
+| 배경 | 청록→페리윙클→핑크 하늘 그라디언트 + 구름 + 민트/핑크 언덕(CSS) | 노을빛 하늘 위 떠 있는 섬·성 일러스트(새 이미지 필요) | 거의 검은 남색 + 네온 격자/별 |
+| 메인 / 보조 / 강조 | 메인 `#9fb6ff` 하늘, 표면 `#ffffff`, 보조 민트 `#8de8b4`·라벤더 `#cdbeff`·핑크 `#ffbcd9`, 강조 노랑 `#ffc21a` | 로열블루 `#2b3a8f`, 크림 `#fff6e0`, 강조 골드 `#ffd36a`, 포인트 코랄 `#ff7a7a` | 배경 `#0b0a1f`, 네온 시안 `#35f0ff`·마젠타 `#ff3df0`, 강조 라임 `#b6ff3b` |
+| 분위기 | "구름 위 사탕 놀이터" — 밝고 가벼움 | "반짝이는 보물 왕국" — 화려·고급 | "사이버 아케이드" — 강렬 |
+| 귀여운 젤리 보석과의 일관성 | **높음**(같은 파스텔·젤리 질감) | 중간(금 장식이 다시 "구식"으로 보일 위험) | 낮음(귀여운 표정과 네온 톤 충돌) |
+| 구현 비용 | **낮음**(CSS 위주, 새 이미지 선택사항) | 높음(일러스트 에셋 의존 큼) | 중간(글로우 box-shadow 다수 → 저사양 부담) |
+| 성능 | 좋음(blur 제거, 필터 제거) | 보통(큰 배경 이미지) | 나쁨(발광 효과) |
+| 흰 보석 식별 | 어두운 트레이로 해결(대비 7~11:1) | 가능 | 가능 |
+| 초등학생 친화 | **높음** | 높음 | 호불호 |
+
+**추천: ① 스카이 캔디.** 근거: (1) 이미 확정된 귀여운 젤리 보석·로고와 톤이 같다. (2) 사실적 정글 배경만 없애도 "올드함"의 절반이 사라지고, 나머지(패널·버튼·보드)는 CSS로 해결돼 에셋·용량 부담이 작다. (3) 흰/크림 카드 위 짙은 남색 글자로 **WCAG AA를 쉽게 충족**한다. (4) 보드만 어두운 트레이로 두어 흰·노랑·파랑 보석이 모두 식별된다. ②는 일러스트 의존, ③은 보석과의 톤 충돌·성능 때문에 제외.
+
+### 18.3 디자인 토큰 · 타이포그래피
+#### 18.3.1 CSS 변수 (초안, `:root`에 추가/교체)
+| 변수 | 값 | 용도 |
+|---|---|---|
+| `--sky-1` ~ `--sky-4` | `#6fcfff` `#9fb6ff` `#e0b8ff` `#ffc8e6` | 배경 그라디언트(위→아래) |
+| `--surface` / `--surface-2` / `--line` | `#ffffff` / `#f4efff` / `#d9ceff` | 카드 / 카드 하단·칩 / 점선·테두리 |
+| `--ink` / `--ink-2` | `#2a2160` / `#5b5394` | 본문 / 보조 글자 |
+| `--stroke` | `#3b2a8f` | 큰 글자 외곽선·그림자 |
+| `--lip` | `#b9a8f5` | 카드 아래 두께 |
+| `--accent` / `--accent-ink` | `#ffc21a` / `#4a2600` | 강조·주요 버튼 글자(노랑 위) |
+| `--focus` | `#5b3df5` (+ 흰 6px 링) | `:focus-visible` |
+| `--ok` / `--danger` / `--warn` | `#0f7a43` / `#ff5a64` / `#ffb21a` | 성공 / 위험 / 경고 |
+| `--e-fire` `--e-water` `--e-grass` `--e-lightning` `--e-dark` `--e-light` | `#ff5a64` `#3f8cff` `#2fbf71` `#ffc21a` `#9a5cf0` `#aeb6d8` | **원소 UI 강조색**(게이지·팝업·말풍선 공통). 컷인 `CUTIN[].color`(JS)는 기존 유지 |
+| `--tile-a1` `--tile-a2` / `--tile-b1` `--tile-b2` / `--tray` | `#312c75` `#211d57` / `#2b2767` `#1d1950` / `#17133f` | 보드 타일 A(상단→하단) / B / 트레이 |
+| `--r-card` `--r-btn` `--r-pill` `--r-tile` | `24px` `16px` `999px` `21%` | 반경 |
+| `--sh-card` | `0 6px 0 var(--lip), 0 16px 28px rgba(50,30,140,.30)` | 카드 |
+| `--sh-btn` | `0 4px 0 #b7a8f0, 0 8px 12px rgba(50,30,140,.25)` | 기본 버튼 |
+| 간격 | 4 / 8 / 12 / 16 / 24px (기존 gap 8, 패딩 12 유지) | |
+
+주의: 기존 `--ink`는 "밝은 글자"였다. 리디자인에서는 **"짙은 글자"로 의미가 뒤집힌다.** `body`가 상속하므로 어두운 면 위의 글자(보드 팝업, 카운트다운, 컷인)는 이미 명시 색을 쓰는지 확인할 것(목업에서는 문제 없었음).
+
+#### 18.3.2 명도 대비 검증 (WCAG 2.1 상대 휘도, 목업에 쓴 값을 계산 · 스크립트 `scratchpad/redesign/contrast.js`)
+텍스트 기준 4.5:1(큰 글자 ≥24px/굵게 18.7px 은 3:1). 반투명 위 글자는 흰색과 합성한 색으로, 그라디언트는 양 끝 색 모두 측정.
+| 조합 | 대비 | 판정 |
+|---|---|---|
+| 본문 `#2a2160` / 흰 `#fff` · 라벤더 `#f4efff` | 14.1 · 12.6 | 통과 |
+| 보조 `#5b5394` / 흰 · 라벤더 | 6.8 · 6.0 | 통과 |
+| 기본 버튼 글자 / `#ece6ff` | 11.7 | 통과 |
+| 주요 버튼 `#4a2600` / `#ffe97a`·`#ffc531`·`#ffb21a` | 11.0 · 8.5 · 7.4 | 통과 |
+| 힌트 `#0d3b24` / `#8de8b4`, 리셋 `#5a0f3a` / `#ffbcd9`, 메뉴 / `#cdbeff` | 8.6 · 8.6 · 8.4 | 통과 |
+| 난이도 선택: 초보 `#0d3b24`/`#7ee3aa` 8.1, 중수(노랑)·고수 `#5a0017`/`#ff8fa3` 6.7, 비선택 `#5b5394`/`#f8f6ff` 6.3 | | 통과 |
+| 레벨 칩: 초보 `#0e5a2c`/`#c8f5d8` 7.0, 중수 `#6a4300`/`#ffe9a8` 7.2, 고수 `#8a0e2c`/`#ffd0d8` 7.0 | | 통과 |
+| 배율 `#4a2600` / `#ffd23f` | 9.3 | 통과 |
+| CHAIN 활성 `#c2410c`/흰 5.2, 비활성 `#6c62b0`/흰 5.2 | | 통과 |
+| 어둠 배지 흰 / `#7b3fd6` | 6.0 | 통과 |
+| 타이머 글자 `#2a2160` / 채움 `#4be39a` 8.6 · `#ffe14d` 10.9 · 임박 `#ff6b87` 5.2 · `#ff9a5a` 6.8 | | 통과(+흰 외곽선) |
+| 목표 바 글자 / `#ff7ac8` 6.0 · `#ffa24d` 7.1 | | 통과(+흰 외곽선) |
+| 게이지 숫자 `#2a2160` / 흰 알약 `.88` | 13.8 | 통과 |
+| 레벨 카드: 클리어 `#0d3b24`/`#86e6ae` 8.4(목표 `#14532d` 6.1), 현재 `#4a2600`/`#ffc531` 8.5(목표 `#6a4300` 5.5), 잠김 `#5f5990`/`#e6e1f5` 5.0 | | 통과 |
+| 결과: 클리어 제목 `#4a2600`/`#ffb21a` 7.4, 점수 `#c0265c`/흰 5.7, 성공문구 `#0f7a43`/흰 5.4, 조준 안내 `#ffd23f`/`#2a2160` 9.8 | | 통과 |
+| 큰 글자 흰 / 외곽선 `#3b2a8f` | 11.0 | 통과 |
+| 팝업 채움색 / 외곽선: 파랑 `#8fdcff` 7.2, 분홍 `#ff9ae0` 5.7, 보라 `#d2a8ff` 5.6, 주황 `#ff8a6a` 4.8 | | 통과(큰 글자 3:1) |
+
+설계 중 발견해 값을 고친 것: CHAIN 비활성 `#7a70bd`(4.3) → `#6c62b0`, 타이머 임박 시작색 `#ff4f73`(4.5 미달) → `#ff6b87`, 비활성 버튼 글자 `#6a6495`(4.25) → `#5f5990`. **비텍스트(보석 ↔ 칸) 대비**는 아래 18.4.3.
+
+#### 18.3.3 타이포그래피
+| 방식 | 장점 | 단점 | 판정 |
+|---|---|---|---|
+| A. 시스템 폰트 + 굵기 800~900 + 외곽선 | 설치·로딩 없음, `file://`·오프라인·iframe 문제 없음, 저작권 이슈 없음 | 기기마다 모양이 달라 "게임풍 둥근 맛"이 약함 | **1단계 기본(목업이 이 방식)** |
+| B. 자체 호스팅 서브셋 웹폰트(`assets/fonts/*.woff2`, 예: Jua(둥글고 굵음)·Do Hyeon, 둘 다 SIL OFL) | 게임다운 한글 둥근 폰트, 오프라인 가능 | 서브셋 제작 필요(사용 글자 ~300자 + 숫자 → 약 40~80KB 목표), `file://`에서 로드 확인 필요(Chrome·Safari는 같은 폴더/하위 폴더 허용, Firefox는 엄격 정책 → 폴백 필수) | **2단계 권장(선택)** |
+| C. Google Fonts CDN | 구현 쉬움 | 외부 의존 §14 "외부 URL 참조 금지"와 충돌, 오프라인·블로그 iframe·어린이 개인정보(외부 요청) 문제 | **비권장** |
+- **권장**: A로 확정 구현 → 시안 승인 후 B를 선택 적용. `@font-face { font-display: swap }`, 스택 `"Jua", "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", system-ui, sans-serif`. 폰트가 없어도 레이아웃이 깨지지 않도록 **폭에 의존하는 고정 크기 상자 금지**(`word-break: keep-all` 유지).
+- 크기·굵기 스케일(초안): 타이틀 `clamp(2rem, 9vw, 2.8rem)`/900 · 레벨 선택 제목 1.15rem/900 · 점수 1.5rem/900 · 배율 1.3rem/900 · 본문 .9rem/500~600 · 칩·라벨 .62~.7rem/800~900 · 버튼 .95~1.1rem/800, 큰 버튼 1.5rem/900(자간 .02em) · 타이머 1.05rem/900 · 팝업 `clamp(1.8rem, 9vw, 2.8rem)`/900.
+- **큰 글자 레시피**(카운트다운·팝업·플로팅 점수·타이틀 대체): `color:#fff; paint-order:stroke fill; -webkit-text-stroke:6px #3b2a8f; text-shadow:0 4px 0 #3b2a8f;` 플로팅 점수는 4px/2px. 팝업은 `filter: drop-shadow(0 0 2px #fff) drop-shadow(0 0 8px rgba(255,255,255,.6))`로 어두운 칸 위에서도 윤곽을 살린다(요소 1개라 부담 없음).
+- **바 위 글자 레시피**(타이머·목표 바): `color:#2a2160; paint-order:stroke fill; -webkit-text-stroke:3~4px #fff;`.
+
+### 18.4 화면별 상세 스펙
+#### 18.4.1 배경(전 화면 공통)
+| 레이어 | 초안 값 |
+|---|---|
+| `html` 배경 | `var(--sky-2)` (**`html`에 줄 것**. `body`에 배경색을 주면 `body::before`(z-index:-1)를 덮어 하늘이 사라진다 — 목업에서 실제로 겪음) |
+| `body::before` (고정) | 위→아래 `linear-gradient(180deg, #6fcfff 0%, #9fb6ff 42%, #e0b8ff 74%, #ffc8e6 100%)` + 아래쪽 언덕 3개 `radial-gradient(ellipse 70% 22% at 18% 104%, #8fe6c4 0 62%, transparent 64%)`(민트) / `…60% 20% at 88% 106%, #ffb3d9…`(핑크) / `…80% 16% at 50% 110%, #c5b3ff…`(라벤더) + 반짝임 점 2겹 `radial-gradient(circle, rgba(255,255,255,.9) 0 1.6px, transparent 2.4px) 0 0/96px 96px` 등 |
+| `body::after` (고정, `opacity:.93`) | 구름 3개. **각 구름 = 같은 위치·크기(`160×84px` 타일)의 `radial-gradient(circle R at X Y, #fff 96%, transparent)` 5겹**(R 14/22/28/22/16px)을 `background-position: x% y%`로 배치(화면 폭이 달라도 모양 유지). 느린 이동 `animation: cloudDrift 40s ease-in-out infinite alternate`(translateX ±14px, transform만) |
+| 기존 `bg-jungle.webp` | 사용 중단(파일은 폴백/교체용으로 보존 가능) |
+※ 구름 좌표를 `calc(% + px)`로 흩어 놓으면 화면 폭에 따라 동그라미 줄로 깨진다(1280px에서 확인) — 위 "타일 고정" 방식을 쓸 것. 게임 화면에서는 위쪽 빈 영역(약 13%)에 구름이 보이고 HUD가 일부를 가린다(의도).
+
+#### 18.4.2 메인(시작) 화면
+| 요소 | 스펙(초안) |
+|---|---|
+| 배치 | `.start-card`는 **카드가 아닌 투명 컨테이너**(배경·테두리·그림자 제거). 위에서 아래: 로고 → 진행 칩 → 난이도 트레이 → 설명 말풍선 → [시작] → 규칙 카드 → 토글 |
+| 로고 | 기존 `title-logo.webp` 유지(초안) + 흰 스티커 외곽선 `filter: drop-shadow(2px 0 0 #fff) drop-shadow(-2px 0 0 #fff) drop-shadow(0 2px 0 #fff) drop-shadow(0 -2px 0 #fff) drop-shadow(0 8px 10px rgba(50,30,140,.4))`(요소 1개). 정글 느낌의 초록 조각 글자는 하늘 배경과 약간 어긋남 → 새 로고는 18.5·열린 질문 3 |
+| 진행 칩 `.best-line` | 흰 .9 알약, `padding:5px 16px`, 글자 `--ink`, 강조 숫자 `#c2410c`, `box-shadow:0 3px 0 rgba(120,90,220,.3)` |
+| 난이도 `.level-select` | 흰 .88 **트레이**(`padding:6px; border-radius:22px; box-shadow: inset 0 3px 6px rgba(90,60,200,.18), 0 3px 0 rgba(120,90,220,.3)`). 3칸 버튼 min-height 48px 유지 |
+| 난이도 버튼 비선택 | 투명 배경, 글자 `--ink-2`, hover `--surface-2` |
+| 난이도 버튼 선택(`.on`) | 흰 테두리 2px + 아래 두께 `0 4px 0 rgba(60,40,140,.35)`. 초보 `linear-gradient(#d4fbe6,#7ee3aa)`/글자 `#0d3b24`, 중수 `(#fff1a3,#ffc531)`/`#4a2600`, 고수 `(#ffd9df,#ff8fa3)`/`#5a0017` |
+| 설명 `.level-desc` | 흰 .88 말풍선 `border-radius:14px; padding:7px 12px`, 글자 `--ink` 600 |
+| [시작] `.btn.primary.big` | min-height **60px**(기존 54), 1.5rem/900, 노랑 `linear-gradient(#ffe97a, #ffc531 55%, #ffb21a)`, 글자 `#4a2600`, 흰 테두리, `box-shadow: inset 0 -3px 0 rgba(200,110,0,.22), 0 5px 0 #d9830a, 0 9px 14px rgba(120,60,0,.3)`. **대기 중 바운스** `translateY(0→-3px) 1.8s infinite`(눌리면 중지) |
+| 규칙 카드 `.rules` | **한 장의 흰 카드**(`padding:4px 14px; border-radius:20px; box-shadow:var(--sh-card)`). 항목은 `border-bottom:2px dashed var(--line)`로 구분(마지막 제외), 항목 이름 `<b>`는 라벤더 알약(`#f4efff`, 글자 `--ink`) |
+| 튜토리얼 `.tutorial` | `#fff4cc` 배경 + `2px solid #ffd23f` |
+| 토글 `.btn.ghost` | 흰 .72 + 흰 테두리 + `0 3px 0 rgba(120,90,220,.35)`, 글자 `--ink` |
+| 상태 | hover `filter:brightness(1.04)`; active `translateY(3px)` + 아래 두께 4→1px; disabled/cooling `#e6e1f5` 배경·글자 `#5f5990`·두께 `#cfc8ea`; focus-visible `3px --focus` + 흰 6px 링 |
+| 진입 모션 | 로고 `logoBounce`(기존) 유지, 카드 요소는 정적 |
+
+#### 18.4.3 보드 64칸 디자인 (핵심)
+**구조: 64칸 DOM을 만들지 않는다.** 칸은 `.board`의 **배경 이미지 1장(SVG data URI)을 `--cell*2` 크기로 반복**한다(현재 체크무늬와 같은 방식이라 보석 좌표 계산 불변). 칸 상태 표현은 **보석 요소(`.gem`, 이미 칸 크기·칸 위치)의 `::before`**를 쓴다.
+| 항목 | 스펙(초안) |
+|---|---|
+| 칸 모양 | 둥근 사각형, **반경 21%**(칸 변의 21%), **틈 6%**(칸당 위·아래·좌·우 3% 여백 → 390px 폭에서 약 2.7px) |
+| 색 | **교차 2톤**(체크). 타일 A(좌상·우하) `#312c75→#211d57`(위→아래), 타일 B(우상·좌하) `#2b2767→#1d1950`, 틈/트레이 `#17133f`. 두 톤의 명도 차는 작게(체크가 보석보다 튀지 않게) |
+| 질감 | 타일마다 **윗면 하이라이트**: 안쪽 2px 둥근 선 `stroke: 흰 30% → 투명(40% 지점)` 세로 그라디언트(소프트 젤리 느낌). 필터·blur 없음 |
+| 트레이 | `.board` 배경색 `#17133f`, `border-radius:20px`, `box-shadow: inset 0 4px 10px rgba(10,5,50,.55)`, **`backdrop-filter` 제거** |
+| 프레임 | `.board-wrap::before`(기존 위치): `inset:-7px; border-radius:26px; background: linear-gradient(180deg,#fff 0%,#e4d9ff 55%,#bfaef8 100%)`, `box-shadow: 0 6px 0 #8d78e0, 0 16px 24px rgba(40,25,120,.38)` + **네 모서리 색 장식 점**(분홍·노랑·파랑·초록 `radial-gradient(circle 4px at 11px 11px, #fff, 색 70%, transparent 72%)`) |
+| 보석 바닥 그림자 | `.gem { background: radial-gradient(ellipse 34% 8% at 50% 88%, rgba(8,4,40,.5), rgba(8,4,40,0)) no-repeat }`; `.gem .gi { filter:none }` → **칸마다 drop-shadow 필터 64개를 제거**(성능) |
+| 물 보석 보정 | 평균 색이 가장 어두움 → `.gem[data-type="water"] .gi { filter: brightness(1.2) saturate(1.08) }`(약 10개만 필터) |
+| 이미지 필수 규칙 | `.gem .gi { position:relative; z-index:1 }` — 없으면 `::before`(위치 지정 요소)가 보석 이미지를 덮는다 |
+
+타일 SVG(초안, 실제 CSS에는 `#`→`%23`, 따옴표는 작은따옴표로 인코딩해 `url("data:image/svg+xml,…")`로 넣는다):
+```
+<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 200'>
+ <defs>
+  <linearGradient id='a' x1='0' y1='0' x2='0' y2='1'><stop offset='0' stop-color='#312c75'/><stop offset='1' stop-color='#211d57'/></linearGradient>
+  <linearGradient id='b' x1='0' y1='0' x2='0' y2='1'><stop offset='0' stop-color='#2b2767'/><stop offset='1' stop-color='#1d1950'/></linearGradient>
+  <linearGradient id='h' x1='0' y1='0' x2='0' y2='1'><stop offset='0' stop-color='#fff' stop-opacity='.30'/><stop offset='.4' stop-color='#fff' stop-opacity='0'/></linearGradient>
+ </defs>
+ <g id='t'><rect x='3' y='3' width='94' height='94' rx='21' fill='url(#a)'/><rect x='4' y='4' width='92' height='92' rx='20' fill='none' stroke='url(#h)' stroke-width='2'/></g>
+ <use href='#t' x='100' y='100'/>
+ <g><rect x='103' y='3' width='94' height='94' rx='21' fill='url(#b)'/><rect x='104' y='4' width='92' height='92' rx='20' fill='none' stroke='url(#h)' stroke-width='2'/>
+    <rect x='3' y='103' width='94' height='94' rx='21' fill='url(#b)'/><rect x='4' y='104' width='92' height='92' rx='20' fill='none' stroke='url(#h)' stroke-width='2'/></g>
+</svg>
+```
+`.board { background: url("…") 0 0 / calc(var(--cell) * 2) calc(var(--cell) * 2), var(--tray); }` (기존 `conic-gradient` 체크 대체).
+
+**칸 상태 표현** (모두 `.gem::before { content:""; position:absolute; inset:3%; border-radius:21%; opacity:0; pointer-events:none }` 기반, transform·opacity만 애니메이션):
+| 상태 | 표현 |
+|---|---|
+| 기본 | 타일 2톤 + 보석 + 바닥 그림자 |
+| 선택 `.selected` | 칸 하이라이트 `linear-gradient(180deg, rgba(255,255,255,.6), rgba(255,255,255,.22))` + `0 0 0 2px #fff, 0 0 12px 2px rgba(255,255,255,.65)`, 보석 `scale(1.1)` + `drop-shadow(0 0 6px #fff) brightness(1.1)`(선택 1개만 필터) |
+| 힌트 `.hint` | 칸 `rgba(255,226,92,.5)` + 링 `#ffe25c`, `tileHint .9s alternate`(opacity .25→1). 감소 모션: 정지(opacity 1) |
+| 키보드 커서 `.cursor` | `::after` 흰 3px 점선, 반경 21% |
+| 제거 `.removing` | 칸이 흰색으로 번쩍 `tileFlash .22s`(opacity .85→0, scale 1→1.18) + 기존 `gemPop` |
+| 조준 중 `.aiming` (보드) | `0 0 0 3px #fff, 0 0 24px 5px rgba(255,194,26,.85)` + 기존 `cursor:crosshair` |
+| 번개 `.zapped` / 흔들림 `.shake` / 재배치 `.reshuffle` | 기존 애니메이션 유지(필터 `brightness` 사용 중 → 시각 확인) |
+
+**보석 6종 ↔ 칸 대비** (보석 이미지 평균색 `#ce5360 #395fbf #5abc7d #daae54 #a96ed5 #ccd6df`의 상대 휘도 ↔ 타일 4색, 비텍스트 UI 기준 3:1 참고):
+| 보석 | 타일 A 상단(가장 밝은) | 타일 B 하단(가장 어두운) |
+|---|---|---|
+| 불 | 2.9 | 3.9 |
+| 물 | 2.0 (밝기 1.2배 보정 시 **2.7**) | 2.7 (보정 시 **3.6**) |
+| 풀 | 5.1 | 6.8 |
+| 번개 | 5.8 | 7.8 |
+| 어둠 | 3.4 | 4.5 |
+| 빛(흰) | 8.2 | 10.9 |
+→ 빛·번개·풀은 매우 높고 불·어둠은 ≥2.9, 물이 최저(보정 후 ≥2.7)다. 6종 모두 **모양(삼각형/물방울/둥근 사각형/4각 별/육각형/마름모) + 표정 + 색**으로 구분되며 목업 육안 확인에서 문제 없었다. 물을 3:1 이상으로 올리려면 `brightness(1.28)` 또는 타일 A를 `#2a2566`/`#1b1850`로 더 어둡게(트레이와의 경계가 줄어듦). **밝은 보드로 바꾸는 안은 비추천**(흰 보석 `#ccd6df`가 타일 대비 1.2:1로 사라짐).
+성능: 칸당 필터 0(선택 1 + 물 약 10개 제외), `backdrop-filter` 0, 배경 이미지 1장(벡터라 해상도 무관). 현재는 칸마다 drop-shadow 64개 + 보드 blur.
+
+#### 18.4.4 게임 화면 프레임 (높이는 **전부 유지**: 타이머 30·점수 52·목표 22·게이지 min 56·버튼 44, `--ui-h:302px`)
+| 요소 | 스펙(초안) |
+|---|---|
+| 공통 HUD 상자 | `border:3px solid #fff; box-shadow: 0 3px 0 rgba(90,60,200,.35), 0 6px 12px rgba(40,30,120,.22)` |
+| 타이머 바 | 트랙 흰 .72 + `inset 0 3px 6px rgba(70,50,160,.25)`. 채움 `linear-gradient(180deg, rgba(255,255,255,.55) 0 42%, rgba(255,255,255,0) 50%), linear-gradient(90deg, #4be39a, #ffe14d)`(상단 광택). 숫자 1.05rem/900 `--ink` + 흰 외곽선 4px. **10초 이하**(`.low`): 채움 `#ff6b87→#ff9a5a`, 기존 `lowBlink`. **정지**(`.frozen`): 채움 `#bfeaff→#5bb8ee`, `0 0 14px 2px #9fe3ff`, 줄무늬 유지 |
+| 점수 줄 | 흰→`#f4efff` 카드. 라벨 `--ink-2`, 점수 1.5rem/900 `--ink`. CHAIN: 비활성 `#6c62b0`, 활성 `#c2410c`. 배율 `xN`: **노랑 알약** `#ffd23f`(글자 `#4a2600`, `0 2px 0 #d9830a`). 어둠 활성(`.dark`): `0 0 0 2px #9a5cf0, 0 0 18px 3px rgba(154,92,240,.8)`, 배지 `#7b3fd6`+흰 글자 |
+| 난이도·레벨 칩 | 파스텔 알약 + 짙은 글자(초보 `#c8f5d8/#0e5a2c`, 중수 `#ffe9a8/#6a4300`, 고수 `#ffd0d8/#8a0e2c`) |
+| 목표 진행 바 | 트랙은 타이머와 동일. 채움 `광택 + repeating-linear-gradient(115deg, rgba(255,255,255,.22) 0 8px, transparent 8px 16px)(줄무늬) + linear-gradient(90deg, #ff7ac8, #ffa24d)`. 글자 .7rem/900 `--ink` + 흰 외곽선 3px. 달성 `.hit`: 기존 `goalHit`(금색 링) |
+| 게이지 버튼 6개 | 흰→라벤더 카드, `border:3px solid #fff`, 반경 14px. **채움**: 원소색 `--gc` 50% 불투명 + 윗선 `2px rgba(255,255,255,.8)`. **숫자**: 흰 .88 알약(`border-radius:8px; padding:0 5px`)에 `--ink` .64rem/800 → 어떤 채움색 위에서도 대비 13.8:1. **가득 참**(`.full`): `0 0 0 3px var(--gc), 0 0 14px 3px var(--gc)` + 기존 `gaugePulse` + 우상단 **★ 배지**(`#ffd23f`, 남보라 외곽선) — 색 외 단서. **조준 중**(`.aiming`): `0 0 0 3px #ffc21a, 0 0 14px #ffc21a`. **잠금**: `grayscale(.7); opacity:.7`. 아이콘 `drop-shadow(0 2px 1px rgba(40,20,100,.35))` |
+| 힌트/메뉴/리셋 | 젤리 버튼. 힌트 `#d4fbe6→#8de8b4`(글자 `#0d3b24`, 두께 `#43b878`), 메뉴 `#efe9ff→#cdbeff`(두께 `#9a85e6`), 리셋 `#ffe8f3→#ffbcd9`(글자 `#5a0f3a`, 두께 `#e68fb8`). 쿨다운(`.cooling`) 회색 라벤더 |
+| 가로 모드(낮은 높이) | 기존 그리드 유지. 게이지 열이 64px라 `border-width:2px; .gi 40%(max 20px); .count padding 0 2px, .52rem; ★ 10px` 보정(목업 844×390에서 숫자 잘림 → 수정 확인) |
+
+#### 18.4.5 레벨 선택 · 오버레이 · 칭찬 팝업 · 컷인
+| 대상 | 스펙(초안) |
+|---|---|
+| 레벨 선택 카드(`.stages-card`) | 흰 카드(`--sh-card`). 제목 `--ink`, 시간 `--ink-2` |
+| 스테이지 카드 5열 | 기본(열림·미클리어) 흰→`#ece6ff` + 두께 `#b7a8f0`. **클리어**: `#d4fbe6→#86e6ae`, 글자 `#0d3b24`, 두께 `#43b878`. **현재**: `#fff1a3→#ffc531`, 글자 `#4a2600`, `stagePulse`(노랑 링 0→14px). **잠김**: `#e6e1f5`, 글자 `#5f5990`, 두께 `#cfc8ea`. 번호 1.5rem/900, 별은 흰 .8 알약 안 `#cc7000`(★/☆), min-height 76px 유지 |
+| 오버레이 배경 | `rgba(42,33,96,.55)`(카운트다운 `.clear`는 `.22`). blur 없음 |
+| 패널(일시정지·확인·결과) | 흰 카드 + 두께. 제목은 **알약 리본**(`#ece6ff`, 글자 `--ink`, `0 3px 0 var(--lip)`), **STAGE CLEAR**는 노랑 리본(`#ffe97a→#ffb21a`, 글자 `#4a2600`, `0 4px 0 #d9830a`). 점수 `#c0265c`, 별 `#ffb703`+외곽선 `#b86b00`, "레벨 N 열림!" `--ok`, 통계 칸 `--surface-2`. 패널 안 ghost 버튼은 `#f1ecff` 배경(흰 패널 위에서 사라지지 않게) |
+| 카운트다운 | 큰 글자 레시피(흰+남보라 외곽선 10px+그림자), 안내줄 6px |
+| 칭찬/스킬 팝업 | 큰 글자 레시피 + 채움색: GOOD `#6df0a8`, GREAT `#8fdcff`, AWESOME `#ffd23f`, EXCELLENT `#ff9ae0`, 스킬 불 `#ff8a6a`·물 `#8fdcff`·풀 `#6df0a8`·번개 `#ffe34d`·어둠 `#d2a8ff`·빛 `#fff7c9`, 경고 `#ffd0d4`. 조준 안내 `.aim-msg`: `rgba(42,33,96,.94)` + `#ffd23f` 글자·테두리 |
+| **컷인 말풍선** | 흰 말풍선 + `#1b1230` 두꺼운 테두리 + 원소색 글자는 **이미 만화풍이라 톤 정합 OK** → CSS 변경 없음. 이름표(`.cutin-name`)만 `--stroke` 계열로 맞출지는 시안 후 결정 |
+| **컷인 캐릭터 이미지** | 현재 `assets/cutin/*.webp`는 **사실적 애니풍 전사 일러스트**라 귀여운 젤리 보석·스카이 캔디와 톤이 다르다 → 열린 질문 4 |
+
+#### 18.4.6 모션 (가벼운 것만, 모두 transform/opacity)
+| 모션 | 값 | 감소 모션 |
+|---|---|---|
+| 버튼 눌림 | `translateY(3px)` + 두께 4→1px, `.08s` | 유지(미세) |
+| [시작] 대기 바운스 | `translateY 0→-3px`, 1.8s | 정지 |
+| 구름 이동 | `translateX ±14px`, 40s alternate | 정지 |
+| 칸 힌트 | `tileHint` opacity, .9s alternate | opacity 1 고정 |
+| 칸 제거 | `tileFlash` .22s | .1s |
+| 목표 바 채움 | 기존 `transform .15s linear` | 즉시 |
+| 별 획득(결과) | 기존 `bump` 재사용, 별 3개 .12s 간격(선택) | 즉시 |
+| 화면 전환 | 100~150ms 페이드(선택, 현재 즉시 전환) | 제거 |
+
+### 18.5 새 이미지 에셋 · Gemini 프롬프트 초안
+**CSS만으로 해결(에셋 불필요)**: 하늘·구름·언덕·반짝임 배경, 카드·버튼·바·칩, 보드 타일·프레임·모서리 장식, 상태 하이라이트, 별 배지(★ 글리프).
+| # | 에셋 | 필요도 | 규격·예산 |
+|---|---|---|---|
+| A | `assets/bg-sky.webp` 세로 배경(구름·떠 있는 섬 실루엣; CSS 배경의 대체/보강) | 선택 | 768×1376(9:16), 목표 ≤120KB. 현재 `bg-jungle.webp`(249KB) 교체 시 순감 |
+| B | `assets/title-logo-sky.webp` 새 로고(둥근 풍선 글자) | 권장(초록 조각 로고가 톤 불일치) | 972×569 투명, ≤110KB(기존 112KB 교체 → 증가 ≈ 0) |
+| C | `assets/fonts/ui.woff2` 서브셋 폰트 | 선택(18.3.3의 B안) | ≤80KB |
+| D | 컷인 캐릭터 6종 귀여운 스타일 재생성 | 열린 질문 4 | 6×≈170KB ≈ 1MB → **예산 초과** 가능, 별도 결정 |
+※ 증가분 합계(A+B+C 적용, 구 배경 제거): **약 +0~0.1MB** — 예산 ≤1MB 충족. D만 별도.
+
+Gemini 프롬프트 초안:
+- **A. 배경**: `Vertical 9:16 mobile puzzle game background, kawaii pastel sky: smooth gradient from cyan at top through periwinkle and lavender to soft pink at bottom, fluffy white cartoon clouds, a few small floating grass islands in mint green with tiny pink flowers, soft sparkles and tiny stars, flat soft shading, very low contrast and uncluttered in the center third so UI can sit on top, no text, no characters, no UI, no dark colors, clean casual-game art style.`
+- **B. 로고**: `Mobile game logo "ELEMENT GEMS" on a transparent background, two stacked lines of chunky rounded bubble letters, white glossy jelly fill with thick deep-indigo outline and a candy pink-to-yellow highlight, soft drop shadow, above it an arc of six cute kawaii gems with faces (red triangle, blue water drop, green rounded square, yellow four-point star, purple hexagon, white diamond) matching the reference image, bright pastel casual-game style, no background, no extra text.` (기존 로고의 보석 호를 **참조 이미지**로 첨부해 일관성 확보)
+- **D(선택). 컷인 캐릭터**: `Cute chibi elemental girl character, full body action pose, big head, thick soft outline, pastel colors matching a [fire/water/grass/lightning/dark/light] jelly gem, same kawaii face style as the attached gem, transparent background, no text.` (원소별 1장, 기존 구도·크기 유지)
+Gemini 생성 후 배경 제거·WebP 변환·용량 점검은 기존 에셋 절차(§14)와 동일.
+
+### 18.6 구현 영향 범위 · 단계 분해 (Build용)
+**방침**: `style.css` **끝에 "5차 Build: 리디자인" 블록을 덧붙여 덮어쓴다**(기존 규칙 삭제 최소화 → 회귀 위험 낮음, 목업이 같은 방식으로 검증됨). 안정화 후 죽은 규칙 정리는 별도 단계.
+| 파일 | 변경 |
+|---|---|
+| `style.css` | 토큰(`:root`) 추가, `html`/`body`/`::before`/`::after` 배경, `.start-card` `.panel` `.stages-card` `.rules` `.best-line` `.level-select/.level-btn/.level-desc` `.btn(.primary/.ghost/.big/.small)` `#btn-start/#btn-hint/#btn-menu/#btn-reset` `.timer*` `.scorebar` `#score` `#mult` `.chain-box` `.dark-badge` `.level-chip` `.goal*` `.board-wrap::before` `.board` `.gem(::before/::after)` `.gem .gi` `.gem[data-type="water"]` `.gauge*` `.popup*` `.float` `.aim-msg` `.stage-card*` `.stages-*` `.overlay` `#end-title/#pause-title` `.end-score/.end-stars/.end-unlock/.stats` `.count-num/.count-info` + 가로 모드 보정 + `prefers-reduced-motion`. **높이·`--ui-h`·`--board` 계산은 불변** |
+| `index.html` | `theme-color`를 `#9fb6ff`로(필수 변경 이것뿐). 마크업 변경 없음. (선택: 새 로고 파일명 교체, 폰트 `<link rel="preload">`) |
+| `game.js` | **변경 없음**(클래스명·DOM 그대로: `.gem(.selected/.hint/.cursor/.removing)`, `.gauge(.full/.aiming/.locked)`, `.stage-card`, `.level-chip.lv-*` 재사용). `data-type`은 이미 `createGem`에서 설정됨 |
+| `assets/` | 18.5의 A·B·C 중 채택분만 추가(선택) |
+단계(각 단계 끝에 브라우저 확인):
+1. 토큰·배경·카드/패널·버튼(공통) → 시작 화면 완성, 대비 측정.
+2. **보드**: 타일 SVG 배경 + 프레임 + `.gem` 그림자/상태(`::before`), 6종 식별·상태 5종 확인.
+3. HUD(타이머·점수·목표)·게이지·하단 버튼, 가로 모드 보정.
+4. 레벨 선택·오버레이(일시정지/확인/결과)·팝업·카운트다운.
+5. 모션(CTA 바운스·구름·칸 힌트)·감소 모션, `file://` 확인.
+6. (승인 시) 새 로고·배경·폰트 에셋 교체, 구 배경 제거, 최종 회귀 점검.
+
+### 18.7 검증 체크리스트 (Review용)
+- [ ] **대비**: 18.3.2 표의 텍스트 조합을 실제 렌더 색으로 재측정(≥4.5:1, 큰 글자 ≥3:1). 그라디언트 양 끝·`.timer.low`·`.frozen`·`.dark` 상태 포함.
+- [ ] **보석 6종 식별**: 불/물/풀/번개/어둠/빛이 모든 타일(A·B)·선택·힌트 상태에서 모양·표정·색으로 구분됨(흑백 스크린샷으로도 모양 구분 가능). 물 보석 밝기 보정 확인.
+- [ ] **칸 상태**: 기본/선택/힌트/커서/제거/조준/번개/재배치 각각 표현이 보이고, 상태 해제 후 `::before` 잔상 없음. 칸 하이라이트가 보석 이미지 **뒤**에 그려짐.
+- [ ] **레이아웃**: 360×640·390×844·768×1024·1280×800·가로 844×390에서 가로 스크롤 0, 보드·게이지·버튼이 화면 안, **터치 타깃 ≥44px**(게이지 가로 모드 포함, 숫자 잘림 없음), `--ui-h` 계산 불변(보드 크기 이전과 동일).
+- [ ] **성능**: 저사양 기기(모바일 4× CPU 스로틀)에서 연쇄 매치·스킬 이펙트 중 프레임 유지, `backdrop-filter` 0, 칸당 `filter` 0(선택/물 제외). 구름·CTA 애니메이션이 `transform`만 사용. (이 Plan에서는 프레임 측정을 하지 않았음 — Review 측정)
+- [ ] **기능 회귀 없음**: 규칙·점수·시간·게이지·스킬·힌트·일시정지/나가기·스테이지 잠금/별·결과 버튼이 이전과 동일, 콘솔 에러/경고 0.
+- [ ] **폴백**: 보석 이미지 실패(SVG 폴백) 시 새 타일 위에서도 보임. 폰트 로드 실패 시 시스템 폰트로 레이아웃 유지, `file://` 직접 열기로 동작.
+- [ ] **감소 모션**: CTA·구름·칸 힌트·제거 플래시가 정지/축소, 정보 손실 없음.
+- [ ] **포커스**: 모든 버튼·게이지·스테이지 카드의 `:focus-visible`이 배경(하늘/흰 카드/어두운 트레이)별로 보임.
+- [ ] 컷인·스킬 이펙트(불꽃 링·덩굴·번개·소용돌이)가 새 보드(어두운 남보라) 위에서도 눈에 띔(색·`mix-blend-mode`).
+
+### 18.8 열린 질문 (승인 시 결정, 최대 5)
+1. **컨셉**: 추천 ① 스카이 캔디로 확정할까요(②·③은 제외)? 보드는 "어두운 트레이"가 흰·노랑 보석 식별에 유리해 고정을 권장합니다.
+2. **폰트**: 1단계는 시스템 폰트(목업과 동일)로 가고, 승인 후 Jua 등 **서브셋 자체 호스팅**(≤80KB)을 추가할까요? CDN은 비권장입니다.
+3. **새 이미지**: 로고(초록 조각 글자)를 하늘 톤으로 새로 생성(B)하고, CSS 배경 대신 일러스트 배경(A)도 만들까요? (CSS만으로도 목업 수준은 가능, 이미지는 "추가 품질" 영역)
+4. **컷인 캐릭터**: 현재 사실적 전사 일러스트(`assets/cutin/`)를 귀여운 젤리 스타일로 다시 생성할까요(+≈1MB, 예산 초과 가능)? 아니면 유지(스킬 순간의 "강한 연출" 대비 효과로 두기)?
+5. **스타일 범위**: 메인 화면의 로고 외곽선(흰 스티커)·구름 이동 같은 장식 모션을 어느 정도까지 넣을까요(저사양·배터리 고려 시 구름 이동은 끌 수 있음)?
+
+### 18.9 목업 · 스크린샷 (scratchpad, 프로젝트 폴더 밖)
+기준 폴더 `SP` = `/private/tmp/claude-501/-Users-sungchul--claude-spares-spare-YxFwEh/1a4be6e8-aa2c-4ac4-9d23-e6fcba54459a/scratchpad/redesign`
+- 목업 앱(실제 코드 복사본 + 덮어쓰기 블록): `SP/app/` (`index.html`·`game.js`는 원본 그대로, `style.css` 끝에 리디자인 블록, `theme-color`만 변경). 덮어쓰기 블록 단독: `SP/redesign.css`(약 21KB) — Build의 출발점으로 쓸 수 있음(상태·수치는 초안).
+- 스크린샷 도구: `SP/shot.js`(헤드리스 Chrome CDP), 대비 계산: `SP/contrast.js`.
+- before/after 비교: `SP/shots/compare-before-after.png`(390×844, 시작·레벨선택·게임·칸 상태).
+- 390×844: `SP/shots/before-{1-start,2-stages,3-game,4-cell-states,5-aim-popup,6-pause,7-result}.png`, `SP/shots/after-…`(동일 이름). 360×640: `before360-…`/`after360-…`, 1280×800: `beforeD-…`/`afterD-…`, 가로 844×390: `afterL-…`.
+- 한계: HUD 값(점수·바·게이지)은 표시용으로 DOM에 직접 넣은 것(게임 상태는 실제), 물 보석 필터·폰트는 시스템 폰트 기준. 목업은 2026-11-07 13:5x 시점의 `style.css`를 기준으로 하므로 Build 시 현재 파일과 diff 확인.
