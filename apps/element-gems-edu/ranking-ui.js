@@ -53,10 +53,12 @@
     askOpen: false,
     createInfo: null,           // 프로필 만들기 화면을 열 때의 판정(client.createMode(), spec §23.4.1) — 안내 줄·버튼 이름·records 옵션
     erasing: false,             // [네, 지울게요] 진행 중(마지막 전송 → 정리 → 새로고침). 이 동안 취소·Esc·저장은 모두 무시한다
+    armAt: 0,                   // 확인 ①②가 열린 시각 + ARM_MS: 이 시각 전의 위험 단추(이 기기에서만 지우기·네, 지울게요) 클릭은 받지 않는다(R1 발견: 연타·더블 탭 방지)
     eraseNote: '',              // 지운 뒤 새로고침한 시작 화면에 한 번만 보여 줄 안내('1' 기본, '2' = 마지막 기록을 못 올렸을 수 있음)
     stale: false                // 다른 탭이 프로필을 바꿨는데 지금은 게임 중이라 미룬 새로고침
   };
   const IS_EDU = !!host.CONFIG.edu;                          // 교육용 빌드(game.js CONFIG.edu)에서만 '푼 문제 기록' 문구가 더해진다(spec §23.3.2)
+  const ARM_MS = cfg.eraseConfirmArmMs == null ? 700 : cfg.eraseConfirmArmMs;   // 확인 ①②가 열린 직후 이 시간(ms) 동안은 위험 단추를 눌러도 받지 않는다. 작은 화면에서 같은 자리를 연타하면 ①→②→삭제가 한꺼번에 눌릴 수 있어서다(R1 재현). CONFIG.ranking.eraseConfirmArmMs 로 바꿀 수 있다
   const el = {};
 
   /* ---------------------------------------------------------------------
@@ -395,14 +397,17 @@
     el['pf-actions'].hidden = true;
     el['pf-confirm2'].hidden = true;
     el['pf-confirm'].hidden = false;
+    ui.armAt = Date.now() + ARM_MS;                                // 열린 직후의 연타는 ①의 위험 단추까지 닿지 못한다
     el['pf-confirm-no'].focus({ preventScroll: true });             // 기본 포커스는 안전한 쪽
     el['pf-confirm'].scrollIntoView({ block: 'nearest' });
   }
   function askDelete2() {
     if (ui.erasing) return;
+    if (Date.now() < ui.armAt) return;                             // ①이 열린 직후의 클릭(연타·더블 탭)은 ②로 넘어가지 않는다
     el['pf-pend'].hidden = !client.erasePending();                 // 아직 못 올린 기록이 있을 때만 노랑 줄
     el['pf-confirm'].hidden = true;
     el['pf-confirm2'].hidden = false;
+    ui.armAt = Date.now() + ARM_MS;                                // ②가 열린 직후의 연타는 [네, 지울게요]에 닿지 못한다(작은 화면에서 ①의 위험 단추 자리에 ②의 [네, 지울게요]가 겹칠 수 있다)
     el['pf-confirm2-no'].focus({ preventScroll: true });
     el['pf-confirm2'].scrollIntoView({ block: 'nearest' });
   }
@@ -412,6 +417,7 @@
   }
   async function doErase() {
     if (ui.erasing || ui.busy) return;
+    if (Date.now() < ui.armAt) return;                             // ②가 열린 직후의 클릭은 받지 않는다(연타·더블 탭이 두 번째 확인을 건너뛰지 못하게)
     ui.erasing = true;
     ui.busy = true;
     el['pf-confirm2-yes'].disabled = true;

@@ -565,3 +565,13 @@ test('연결(정적 점검, 교육용): 문구 \'푼 문제 기록\'은 CONFIG.e
   const eduJs = fs.readFileSync(path.join(dir, 'edu.js'), 'utf8');
   assert.ok(!/removeItem|eraseDevice|RECORD_KEYS/.test(eduJs));
 });
+
+/* R1 보강(연타 방지): 브라우저에서 재현된 결함 — 360x640 폰·못 올린 기록(노랑 줄)·스크롤 맨 아래에서 [이 기기에서만 지우기]를 빠르게 두 번 누르면
+ * 확인 ②가 열리면서 그 자리에 [네, 지울게요]가 와서 두 번째 확인 없이 지우기가 시작됐다. 확인 ①②가 열린 직후에는 위험 단추 클릭을 받지 않는다. */
+test('연타 방지(R1): ranking-ui.js 가 확인 ①②가 열린 직후의 위험 단추 클릭을 막는다', () => {
+  const ui = fs.readFileSync(path.join(dir, 'ranking-ui.js'), 'utf8');
+  assert.match(ui, /ARM_MS = cfg\.eraseConfirmArmMs == null \? 700 : cfg\.eraseConfirmArmMs/);
+  assert.match(ui, /function askDelete\(\) \{[\s\S]*?ui\.armAt = Date\.now\(\) \+ ARM_MS/);
+  assert.match(ui, /function askDelete2\(\) \{[\s\S]*?if \(Date\.now\(\) < ui\.armAt\) return;[\s\S]*?ui\.armAt = Date\.now\(\) \+ ARM_MS/);
+  assert.match(ui, /async function doErase\(\) \{[\s\S]*?if \(Date\.now\(\) < ui\.armAt\) return;[\s\S]*?ui\.erasing = true/);
+});
