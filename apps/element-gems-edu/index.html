@@ -129,6 +129,7 @@
         <li><b>스왑</b> 인접한 보석 두 개를 바꿔 같은 모양 3개 이상, 또는 2×2 정사각형을 맞추세요.</li>
         <li><b>게이지</b> 색마다 게이지가 따로 차고, 가득 차면 버튼이 반짝여요.</li>
         <li><b>스킬</b> 게이지 버튼을 눌러 원소 스킬을 쓰세요.</li>
+        <li><b>콤보</b> 쉬지 않고 계속 맞추면 콤보! 점수 배수가 올라가요(최대 ×3).</li>
       </ul>
       <p id="tutorial" class="tutorial" hidden>처음이시군요! 불과 풀 스킬은 버튼을 누른 뒤 보드의 칸을 한 번 더 눌러 조준해요.</p>
       <div class="toggles">
@@ -274,7 +275,15 @@
           <span class="label">점수 <i id="level-chip" class="level-chip lv-normal">중수</i></span>
           <strong id="score">0</strong>
         </div>
-        <div class="chain-box" id="chain">CHAIN</div>
+        <div class="hud-mid">
+          <div class="chain-box" id="chain">CHAIN</div>
+          <!-- 콤보 칩 (spec §28.5.7): 콤보 2 이상일 때만 보인다. 낭독은 아래 #combo-live 가 5의 배수·끊김에만 맡는다(칩 자체는 aria-hidden). 값은 game.js 가 채운다 -->
+          <div class="combo-chip" id="combo-chip" aria-hidden="true" hidden>
+            <span class="cc-txt"><b id="combo-run"></b><span id="combo-mult"></span><span id="combo-max" hidden> (최대!)</span></span>
+            <span class="cc-bar"><i id="combo-bar"></i></span>
+          </div>
+          <p class="c-live" id="combo-live" role="status" aria-live="polite"></p>
+        </div>
         <div class="mult-box">
           <strong id="mult">x1</strong>
           <span class="dark-badge" id="dark-badge" hidden>&times;2 <i id="dark-left"></i></span>
@@ -350,6 +359,7 @@
       <p class="muted end-rank" id="end-rank" role="status" hidden></p>
       <p class="muted end-quiz" id="end-quiz" role="status" hidden></p><!-- [EDU] 선물상자 문제 요약(edu.js) -->
       <p class="muted">이 레벨 최고 점수 <strong id="end-best">0</strong></p>
+      <p class="muted" id="end-combo">최고 콤보 0 · 스킬 점수 +0</p>
       <dl class="stats">
         <div><dt>최대 연쇄</dt><dd id="end-chain">0</dd></div>
         <div><dt>스킬 사용</dt><dd id="end-skills">0</dd></div>

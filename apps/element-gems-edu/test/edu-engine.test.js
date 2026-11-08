@@ -40,10 +40,10 @@ test('WILD=6 은 일반 보석 6종 다음 번호이고 TYPE_COUNT 는 그대로
   assert.strictEqual(G.WILD, G.CONFIG.types.length);
 });
 
-test('CONFIG.edu: 스폰·보너스·목표 배율·저장 키가 spec §21.7·§21.8 값', () => {
+test('CONFIG.edu: 스폰·보너스·목표 배율·저장 키가 spec §21.7·§21.8 값 (보너스 base 는 §28.7.4 에서 ×3 = 900)', () => {
   const e = G.CONFIG.edu;
   assert.deepStrictEqual(e.wild, { spawn: 0.016, max: 2, guaranteeFirst: true });
-  assert.strictEqual(e.bonus.base, 300);
+  assert.strictEqual(e.bonus.base, 900);
   assert.deepStrictEqual(e.bonus.mult, { easy: 0.8, normal: 1.0, hard: 1.3 });
   assert.strictEqual(e.targetScale, 1.2);
   assert.strictEqual(e.targetRound, 100);
@@ -53,18 +53,19 @@ test('CONFIG.edu: 스폰·보너스·목표 배율·저장 키가 spec §21.7·�
   assert.strictEqual(e.text.wildLabel.indexOf('선물상자(물음표)') !== -1, true);
 });
 
-test('정답 보너스: 초보 240 / 중수 300 / 고수 390 (10점 단위 반올림)', () => {
-  assert.strictEqual(G.bonusFor('easy'), 240);
-  assert.strictEqual(G.bonusFor('normal'), 300);
-  assert.strictEqual(G.bonusFor('hard'), 390);
+test('정답 보너스: 초보 720 / 중수 900 / 고수 1,170 (10점 단위 반올림, spec §28.7.4 ×3 — 예전 240 / 300 / 390)', () => {
+  assert.strictEqual(G.bonusFor('easy'), 720);
+  assert.strictEqual(G.bonusFor('normal'), 900);
+  assert.strictEqual(G.bonusFor('hard'), 1170);
   assert.strictEqual(G.bonusFor(), G.bonusFor(G.CONFIG.level));
 });
 
-test('교육용 목표 점수 = 일반용 × 1.2 (100점 반올림): spec §25.6 값에서 파생한 표(§21.8.4)와 30칸 모두 같다', () => {
+test('교육용 목표 점수 = 일반용 × 1.2 (100점 반올림): spec §31.3(초보)·§28.7.5 근사(중수·고수)에서 파생한 표(§21.8.4)와 30칸 모두 같다', () => {
+  // 초보 = §31.3 '교육용 보통' 행. 중수·고수는 폴백·롤백용 표(§27 M2 가 미션으로 대체)에서 파생
   const table = {
-    easy: [4200, 4600, 4800, 4900, 5300, 5500, 5800, 6400, 6800, 7300],
-    normal: [5400, 5900, 6400, 6500, 7100, 7600, 8200, 8500, 9100, 9800],
-    hard: [6600, 7200, 7600, 8000, 8400, 8900, 9600, 10200, 10900, 11900]
+    easy: [10800, 11400, 12100, 12500, 12700, 13300, 13900, 15600, 17000, 18200],
+    normal: [17900, 19400, 21000, 21400, 23400, 25000, 26900, 28100, 30100, 32500],
+    hard: [21100, 23000, 24200, 25700, 26900, 28400, 30700, 32600, 34900, 38000]
   };
   ['easy', 'normal', 'hard'].forEach((lv) => {
     for (let s = 1; s <= 10; s++) {
@@ -831,7 +832,7 @@ async function finishAction(env) {
   await env.runUntil(() => !env.I.state.locked || env.I.state.phase !== 'playing', 120000);
 }
 
-test('문제: 스왑 매치에서 ? 가 지워지면 문제 1개, 연쇄 정산 뒤에 묻고, 정답이면 보너스 300(중수)', async () => {
+test('문제: 스왑 매치에서 ? 가 지워지면 문제 1개, 연쇄 정산 뒤에 묻고, 정답이면 보너스 900(중수, §28.7.4 ×3)', async () => {
   // 3행: A A X ?  -> (3,2)<->(3,3) 교환하면 A A ? 로 매치. 패턴 위에 값을 직접 놓는다.
   const env = await prepScenario({
     wilds: [[3, 3]],
@@ -851,11 +852,11 @@ test('문제: 스왑 매치에서 ? 가 지워지면 문제 1개, 연쇄 정산 
   assert.strictEqual(a.snap.locked, true);
   assert.strictEqual(a.snap.active, true, '문제 중 quizActive');
   assert.ok(a.snap.score > before, '매치 점수가 먼저 정산된다');
-  // 문제 중 점수는 그대로, 닫힌 뒤 +300
+  // 문제 중 점수는 그대로, 닫힌 뒤 +900 (spec §28.7.4: 정답 보너스 ×3, 예전 300)
   assert.strictEqual(a.after.score, a.snap.score, '문제 팝업이 열려 있는 동안 점수 변화 없음');
-  assert.strictEqual(st.score - a.snap.score, 300, '정답 보너스 300(중수) — 연쇄·어둠 배율 미적용');
+  assert.strictEqual(st.score - a.snap.score, 900, '정답 보너스 900(중수) — 연쇄·콤보·어둠 배율 미적용(일시불)');
   assert.strictEqual(st.quizActive, false);
-  assert.deepStrictEqual(env.I.state.edu.asked + '/' + env.I.state.edu.right + '/' + env.I.state.edu.bonus, '1/1/300');
+  assert.deepStrictEqual(env.I.state.edu.asked + '/' + env.I.state.edu.right + '/' + env.I.state.edu.bonus, '1/1/900');
   assert.deepStrictEqual(env.errors, []);
   env.dispose();
 });
@@ -885,14 +886,14 @@ test('문제: 오답이면 점수 불변, 문제 없음(null)이면 통계도 �
   env = await prepScenario(Object.assign({}, scen, { quiz: { answer: () => ({ right: true }) } }));
   env.I.trySwap({ r: 3, c: 2 }, { r: 3, c: 3 });
   await finishAction(env);
-  assert.strictEqual(env.I.state.score - env.asks[0].snap.score, 300);
+  assert.strictEqual(env.I.state.score - env.asks[0].snap.score, 900);
   env.dispose();
-  // 고수: 390 (EduQuiz 가 난이도 배율을 계산해 넘긴 값을 그대로 더한다)
+  // 고수: 1,170 (EduQuiz 가 난이도 배율을 계산해 넘긴 값을 그대로 더한다)
   env = await prepScenario(Object.assign({}, scen, { quiz: { answer: () => ({ right: true, bonus: G.bonusFor('hard') }) } }));
   env.I.state.level = 'hard';
   env.I.trySwap({ r: 3, c: 2 }, { r: 3, c: 3 });
   await finishAction(env);
-  assert.strictEqual(env.I.state.score - env.asks[0].snap.score, 390);
+  assert.strictEqual(env.I.state.score - env.asks[0].snap.score, 1170);
   env.dispose();
 });
 
@@ -910,7 +911,7 @@ test('문제: 한 행동에서 ? 2개가 지워지면 문제 2개가 순서대�
   assert.strictEqual(env.asks.length, 2);
   assert.ok(env.asks[1].t0 - env.asks[0].t1 >= 400, '문제 사이 간격 ' + (env.asks[1].t0 - env.asks[0].t1));
   assert.strictEqual(env.I.state.edu.asked, 2);
-  assert.strictEqual(env.I.state.score - env.asks[0].snap.score, 600);       // 문제마다 별도 보너스 300
+  assert.strictEqual(env.I.state.score - env.asks[0].snap.score, 1800);      // 문제마다 별도 보너스 900(중수)
   env.dispose();
   // 상한 1
   env = await prepScenario(Object.assign({}, scen, { cfg: (cfg) => { cfg.edu.quiz.maxPerAction = 1; } }));
@@ -981,7 +982,7 @@ test('문제 중에는 일시정지·탭 전환·Esc·메뉴·리셋 입력이 �
   assert.strictEqual(mid.confirmHidden, true);
   assert.strictEqual(mid.hint, null, '문제 중 힌트 버튼 무시');
   assert.strictEqual(mid.kbd, false, '문제 중 게임 단축키·커서 이동 무시');
-  assert.strictEqual(env2.I.state.score - env2.asks[0].snap.score, 300);
+  assert.strictEqual(env2.I.state.score - env2.asks[0].snap.score, 900);
   assert.deepStrictEqual(env2.errors, []);
   env2.dispose();
 });
@@ -1021,7 +1022,7 @@ test('stageStart·stageEnd 이벤트, 소단원 문구 요소, window.ElementGem
   const api = env.sandbox.ElementGemsEdu;
   assert.strictEqual(typeof api.addBonus, 'function');
   assert.deepStrictEqual(Object.assign({}, api.state()), { quizActive: false, level: 'normal', asked: 0, right: 0, bonus: 0 });
-  assert.strictEqual(api.bonusFor('hard'), 390);
+  assert.strictEqual(api.bonusFor('hard'), 1170);
   assert.strictEqual(api.addBonus(300), 0, '게임 중이 아니면 무시');
   await startAndWait(env, 'normal', 1);
   assert.strictEqual(events.length, 1);
@@ -1262,7 +1263,7 @@ test('문제 뒤 NO MOVES: ? 가 지워지고 정산 뒤 유효한 수가 없으
   assert.strictEqual(env.doc._ids.popup.textContent, 'NO MOVES');
   assert.strictEqual(env.I.state.phase, 'playing');
   assert.strictEqual(checkBoard(env, 'no moves'), 0);
-  assert.strictEqual(env.I.state.score - env.asks[0].snap.score, 300);
+  assert.strictEqual(env.I.state.score - env.asks[0].snap.score, 900);        // 정답 보너스 900(중수, §28.7.4 ×3)
   assert.deepStrictEqual(env.errors, []);
   env.dispose();
 });
@@ -1283,7 +1284,7 @@ test('문제: 연쇄 2단계에서 ? 가 지워져도(스왑으로 시작한 행
   assert.strictEqual(env.removedGifts.size, 1);
   assert.strictEqual(env.asks.length, 1, '연쇄 속에서 지워진 ? 도 문제 대상');
   assert.strictEqual(env.I.state.edu.skipped, 0);
-  assert.strictEqual(env.I.state.score - env.asks[0].snap.score, 300);
+  assert.strictEqual(env.I.state.score - env.asks[0].snap.score, 900);        // 정답 보너스 900(중수, §28.7.4 ×3)
   assert.deepStrictEqual(env.errors, []);
   env.dispose();
 });
@@ -1342,7 +1343,7 @@ test('spawn=0 이면 한 판 전체(보드·점수·시간·게이지)가 같은
     const lv = ['easy', 'normal', 'hard'][seed % 3];
     const patch = (cfg) => {
       shortGame(cfg, 30, (c) => { ['easy', 'normal', 'hard'].forEach((k) => { c.difficulty[k].max = [4, 4, 4, 4, 4, 4]; }); });
-      cfg.stages.targets[lv][0] = 6000;          // §26 구조 규칙 뒤 3000점이면 3~5행동에 끝나는 시드가 있어 6000으로 올림
+      cfg.stages.targets[lv][0] = 18000;         // §26 구조 규칙 뒤 3000점이면 3~5행동에 끝나는 시드가 있어 6000으로 올렸고, §28 점수 규칙(규모 약 ×3)에 맞춰 18000 으로 올림
       if (cfg.edu) { cfg.edu.wild.spawn = 0; cfg.edu.targetScale = 1; }
     };
     const edu = createEnv('edu', 1000 + seed, patch);

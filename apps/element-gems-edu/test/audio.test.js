@@ -143,16 +143,17 @@ test('효과음: click.wav 는 S3 젤리 보잉(19,448바이트, 사용자 결�
   assert.strictEqual(fs.readdirSync(dir).filter((n) => /\.wav$/.test(n)).length, 26);
 });
 
-test('목표 점수: 원본 표는 spec §25.6 30칸이고, 교육용 stageTarget 은 ×1.2 파생 표(§21.8.4) 30칸과 같다', () => {
+test('목표 점수: 원본 표는 spec §31.3(초보)·§28.7.5 근사(중수·고수) 30칸이고, 교육용 stageTarget 은 ×1.2 파생 표(§21.8.4·§31.3) 30칸과 같다', () => {
+  // 새 점수 규칙(강 R4, 규모 약 ×3, B2 교육용 이식): 초보 = §31.3 표(사용자 결정 1단계 9,000), 중수·고수 = §28.7.5 근사 표(폴백·롤백용, §27 M2 가 미션으로 대체). 교육용 초보는 §31.3 '교육용 보통' 행
   const B = {
-    easy: [3500, 3800, 4000, 4100, 4400, 4600, 4800, 5300, 5700, 6100],
-    normal: [4500, 4900, 5300, 5400, 5900, 6300, 6800, 7100, 7600, 8200],
-    hard: [5500, 6000, 6300, 6700, 7000, 7400, 8000, 8500, 9100, 9900]
+    easy: [9000, 9500, 10100, 10400, 10600, 11100, 11600, 13000, 14200, 15200],
+    normal: [14900, 16200, 17500, 17800, 19500, 20800, 22400, 23400, 25100, 27100],
+    hard: [17600, 19200, 20200, 21400, 22400, 23700, 25600, 27200, 29100, 31700]
   };
   const EDU = {
-    easy: [4200, 4600, 4800, 4900, 5300, 5500, 5800, 6400, 6800, 7300],
-    normal: [5400, 5900, 6400, 6500, 7100, 7600, 8200, 8500, 9100, 9800],
-    hard: [6600, 7200, 7600, 8000, 8400, 8900, 9600, 10200, 10900, 11900]
+    easy: [10800, 11400, 12100, 12500, 12700, 13300, 13900, 15600, 17000, 18200],
+    normal: [17900, 19400, 21000, 21400, 23400, 25000, 26900, 28100, 30100, 32500],
+    hard: [21100, 23000, 24200, 25700, 26900, 28400, 30700, 32600, 34900, 38000]
   };
   Object.keys(B).forEach((lv) => {
     assert.deepStrictEqual(CFG.stages.targets[lv], B[lv], lv + ' 원본(일반용과 같은 값)');
@@ -1091,14 +1092,14 @@ test('[EDU] ? 선물상자를 직접 매치로 지우면 문제 팝업 동안 BG
   assert.strictEqual(seen.paused, false, '덕킹은 일시정지가 아니다');
   assert.strictEqual(seen.src, track, '팝업 때문에 곡이 바뀌지 않는다');
   assert.strictEqual(seen.muted, false);
-  // 문제 동안 시계 정지(회귀) + 매치 점수는 먼저 정산, 보너스는 닫힌 뒤 +300
+  // 문제 동안 시계 정지(회귀) + 매치 점수는 먼저 정산, 보너스는 닫힌 뒤 +900 (spec §28.7.4: 정답 보너스 ×3, 예전 300)
   const a = env.quiz.asks[0];
   assert.strictEqual(a.timeLeftAfter, a.timeLeft, '문제 중 남은 시간 불변');
   assert.ok(a.t1 - a.t0 >= 2500);
   assert.ok(a.score > score0, '매치 점수가 먼저 정산된다');
   assert.strictEqual(a.scoreAfter, a.score, '팝업이 열려 있는 동안 점수 불변');
-  assert.strictEqual(I.state.score - a.score, 300, '정답 보너스 300(중수)');
-  assert.strictEqual(I.state.edu.asked + '/' + I.state.edu.right + '/' + I.state.edu.bonus, '1/1/300');
+  assert.strictEqual(I.state.score - a.score, 900, '정답 보너스 900(중수, §28.7.4 ×3)');
+  assert.strictEqual(I.state.edu.asked + '/' + I.state.edu.right + '/' + I.state.edu.bonus, '1/1/900');
   // 닫힌 뒤: 평소 음량, 덕킹 해제, 같은 곡이 계속 흐름(새 src·새 play 없음)
   assert.strictEqual(I.audio.ducked, false);
   assert.ok(near(b.volume, CFG.audio.bgm), '답한 뒤 평소 음량: ' + b.volume);
@@ -1161,7 +1162,7 @@ test('[EDU] 문제 팝업이 떠 있는 동안 곡이 끝나도(ended) 안전: �
   assert.strictEqual(I.audio.ducked, false);
   assert.ok(near(b.volume, CFG.audio.bgm), '답한 뒤 평소 음량: ' + b.volume);
   assert.strictEqual(b.paused, false);
-  assert.strictEqual(I.state.score - env.quiz.asks[0].score, 300, '정답 보너스는 그대로');
+  assert.strictEqual(I.state.score - env.quiz.asks[0].score, 900, '정답 보너스는 그대로(중수 900, §28.7.4 ×3)');
   assert.strictEqual(I.state.quizActive, false);
   assert.deepStrictEqual(env.errors, []);
   env.dispose();

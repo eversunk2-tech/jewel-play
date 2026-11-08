@@ -1645,3 +1645,42 @@ body::after {
   .stage-card .sc-mis { font-size: .85rem; }
   .sc-mis .m-gem { width: 20px; height: 20px; }
 }
+
+/* =====================================================================
+ * 콤보 칩 (spec §28) — B1. 점수줄(.scorebar, 52px) 가운데 칸 안에 들어간다: 위 CHAIN n, 아래 칩. 점수줄 높이·보드 크기식은 건드리지 않는다.
+ * 칩은 콤보 2 이상일 때만 보이고(그 밖에는 hidden → CHAIN 만 지금처럼 가운데), 글자는 잉크(#2a2160) 계열 + 밝은 노랑·연보라 바탕이라 4.5:1 이상이다.
+ * 색에만 의존하지 않는다("콤보 7 · ×3.0 (최대!)" 숫자·글자 병기). 낭독은 #combo-live(보이지 않는 role=status)가 5의 배수·끊김에만 맡는다.
+ * ===================================================================== */
+.hud-mid { display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.c-live { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; border: 0; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }
+.combo-chip {
+  display: flex; flex-direction: column; max-width: 100%; margin-top: 1px; overflow: hidden;
+  border: 2px solid #e0a100; border-radius: 9px; background: #fff1b8; color: #2a2160;
+  font-size: max(11px, .7rem); font-weight: 800; line-height: 1.15; white-space: nowrap;
+}
+/* 글자는 한 줄 flex: 자리가 모자라면 뒤쪽 조각("(최대!)", 그다음 "· ×3.0")이 둘째 줄로 밀려 가려진다 — 좁은 폰에서 가장 중요한 "콤보 N"을 끝까지 지킨다 */
+.combo-chip .cc-txt { display: flex; flex-wrap: wrap; justify-content: center; height: 1.15em; padding: 0 5px; overflow: hidden; }
+.combo-chip .cc-txt > * { flex: none; }
+.combo-chip .cc-txt > span { margin-left: .3em; font-variant-numeric: tabular-nums; }
+.combo-chip .cc-txt b { font-weight: 900; }
+.hud-mid .chain-box { white-space: nowrap; }
+.combo-chip .cc-bar { display: block; height: 3px; background: rgba(42, 33, 96, .22); }
+.combo-chip .cc-bar i { display: block; width: 100%; height: 100%; background: #b45309; transform-origin: left center; transform: scaleX(1); transition: transform .2s linear; }
+.combo-chip.max { border-color: #b45309; background: #ffd24a; }
+.combo-chip.brk { border-color: #9a89e6; background: #ece8ff; }
+.combo-chip.brk .cc-bar { display: none; }
+.combo-chip.pop { animation: comboPop .3s ease-out; }
+@keyframes comboPop { 0% { transform: scale(1); } 40% { transform: scale(1.12); } 100% { transform: scale(1); } }
+/* 스킬 점수 글자(.float.big, game.js 의 floatText 4번째 인자): 일반 +50 류보다 크고 오래 보인다. 6자리("+123,456")도 한 줄로(game.js 가 보드 가장자리에서 가운데 쪽으로 당긴다) */
+.float.big { font-size: calc(var(--cell) * .62); -webkit-text-stroke: 5px var(--stroke); text-shadow: 0 3px 0 var(--stroke); animation-duration: 1.3s; z-index: 4; }
+/* 낮은 가로(휴대폰 가로): 점수줄 칸이 좁다 — 칩 글자를 줄인다(11px 아래로는 내리지 않는다) */
+@media (orientation: landscape) and (max-height: 500px) {
+  .combo-chip { border-width: 1px; border-radius: 7px; }
+  .combo-chip .cc-txt { padding: 0 3px; }
+}
+/* 감소 모션. "screen and" 형식으로 쓴 이유: 기존 시험(widescreen)이 파일 끝쪽 마지막 감소 모션 미디어 쿼리를 와이드 블록의 것으로 읽는다 */
+@media screen and (prefers-reduced-motion: reduce) {
+  .combo-chip .cc-bar { display: none; }
+  .combo-chip.pop { animation: none; }
+  .float.big { animation-duration: .9s; }
+}

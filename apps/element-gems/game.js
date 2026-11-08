@@ -25,11 +25,19 @@
     anim: { swapMs: 150, removeMs: 220, fallMsPerCell: 80, fallMsMax: 400, shuffleMs: 420 },
     countdown: { stepMs: 600, goMs: 300 },
     input: { dragThreshold: 0.35 },
+    // spec §28.5·§28.8(사용자 승인 2026-11-08, "강 R4"): 한 매치 점수 = 기본 × min(연쇄 배수 × 콤보 배수, multCap) × 어둠(×2) × 난이도 배율. 연쇄(step)와 콤보(r)는 따로 센다.
     score: {
       base: { 3: 50, 4: 100, 5: 200 },   // 6개 이상: 200 + 100 * (size - 5)
       sixPlusStep: 100,
-      chainMax: 5,
-      skillCell: 10
+      chainMax: 8,                       // 연쇄 배수 상한 (5 → 8)
+      multCap: 16,                       // 연쇄 배수 × 콤보 배수의 곱 상한 (어둠 ×2·난이도 배율은 따로)
+      combo: { step: 0.4, max: 3.0 },    // 행동 사이 콤보: r번째 연속 행동의 배수 = min(1 + step × (r − 1), max) → ×1.0 1.4 1.8 2.2 2.6 3.0(6번째부터)
+      breakShow: 1,                      // 콤보가 끊겼을 때 "콤보가 끊겼어요" 칩을 보이는 시간(초, spec §28.5.7)
+      rule: 2,                           // 저장 표식 scoreRule(spec §28.9): 표식이 2가 아닌 옛 저장은 레벨별 최고 점수 best 를 bestOld 로 옮기고 best 를 0 으로 시작한다
+      skillCell: 10,                     // (호환 키, 쓰지 않는다 — 스킬 점수는 난이도별 skillPts, spec §28.5.3)
+      // 아래 두 값은 applyDifficulty()가 선택 난이도의 프리셋(CONFIG.difficulty[*].comboWindow / skillPts)을 복사하는 "활성 값" 위치다(기본 = 중수).
+      comboWindow: 6,                    // 콤보 이어짐 창(초): 입력이 없는 시간이 이 값을 넘으면 콤보가 끊긴다(경계값 포함은 이어짐)
+      skillPts: { fire: 85, grass: 50, lightning: 95, bonus: 375 }   // 칸당 점수(불·풀·번개) / 일시불(물·어둠·빛), 난이도 배율 전
     },
     timeBonus: { 3: 0.05, 4: 0.1, 5: 0.2, chainExtra: 0 },
     gauge: { extraPerOver3: 1 },          // gain = size + (size - 3) -> 3/5/7/9 (spec 표 기준)
@@ -63,7 +71,9 @@
         timeBonus: { 3: 0.06, 4: 0.12, 5: 0.25, chainExtra: 0 },
         hint: { show: 4, cooldown: 4, auto: 6, autoShow: 4 },
         skills: { waterFreeze: 7, darkDuration: 12, lightTime: 5, lightHint: 10, boltCount: 10 },
-        scoreMult: 0.8
+        scoreMult: 0.8,
+        comboWindow: 8,                                                              // spec §28.5.2: 초보 8초(자동 힌트 6초 뒤에도 콤보가 산다)
+        skillPts: { fire: 30, grass: 15, lightning: 30, bonus: 125 }                 // spec §28.5.3: 스킬 점수 = 3매치 5번 분량(N=5)
       },
       normal: {
         label: '중수', desc: '기본 규칙. 균형 잡힌 2분 승부! 보석이 고르게 나오는 기본 보드예요.',
@@ -72,7 +82,9 @@
         timeBonus: { 3: 0.05, 4: 0.1, 5: 0.2, chainExtra: 0 },
         hint: { show: 3, cooldown: 8, auto: 0, autoShow: 0 },
         skills: { waterFreeze: 5, darkDuration: 8, lightTime: 4, lightHint: 8, boltCount: 8 },
-        scoreMult: 1.0
+        scoreMult: 1.0,
+        comboWindow: 6,                                                              // 중수 6초
+        skillPts: { fire: 85, grass: 50, lightning: 95, bonus: 375 }                 // N=15
       },
       hard: {
         label: '고수', desc: '시간이 짧고 보너스가 적어요. 대신 점수 ×1.3! 보석이 흩어져 있어서 맞출 곳을 잘 찾아야 해요.',
@@ -81,20 +93,24 @@
         timeBonus: { 3: 0.04, 4: 0.08, 5: 0.15, chainExtra: 0 },
         hint: { show: 2, cooldown: 12, auto: 0, autoShow: 0 },
         skills: { waterFreeze: 4, darkDuration: 6, lightTime: 3, lightHint: 5, boltCount: 7 },
-        scoreMult: 1.3
+        scoreMult: 1.3,
+        comboWindow: 4,                                                              // 고수 4초
+        skillPts: { fire: 115, grass: 70, lightning: 130, bonus: 525 }               // N=21(3매치 21번 분량)
       }
     },
+    // (skillPts 값 = round5(N × 50 ÷ 전체 효과 칸 수(불 9·풀 15·번개 8)), bonus = round5(N × 50 × 0.5) — 표를 그대로 넣는다, spec §28.8)
     // spec §17.4 스테이지 목표 점수(표시 점수 기준). 실제 플레이 후 이 표만 조정하면 된다.
     stages: {
       count: 10,
       star: [0.3, 0.5],                   // 클리어 시 남은 시간 비율 >= 0.3 -> ★★, >= 0.5 -> ★★★
-      // spec §25.6(2026-11-08, 사용자 조정값): 1단계 초보 3500 / 중수 4500 / 고수 5500. §25 시뮬레이션의 하향안(2200 / 3200 / 4700)을
-      // 사용자가 "너무 낮다"고 해서 올렸고, 1단계 값에 레벨 증가 모양을 적용해 100점 반올림했다(시뮬레이션 기준 플레이어로 맞춘 값이 아니다).
-      // 스킬 안 쓰는 플레이어는 초보 앞쪽 레벨까지만 편하다. 사람 체감으로 재조정한다. 교육용은 CONFIG.edu.targetScale(x1.2)이 곱해져 파생된다.
+      // spec §28 B1(사용자 승인 2026-11-08): 점수 규모가 약 ×3 이 되는 새 점수 규칙(강 R4)에 맞춘 목표 점수.
+      //   초보 = spec §31.3 표(사용자 결정 "1단계 9000": 일반용 9,000 … 15,200, §28.7.1 값은 대체됨). 교육용은 CONFIG.edu.targetScale(x1.2)이 곱해져 파생된다.
+      //   중수·고수 표는 §28.7.5 근사(§25.6 값 × 3.3 / × 3.2) — 폴백·롤백용이다. §27 M2 가 중수·고수를 미션으로 바꾸면 점수 목표가 아니라 기록 점수가 된다.
+      //   모두 시뮬레이션 모델 값이며 사람 체감은 확인하지 못했다. 사람 플레이 뒤 이 표만 조정한다.
       targets: {
-        easy: [3500, 3800, 4000, 4100, 4400, 4600, 4800, 5300, 5700, 6100],
-        normal: [4500, 4900, 5300, 5400, 5900, 6300, 6800, 7100, 7600, 8200],
-        hard: [5500, 6000, 6300, 6700, 7000, 7400, 8000, 8500, 9100, 9900]
+        easy: [9000, 9500, 10100, 10400, 10600, 11100, 11600, 13000, 14200, 15200],
+        normal: [14900, 16200, 17500, 17800, 19500, 20800, 22400, 23400, 25100, 27100],
+        hard: [17600, 19200, 20200, 21400, 22400, 23700, 25600, 27200, 29100, 31700]
       },
       // spec §27.3·§27.9 M1(사용자 승인 2026-11-08): 목표 유형 계단. goalType[난이도] = 'score'(점수 목표 = 위 targets) | 'mission'(레벨별 미션 = 아래 missions).
       //   초보는 항상 'score'(spec §33 — 값이 'mission'이어도 무시한다). M1의 기본값은 전 난이도 'score'라 화면·동작이 이전과 같다(미션 표 값은 M2가 채운다).
@@ -139,7 +155,7 @@
       }
     },
     multReturn: 1.0,                      // 행동 종료 후 배율 표시가 x1로 돌아오기까지(초)
-    praiseThreshold: 5000,
+    praiseThreshold: 15000,               // spec §28.5.5: 점수 규모 ×3 에 맞춰 5000 → 15000(희귀함 유지). 연쇄 5단계 EXCELLENT 는 그대로
     particleCap: 60,
     noMovesPauseMs: 500,
     cutin: { ms: 1300, offMs: 500, reducedMs: 600 },   // ms 값은 style.css의 컷인 애니메이션 길이(1.3s)와 맞춘다
@@ -549,13 +565,24 @@
     return CONFIG.score.base[size] || 0;
   }
   function chainMult(step) { return Math.min(Math.max(step, 1), CONFIG.score.chainMax); }
+  /** 콤보 배수(spec §28.5.2): r번째 연속 행동 = min(1 + step × (r − 1), max). r ≤ 1 은 ×1 */
+  function comboMult(r) { return r <= 1 ? 1 : Math.min(1 + CONFIG.score.combo.step * (r - 1), CONFIG.score.combo.max); }
+  /** 한 매치 그룹의 배수 = min(연쇄 배수 × 콤보 배수, 곱 상한). 연쇄는 행동 안 단계(step)만, 콤보는 행동 사이 r 만 본다 */
+  function waveMult(step, r) { return Math.min(chainMult(step) * comboMult(r), CONFIG.score.multCap); }
+  /** 스킬 점수(spec §28.5.3, 배율 전 raw): 칸을 지우는 스킬(fire·grass·lightning)은 칸당 점수 × 지운 칸 수, 칸을 안 지우는 물·어둠·빛은 일시불. 연쇄·콤보 배수를 곱하지 않는다 */
+  function skillPoints(kind, cells) {
+    const p = CONFIG.score.skillPts;
+    return (kind === 'water' || kind === 'dark' || kind === 'light') ? p.bonus : cells * p[kind];
+  }
+  /** 다음 행동이 이어갈 콤보: 지금 r > 0 이고 입력 없는 시간이 창 이내(경계 포함)면 r + 1, 아니면 1 */
+  function comboNext(r, idleSec, windowSec) { return (r > 0 && idleSec <= windowSec) ? r + 1 : 1; }
   /** 매치 그룹의 시간 보너스(초). §17: 감쇠 제거 — 3번째 인자는 호환용으로 무시한다 */
   function timeBonusFor(size, step) {
     const b = size >= 5 ? CONFIG.timeBonus[5] : CONFIG.timeBonus[size] || 0;
     let v = b + (step >= 2 ? CONFIG.timeBonus.chainExtra : 0);
     return v;
   }
-  /** 선택한 난이도의 프리셋을 활성 값 위치(CONFIG.types[].max, time, timeBonus, hint, skills, scoreMult)에 복사 */
+  /** 선택한 난이도의 프리셋을 활성 값 위치(CONFIG.types[].max, time, timeBonus, hint, skills, scoreMult, score.comboWindow, score.skillPts)에 복사 */
   function applyDifficulty(level) {
     const lv = CONFIG.difficulty[level] ? level : CONFIG.defaultLevel;
     const d = CONFIG.difficulty[lv];
@@ -576,6 +603,8 @@
     CONFIG.skills.light.hint = d.skills.lightHint;
     CONFIG.skills.lightning.count = d.skills.boltCount;
     CONFIG.scoreMult = d.scoreMult;
+    CONFIG.score.comboWindow = d.comboWindow;
+    CONFIG.score.skillPts = { fire: d.skillPts.fire, grass: d.skillPts.grass, lightning: d.skillPts.lightning, bonus: d.skillPts.bonus };
     CONFIG.level = lv;
     return lv;
   }
@@ -766,7 +795,8 @@
     return {
       level: 'normal', progress: { easy: 0, normal: 0, hard: 0 }, stages: stages,
       bestByLevel: { easy: 0, normal: 0, hard: 0 }, best: 0,
-      bestChain: 0, plays: 0, lastScore: 0, muted: false, tutorialSeen: false, cutin: true
+      bestChain: 0, plays: 0, lastScore: 0, muted: false, tutorialSeen: false, cutin: true,
+      scoreRule: CONFIG.score.rule        // spec §28.9: 점수 규칙 표식. 이 값이 다른(없는) 옛 저장은 parseSave 가 레벨별 best 를 bestOld 로 옮긴다
     };
   }
 
@@ -786,6 +816,9 @@
       out.bestByLevel.normal = legacy;       // 60초 판 기록: 보존만 하고 UI에서는 쓰지 않는다
     }
     out.level = LEVELS.indexOf(o.level) !== -1 ? o.level : 'normal';
+    // spec §28.9: 점수 규칙 표식이 현재 규칙(CONFIG.score.rule)이 아닌(없는) 옛 저장은 레벨별 최고 점수를 bestOld 로 옮기고 best 는 0 으로 시작한다(UI 는 새 기록만 쓴다).
+    // 별·남은 시간(left)·진행도·bestByLevel·bestChain·plays·lastScore 는 그대로라 사용자가 잃는 해금·별은 없고, 서버로 가는 스냅샷(별·left)도 달라지지 않는다.
+    const sameRule = o.scoreRule === CONFIG.score.rule;
     // 스테이지 진행도 / 레벨별 기록 (옛 저장에는 없으므로 레벨 1부터)
     LEVELS.forEach(function (k) {
       const arr = o.stages && Array.isArray(o.stages[k]) ? o.stages[k] : null;
@@ -805,7 +838,11 @@
           } else {
             left = 0;
           }
-          parsed.push({ best: validScore(e.best) ? e.best : 0, stars: stars, left: left });
+          const best = validScore(e.best) ? e.best : 0;
+          const ent = { best: sameRule ? best : 0, stars: stars, left: left };
+          const old = sameRule ? (validScore(e.bestOld) ? e.bestOld : 0) : best;     // 현재 규칙의 저장은 bestOld 를 그대로(유효한 점수일 때만), 옛 저장은 옛 best 를 옮긴다
+          if (old > 0) ent.bestOld = old;
+          parsed.push(ent);
         }
         if (ok) {
           out.stages[k] = parsed;
@@ -862,6 +899,7 @@
       applyGravity: applyGravity, generateBoard: generateBoard, shuffleTypes: shuffleTypes,
       fireCells: fireCells, grassCells: grassCells, baseScore: baseScore, chainMult: chainMult,
       timeBonusFor: timeBonusFor, applyDifficulty: applyDifficulty, skillDesc: skillDesc,
+      comboMult: comboMult, waveMult: waveMult, skillPoints: skillPoints, comboNext: comboNext,
       fmtTime: fmtTime, fmtDur: fmtDur, stageTarget: stageTarget, starsFor: starsFor, isCleared: isCleared,
       stageUnlocked: stageUnlocked, applyStageResult: applyStageResult, parseSave: parseSave, leftFromTime: leftFromTime, leftFloorForStars: leftFloorForStars, defaultSave: defaultSave, gaugeGain: gaugeGain, praiseLevel: praiseLevel, listMoves: listMoves,
       pickTrack: pickTrack,
@@ -906,6 +944,9 @@
     dark: 0,
     chain: 1,
     multHold: 0,
+    combo: 0,         // 행동 사이 콤보 r(spec §28.5.2). 0 = 아직 없음/끊김, 1 = 방금 첫 행동, 2 이상이면 칩이 보인다
+    comboIdle: 0,     // 마지막으로 점수가 난 행동 뒤 입력 없이 흐른 시간(초). 잠금(행동 중)·조준 중에는 흐르지 않는다
+    comboBreak: 0,    // "콤보가 끊겼어요" 칩을 보여 줄 남은 시간(초)
     hint: null,
     hintLeft: 0,
     hintCd: 0,
@@ -913,7 +954,7 @@
     sel: null,
     cursor: { r: 0, c: 0 },
     kbd: false,
-    stats: { maxChain: 0, skills: 0, matches: 0 },
+    stats: { maxChain: 0, skills: 0, matches: 0, maxCombo: 0, skillPts: 0 },   // maxCombo 판 중 최고 콤보 r / skillPts 스킬로 얻은 표시 점수 합(난이도 배율 뒤)
     confirmFrom: null,
     cutinActive: false,
     warnSec: 99,
@@ -941,8 +982,8 @@
       'dark-badge', 'dark-left', 'board-wrap', 'board', 'fx', 'popup', 'aim-msg', 'flash', 'gauges',
       'btn-hint', 'btn-menu', 'btn-reset', 'overlay-count', 'count-num', 'overlay-pause', 'btn-resume',
       'btn-restart', 'btn-sound-pause', 'btn-quit', 'overlay-confirm', 'btn-confirm-yes', 'btn-confirm-no',
-      'overlay-end', 'end-title', 'level-select', 'level-desc', 'level-chip', 'pause-level', 'end-level', 'btn-cutin-start', 'btn-cutin-pause', 'cutin', 'cutin-img', 'cb-shout', 'cb-skill', 'cn-gem', 'cn-text', 'logo-img', 'title-fallback', 'end-score', 'end-best', 'end-chain', 'end-skills',
-      'end-matches', 'btn-again', 'btn-home', 'mission', 'mission-list', 'mission-live'
+      'overlay-end', 'end-title', 'level-select', 'level-desc', 'level-chip', 'pause-level', 'end-level', 'btn-cutin-start', 'btn-cutin-pause', 'cutin', 'cutin-img', 'cb-shout', 'cb-skill', 'cn-gem', 'cn-text', 'logo-img', 'title-fallback', 'end-score', 'end-best', 'end-combo', 'end-chain', 'end-skills',
+      'end-matches', 'combo-chip', 'combo-run', 'combo-mult', 'combo-max', 'combo-bar', 'combo-live', 'btn-again', 'btn-home', 'mission', 'mission-list', 'mission-live'
     ].forEach(function (id) { el[id] = $(id); });
   }
 
@@ -1437,15 +1478,16 @@
     }
   }
 
-  function floatText(text, r, c, color) {
+  /** 떠오르는 점수 글자. big 이면 스킬 점수용으로 크게(.float.big, 더 오래) 보이고 보드 가장자리에서 잘리지 않게 가운데 쪽으로 당긴다 */
+  function floatText(text, r, c, color, big) {
     const f = document.createElement('div');
-    f.className = 'float';
+    f.className = big ? 'float big' : 'float';
     f.textContent = text;
-    f.style.left = pctX(c);
+    f.style.left = pctX(big ? Math.min(Math.max(c, 1.6), COLS - 2.6) : c);
     f.style.top = pctY(r);
     if (color) f.style.color = color;
     el.fx.appendChild(f);
-    setTimeout(function () { f.remove(); }, 950);
+    setTimeout(function () { f.remove(); }, big ? 1350 : 950);
   }
 
   function centroid(cells) {
@@ -1620,8 +1662,21 @@
     }
   }
 
+  /** 콤보 갱신(spec §28.5.2, 메인 세션 해석 1): 한 행동에서 처음 점수가 나는 순간 한 번만 r 을 정하고 이어짐 시계를 0 으로 되돌린다.
+   *  같은 행동의 모든 그룹·그 뒤 연쇄는 같은 r 을 쓴다. 점수가 안 나는 행동(무효 스왑·칸 변화 없는 스킬·물·어둠·빛)은 이 함수를 부르지 않아 콤보도 시계도 그대로다 */
+  function touchCombo(ctx) {
+    if (ctx.comboDone) return;
+    ctx.comboDone = true;
+    state.combo = comboNext(state.combo, state.comboIdle, CONFIG.score.comboWindow);
+    state.comboIdle = 0;
+    state.comboBreak = 0;
+    if (state.combo > state.stats.maxCombo) state.stats.maxCombo = state.combo;
+    if (state.combo >= 5 && state.combo % 5 === 0) announceCombo('콤보 ' + state.combo);
+  }
+
   function awardGroup(ctx, g, step) {
-    const raw = baseScore(g.size) * chainMult(step) * darkMult();
+    touchCombo(ctx);
+    const raw = baseScore(g.size) * waveMult(step, state.combo) * darkMult();
     const pts = Math.round(raw * CONFIG.scoreMult);     // 난이도 배율 적용 점수
     addScore(pts);
     ctx.total += raw;                                   // 칭찬 판정은 배율 적용 전 값 기준
@@ -1658,17 +1713,30 @@
     }
   }
 
-  /** 스킬로 제거한 칸: 칸당 점수, 게이지 충전 없음, 시간 보너스 없음 */
-  async function removeSkillCells(ctx, cells) {
+  /** 스킬로 제거한 칸(kind = 'fire'|'grass'|'lightning'): 칸당 점수(난이도별 skillPts, 연쇄·콤보 배수 없음, 어둠 ×2·난이도 배율은 곱함), 게이지 충전 없음, 시간 보너스 없음.
+   *  칸을 지우는 스킬은 행동이므로 처음 점수가 날 때 콤보를 올린다(spec §28.5.2) */
+  async function removeSkillCells(ctx, cells, kind) {
     const live = cells.filter(function (p) { return state.grid[p.r][p.c]; });
     if (!live.length) return;
-    const raw = live.length * CONFIG.score.skillCell * chainMult(1) * darkMult();
+    touchCombo(ctx);
+    const raw = skillPoints(kind, live.length) * darkMult();
     const pts = Math.round(raw * CONFIG.scoreMult);
     addScore(pts);
+    state.stats.skillPts += pts;
     ctx.total += raw;
     const ctr = centroid(live);
-    floatText('+' + fmt(pts), ctr.r, ctr.c, '#ffe9a0');
+    floatText('+' + fmt(pts), ctr.r, ctr.c, '#ffe9a0', true);
     await removeGems(live);
+  }
+
+  /** 칸을 안 지우는 스킬(물·어둠·빛)의 일시불(spec §28.5.3): 점수만 더한다 — 콤보는 올리지도 끊지도 않고 ctx.total 에도 더하지 않는다(칭찬이 안 뜨게).
+   *  어둠 자신의 일시불은 새 어둠을 켜기 전의 darkMult() 로 계산해야 하므로 효과보다 먼저 부른다. 점수 글자는 보드 가운데에 크게 띄운다 */
+  function awardSkillBonus(kind) {
+    const raw = skillPoints(kind, 0) * darkMult();
+    const pts = Math.round(raw * CONFIG.scoreMult);
+    addScore(pts);
+    state.stats.skillPts += pts;
+    floatText('+' + fmt(pts), (ROWS - 1) / 2, (COLS - 1) / 2, '#ffe9a0', true);
   }
 
   /** 목표 달성 여부. 점수형(state.mission 이 null)이면 isCleared(점수, 목표 점수)와 완전히 같다 (spec §27.9) */
@@ -1686,7 +1754,7 @@
     state.multHold = 0;
     clearHint();
     setSelected(null);
-    const ctx = { total: 0, maxStep: 1, maxGroup: 3, noPost: false, fromSwap: false };   // noPost: 무효 스왑/보드 변화 없는 스킬은 칭찬·재섞기 판정 생략 / fromSwap: 플레이어의 스왑으로 시작한 행동(스킬은 false)
+    const ctx = { total: 0, maxStep: 1, maxGroup: 3, noPost: false, fromSwap: false, comboDone: false };   // noPost: 무효 스왑/보드 변화 없는 스킬은 칭찬·재섞기 판정 생략 / fromSwap: 플레이어의 스왑으로 시작한 행동(스킬은 false) / comboDone: 이 행동의 콤보를 이미 올렸다(touchCombo, spec §28.5.2)
     const id = state.gameId;
     try {
       await fn(ctx);
@@ -1924,6 +1992,7 @@
     else if (id === 'lightning') await skillLightning(ctx);
     else {
       ctx.noPost = true;   // 보드 변화 없음
+      awardSkillBonus(id); // spec §28.5.3: 일시불(콤보 불변, ctx.total 에 안 더함). 어둠은 새 어둠을 켜기 전의 배수로 계산해야 해서 효과보다 먼저
       if (id === 'water') skillWater();
       else if (id === 'dark') skillDark();
       else skillLight();
@@ -2070,7 +2139,7 @@
     shakeBoard(true);
     flashScreen('#ffb066', 0.55);
     await wait(160);
-    await removeSkillCells(ctx, cells);
+    await removeSkillCells(ctx, cells, 'fire');
     await dropAndRefill();
     await cascade(ctx, 2);
   }
@@ -2109,7 +2178,7 @@
     });
     shakeBoard(false);
     await wait(500);
-    await removeSkillCells(ctx, cells);
+    await removeSkillCells(ctx, cells, 'grass');
     await dropAndRefill();
     await cascade(ctx, 2);
   }
@@ -2166,7 +2235,7 @@
       await wait(CONFIG.skills.lightning.stepMs);
     }
     await wait(140);
-    await removeSkillCells(ctx, targets);
+    await removeSkillCells(ctx, targets, 'lightning');
     await dropAndRefill();
     await cascade(ctx, 2);
   }
@@ -2325,6 +2394,70 @@
     }
   }
 
+  /* ---------- 콤보 칩 (spec §28.5.7, B1) ----------
+   * 점수줄 가운데 칸(#chain 아래)에 있는 칩. 콤보 r ≥ 2 일 때만 보인다("콤보 7 · ×3.0", 최대 배수면 "(최대!)" 병기) + 이어짐 시간 막대(창에서 줄어든다).
+   * 끊기면 "콤보가 끊겼어요"를 CONFIG.score.breakShow 초 동안 보인다. 칩 자체는 aria-hidden 이고, 낭독은 #combo-live(role=status, polite)가 맡는다
+   * (5의 배수와 끊김일 때만 쓴다). 값이 바뀐 때만 DOM 을 쓴다(막대는 2% 단위로 양자화). prefers-reduced-motion 이면 막대를 그리지 않는다(CSS 로도 숨김). */
+  const hudCombo = { kind: '', r: -1, bar: -1, liveN: 0 };
+  const COMBO_BREAK_TEXT = '콤보가 끊겼어요';
+
+  /** #combo-live 에 알린다(같은 문구가 이어서 나와도 다시 읽히게 마침표를 번갈아 붙인다) */
+  function announceCombo(text) {
+    hudCombo.liveN++;
+    if (!el['combo-live']) return;
+    el['combo-live'].textContent = text + (hudCombo.liveN % 2 ? '' : '.');
+  }
+
+  function resetComboHud() {
+    if (!el['combo-chip']) return;       // (캐시된 옛 index.html 과 새 game.js 가 잠깐 섞여도 판이 멈추지 않게)
+    hudCombo.kind = ''; hudCombo.r = -1; hudCombo.bar = -1; hudCombo.liveN = 0;
+    el['combo-chip'].hidden = true;
+    el['combo-chip'].className = 'combo-chip';
+    el['combo-live'].textContent = '';
+  }
+
+  function updateComboHud() {
+    if (!el['combo-chip']) return;
+    const over = state.phase === 'over';
+    const run = !over && state.combo >= 2;
+    const brk = !over && !run && state.comboBreak > 0;
+    const kind = run ? 'run' : (brk ? 'break' : '');
+    const h = hudCombo;
+    if (kind !== h.kind) {
+      h.kind = kind;
+      h.r = -1;
+      h.bar = -1;
+      el['combo-chip'].hidden = kind === '';
+      el['combo-chip'].className = 'combo-chip' + (kind === 'break' ? ' brk' : '');
+      if (kind === 'break') {
+        el['combo-run'].textContent = COMBO_BREAK_TEXT;
+        el['combo-mult'].hidden = true;
+        el['combo-max'].hidden = true;
+        el['combo-bar'].style.transform = 'scaleX(0)';
+      }
+    }
+    if (kind !== 'run') return;
+    if (state.combo !== h.r) {
+      h.r = state.combo;
+      const m = comboMult(h.r);
+      const atMax = m >= CONFIG.score.combo.max - 1e-9;
+      el['combo-run'].textContent = '콤보 ' + h.r;
+      el['combo-mult'].textContent = ' · ×' + m.toFixed(1);
+      el['combo-mult'].hidden = false;
+      el['combo-max'].hidden = !atMax;
+      el['combo-chip'].classList.toggle('max', atMax);
+      if (!reduceMotion) {            // 콤보가 오를 때 칩이 살짝 커졌다 돌아온다(감소 모션이면 없음)
+        el['combo-chip'].classList.remove('pop');
+        void el['combo-chip'].offsetWidth;
+        el['combo-chip'].classList.add('pop');
+      }
+    }
+    if (!reduceMotion) {
+      const q = Math.round(Math.max(0, Math.min(1, 1 - state.comboIdle / CONFIG.score.comboWindow)) * 50) / 50;
+      if (q !== h.bar) { h.bar = q; el['combo-bar'].style.transform = 'scaleX(' + q + ')'; }
+    }
+  }
+
   function updateHUD(dt) {
     // 점수 롤링
     if (state.shown !== state.score) {
@@ -2375,6 +2508,7 @@
       const dt2 = state.dark.toFixed(1) + 's';
       if (dt2 !== hud.darkText) { el['dark-left'].textContent = dt2; hud.darkText = dt2; }
     }
+    updateComboHud();
     // 힌트 버튼 쿨다운
     const cd = state.hintCd > 0 ? Math.ceil(state.hintCd) : 0;
     const hs = String(cd);
@@ -2410,6 +2544,17 @@
       }
     }
     if (state.dark > 0) state.dark = Math.max(0, state.dark - dt);
+    // spec §28.5.2 콤보 시계: 행동 사이(잠금 아님)·조준 중이 아닐 때만 입력 없는 시간이 흐른다. 일시정지·컷인 중에는 advance 가 안 불리거나 위에서 조기 반환한다.
+    // 물 스킬의 시간 정지(state.freeze) 중에도 흐른다(레벨 시계가 아니라 손 사이의 간격이므로). 창을 넘기면 콤보가 끊긴다(r ≥ 2 였으면 칩에 알림)
+    if (!state.locked && state.aim === null) {
+      state.comboIdle += dt;
+      if (state.combo > 0 && state.comboIdle > CONFIG.score.comboWindow) {
+        const was = state.combo;
+        state.combo = 0;
+        if (was >= 2) { state.comboBreak = CONFIG.score.breakShow; announceCombo(COMBO_BREAK_TEXT); }
+      }
+    }
+    if (state.comboBreak > 0) state.comboBreak = Math.max(0, state.comboBreak - dt);
     if (state.hintCd > 0) state.hintCd = Math.max(0, state.hintCd - dt);
     if (state.hintLeft > 0) {
       state.hintLeft -= dt;
@@ -2531,6 +2676,9 @@
     state.dark = 0;
     state.chain = 1;
     state.multHold = 0;
+    state.combo = 0;
+    state.comboIdle = 0;
+    state.comboBreak = 0;
     state.hint = null;
     state.hintLeft = 0;
     state.hintCd = 0;
@@ -2538,7 +2686,7 @@
     state.sel = null;
     state.cursor = { r: 0, c: 0 };
     state.kbd = false;
-    state.stats = { maxChain: 0, skills: 0, matches: 0 };
+    state.stats = { maxChain: 0, skills: 0, matches: 0, maxCombo: 0, skillPts: 0 };
     state.board = null;
     state.confirmFrom = null;
     state.mission = null;
@@ -2556,6 +2704,7 @@
     el['freeze-text'].hidden = true;
     el['dark-badge'].hidden = true;
     el.scorebar.classList.remove('dark');
+    resetComboHud();
     renderChain();
     renderGauges();
   }
@@ -2810,6 +2959,7 @@
       el['end-unlock'].hidden = false;
     }
     el['end-best'].textContent = fmt(save.stages[lv][stage - 1].best);
+    if (el['end-combo']) el['end-combo'].textContent = '최고 콤보 ' + fmt(state.stats.maxCombo) + ' · 스킬 점수 +' + fmt(state.stats.skillPts);
     el['end-chain'].textContent = String(state.stats.maxChain);
     el['end-skills'].textContent = String(state.stats.skills);
     el['end-matches'].textContent = String(state.stats.matches);

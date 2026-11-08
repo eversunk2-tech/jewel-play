@@ -653,9 +653,9 @@ test('HUD(점수형 기본): 목표 바만 보이고 #mission 은 숨겨져 있�
   assert.strictEqual(I.el['mission-list'].children.length, 0);
   assert.strictEqual(I.el['screen-game'].dataset.goal, 'score');
   assert.strictEqual(I.el['screen-game'].dataset.chips, undefined);
-  assert.match(I.el['goal-text'].textContent, /^0 \/ 4,500$/);
-  assert.strictEqual(I.el['count-info'].textContent, '레벨 1 · 목표 4,500점');
-  assert.strictEqual(I.el['pause-level'].textContent, '중수 · 레벨 1 · 목표 4,500');
+  assert.match(I.el['goal-text'].textContent, /^0 \/ 14,900$/);      // spec §28.7.5 중수 1단계 점수 폴백 표 값
+  assert.strictEqual(I.el['count-info'].textContent, '레벨 1 · 목표 14,900점');
+  assert.strictEqual(I.el['pause-level'].textContent, '중수 · 레벨 1 · 목표 14,900');
   env.dispose();
 });
 
@@ -921,7 +921,7 @@ test('goalMet: 점수형이면 isCleared(점수, 목표) 와 같다', async () =
   const env = createEnv(40);
   await startAndWait(env, 'normal', 1);
   const I = env.I;
-  [0, 4499, 4500, 4501, 99999].forEach((s) => { I.state.score = s; assert.strictEqual(I.goalMet(), G.isCleared(s, I.state.target), String(s)); });
+  [0, 14899, 14900, 14901, 99999].forEach((s) => { I.state.score = s; assert.strictEqual(I.goalMet(), G.isCleared(s, I.state.target), String(s)); });
   I.state.target = 0;
   I.state.score = 10;
   assert.strictEqual(I.goalMet(), false, '목표 0 은 달성이 아니다(isCleared 와 같다)');

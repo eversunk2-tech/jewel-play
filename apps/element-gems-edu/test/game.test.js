@@ -51,9 +51,9 @@ test('기존 규칙 회귀: 점수·게이지·시간 표기·목표 표', () =>
   assert.strictEqual(G.fmtTime(59.2), '1:00');
   assert.strictEqual(G.fmtTime(59), '59');
   assert.strictEqual(G.fmtDur(130), '2분 10초');
-  // [EDU] 교육용 목표 점수 = 일반용 목표 × 1.2 (100점 반올림): 일반용 §25.6 값 4500 -> 5400, 9900 -> 11900 (spec §21.8.4)
-  assert.strictEqual(G.stageTarget('normal', 1), 5400);
-  assert.strictEqual(G.stageTarget('hard', 10), 11900);
+  // [EDU] 교육용 목표 점수 = 일반용 목표 × 1.2 (100점 반올림): 일반용 §28.7.5 근사 표 값 14900 -> 17900, 31700 -> 38000 (spec §21.8.4, 옛 §25.6 값 4500 -> 5400, 9900 -> 11900)
+  assert.strictEqual(G.stageTarget('normal', 1), 17900);
+  assert.strictEqual(G.stageTarget('hard', 10), 38000);
   assert.strictEqual(G.stageTarget('easy', 11), 0);
   assert.deepStrictEqual(G.CONFIG.stages.targets.easy.length, 10);
   assert.strictEqual(G.stageUnlocked(0, 1), true);
@@ -110,7 +110,10 @@ test('parseSave: 옛 저장(left 없음) 마이그레이션 — 별에서 하한
   assert.deepStrictEqual(s.stages.easy.slice(0, 4).map((e) => e.left), [65, 39, 0, 0]);
   assert.deepStrictEqual(s.stages.normal.slice(0, 4).map((e) => e.left), [60, 36, 0, 0]);
   assert.deepStrictEqual(s.stages.easy.slice(0, 3).map((e) => e.stars), [3, 2, 1]);
-  assert.strictEqual(s.stages.easy[0].best, 9000);
+  // spec §28.9: scoreRule 표식이 없는(옛 점수 규칙) 저장은 레벨별 best 를 bestOld 로 옮기고 best 는 0 으로 시작한다(별·left·진행도는 위에서 보존됨을 확인)
+  assert.strictEqual(s.stages.easy[0].best, 0);
+  assert.strictEqual(s.stages.easy[0].bestOld, 9000);
+  assert.strictEqual(s.scoreRule, 2);
   assert.strictEqual(s.level, 'hard');
   assert.strictEqual(s.best, 777);
   assert.strictEqual(s.bestChain, 9);
