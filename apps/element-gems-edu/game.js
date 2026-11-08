@@ -57,7 +57,7 @@
     // spec §15.2 난이도 프리셋을 §17.2(2분 + 스테이지)로 갱신 (게이지 최대치 순서: 불·물·풀·번개·어둠·빛)
     difficulty: {
       easy: {
-        label: '초보', desc: '시간이 넉넉하고 스킬이 빨리 차요. 막히면 힌트가 자동으로 나와요.',
+        label: '초보', desc: '시간이 넉넉하고 스킬이 빨리 차요. 막히면 힌트가 자동으로 나와요. 같은 색이 모여 나와서 맞출 곳이 잘 보여요.',
         max: [12, 14, 12, 13, 14, 16],
         time: { start: 130, max: 155 },
         timeBonus: { 3: 0.06, 4: 0.12, 5: 0.25, chainExtra: 0 },
@@ -66,7 +66,7 @@
         scoreMult: 0.8
       },
       normal: {
-        label: '중수', desc: '기본 규칙. 균형 잡힌 2분 승부!',
+        label: '중수', desc: '기본 규칙. 균형 잡힌 2분 승부! 보석이 고르게 나오는 기본 보드예요.',
         max: [13, 16, 13, 14, 16, 18],
         time: { start: 120, max: 145 },
         timeBonus: { 3: 0.05, 4: 0.1, 5: 0.2, chainExtra: 0 },
@@ -75,7 +75,7 @@
         scoreMult: 1.0
       },
       hard: {
-        label: '고수', desc: '시간이 짧고 보너스가 적어요. 대신 점수 ×1.3!',
+        label: '고수', desc: '시간이 짧고 보너스가 적어요. 대신 점수 ×1.3! 보석이 흩어져 있어서 맞출 곳을 잘 찾아야 해요.',
         max: [14, 17, 14, 16, 17, 19],
         time: { start: 100, max: 120 },
         timeBonus: { 3: 0.04, 4: 0.08, 5: 0.15, chainExtra: 0 },
@@ -95,6 +95,38 @@
         easy: [3500, 3800, 4000, 4100, 4400, 4600, 4800, 5300, 5700, 6100],
         normal: [4500, 4900, 5300, 5400, 5900, 6300, 6800, 7100, 7600, 8200],
         hard: [5500, 6000, 6300, 6700, 7000, 7400, 8000, 8500, 9100, 9900]
+      }
+    },
+    // spec §26.4(사용자 승인 2026-11-08, 강도 1.0 · 사다리 R): 난이도·레벨별 보드 구조 "구조 등급 s"(−2~+2, 0.5 단위).
+    // 클수록 쉬운 보드(같은 색이 모여 나옴), 0 = 지금까지와 같은 균등 무작위, 작을수록 까다로운 보드(흩어져 나옴). 목표 점수(§25.6)는 그대로다(점수 중립 보정).
+    //   enabled  false 면 모든 칸이 균등 무작위(기존 코드 경로 그대로). strength  0~1, 등급 s 에 곱한 뒤 0.5 단위로 반올림해 쓴다(0 = 끔). tries  리필 후보 다시 뽑기 최대 횟수.
+    //   grades   난이도별 등급 표(키 = 등급 s 문자열). pair 뭉침(같은 색 이웃 한 칸마다 곱하는 가중), auto 새 보석이 저절로 줄·2×2를 만드는 색의 가중(1 = 자연, 0 = 금지;
+    //            난이도마다 §26.5로 점수가 변하지 않게 보정한 값), lo/hi 안정된 보드에서 맞출 곳(유효한 수)의 최소/최대(99 = 제한 없음).
+    //   ladder   난이도별 레벨 1~10의 등급 s(표에 없는 값 또는 0 = 균등 무작위). 입력은 (난이도, 레벨)뿐이다 — 점수·남은 시간·기록에 반응하지 않는다.
+    board: {
+      enabled: true,
+      strength: 1,
+      tries: 12,
+      grades: {
+        easy: {
+          '2': { pair: 2.00, auto: 0.37, lo: 8, hi: 99 },
+          '1.5': { pair: 1.75, auto: 0.50, lo: 7, hi: 99 },
+          '1': { pair: 1.50, auto: 0.67, lo: 5, hi: 99 }
+        },
+        normal: {
+          '0.5': { pair: 1.25, auto: 0.82, lo: 3, hi: 99 },
+          '-0.5': { pair: 0.85, auto: 0.77, lo: 2, hi: 14 }
+        },
+        hard: {
+          '-0.5': { pair: 0.85, auto: 0.89, lo: 2, hi: 14 },
+          '-1': { pair: 0.70, auto: 0.55, lo: 2, hi: 10 },
+          '-1.5': { pair: 0.62, auto: 0.47, lo: 2, hi: 9 }
+        }
+      },
+      ladder: {
+        easy: [2, 2, 2, 1.5, 1.5, 1.5, 1.5, 1, 1, 1],
+        normal: [0.5, 0.5, 0.5, 0, 0, 0, 0, -0.5, -0.5, -0.5],
+        hard: [-0.5, -0.5, -0.5, -1, -1, -1, -1, -1.5, -1.5, -1.5]
       }
     },
     multReturn: 1.0,                      // 행동 종료 후 배율 표시가 x1로 돌아오기까지(초)
@@ -508,6 +540,31 @@
     return out;
   }
 
+  /**
+   * spec §26.9 합성 순서: 구조 등급 P(boardParams, null 이 아님)가 있을 때 리필 새 칸의 종류를 정한다. tg = 중력 뒤 종류 격자(빈 칸 = null, ? 는 WILD).
+   * ① opt.spawn > 0 일 때만 pickRefillTypes 로 ? 칸을 기존 규칙(칸당 확률·보드 위 최대 개수·첫 행동 확정)대로 먼저 정한다(난수 호출 방식 그대로).
+   *   spawn = 0 이면 pickRefillTypes 를 부르지 않는다 -> 난수 소비가 일반용(구조만)과 정확히 같고 ? 는 없다.
+   * ② ?로 정해진 칸을 복사한 격자에 WILD 로 먼저 채우고 ③ 나머지 빈 칸을 refillStructured 로 채운다(? 는 이웃 같은 색 세기에서 색으로 세지 않고,
+   *   auto = 0 보장은 일반 보석끼리만 — fillStructured·completes 가 WILD 를 어떤 색 대신으로 보는 lineAt·squareAt 위에서 돌아간다).
+   * ④ 새 칸 종류를 소비 순서(열 왼→오른, 각 열 위→아래 = dropAndRefill 이 쓰는 순서)로 돌려준다. 입력 tg 는 바꾸지 않는다.
+   */
+  function pickRefillTypesStructured(tg, wildOnBoard, P, rng, opt) {
+    const rand = rng || Math.random;
+    const o = opt || {};
+    const cells = [];
+    for (let c = 0; c < tg[0].length; c++) {
+      for (let r = 0; r < tg.length; r++) if (tg[r][c] == null) cells.push({ r: r, c: c });
+    }
+    if (!cells.length) return [];
+    const work = copyGrid(tg);
+    if (o.spawn > 0) {
+      const first = pickRefillTypes(cells.length, wildOnBoard, rand, o);
+      for (let i = 0; i < cells.length; i++) if (first[i] === WILD) work[cells[i].r][cells[i].c] = WILD;
+    }
+    const filled = refillStructured(work, P, rand);
+    return cells.map(function (p) { return filled[p.r][p.c]; });
+  }
+
   /** 번개 스킬: 보드에 있는 진짜 6색 중에서만 색을 고르고(? 제외), 그 색 보석만 최대 count개 고른다. ? 칸은 대상이 아니다. 고를 색이 없으면 null */
   function boltTargets(tg, count, rng) {
     const rand = rng || Math.random;
@@ -605,6 +662,117 @@
       if (findMatches(g).length === 0 && hasValidMove(g)) return g;
     }
     return g;
+  }
+
+  /* ---------- 보드 구조 등급 (spec §26.4) — 난이도·레벨에 따라 새 칸의 종류를 정하는 규칙. DOM 없음, 난수는 rng 로 주입 ---------- */
+
+  /** (r,c) 칸의 값. 격자 밖이면 null */
+  function cellAt(g, r, c) {
+    return (r >= 0 && c >= 0 && r < g.length && c < g[0].length) ? g[r][c] : null;
+  }
+
+  function copyGrid(g) {
+    return g.map(function (row) { return row.slice(); });
+  }
+
+  /** 가중 w[i] 에 비례해 번호를 하나 고른다(난수 1번). 가중 합이 0 이하면 균등 */
+  function pickWeighted(w, rng) {
+    const rand = rng || Math.random;
+    let sum = 0;
+    for (let i = 0; i < w.length; i++) sum += w[i];
+    if (!(sum > 0)) return Math.floor(rand() * w.length);
+    let x = rand() * sum;
+    for (let i = 0; i < w.length; i++) {
+      x -= w[i];
+      if (x < 0) return i;
+    }
+    return w.length - 1;
+  }
+
+  /** 난이도 level('easy'|'normal'|'hard')·레벨 stage(1~10)의 구조 등급 s. 꺼져 있거나 표에 없으면 0(= 균등 무작위, 기존 코드 경로) */
+  function boardGrade(level, stage) {
+    const B = CONFIG.board;
+    if (!B.enabled) return 0;
+    const row = B.ladder[level];
+    if (!row || stage < 1 || stage > row.length) return 0;
+    const s = Math.round(row[stage - 1] * B.strength / 0.5) * 0.5;       // strength 적용 + 0.5 단위
+    return (B.grades[level] && B.grades[level][String(s)]) ? s : 0;
+  }
+
+  /** 등급의 손잡이 { s, pair, auto, lo, hi, tries }. 균등 무작위(s = 0)면 null */
+  function boardParams(level, stage) {
+    const s = boardGrade(level, stage);
+    if (s === 0) return null;
+    const g = CONFIG.board.grades[level][String(s)];
+    return { s: s, pair: g.pair, auto: g.auto, lo: g.lo, hi: g.hi, tries: CONFIG.board.tries };
+  }
+
+  /** (r,c)에 종류 t 를 놓으면 3줄 또는 2×2 가 완성되는가(이웃 중 정해진 칸만 본다). tg 는 그대로 돌려놓는다 */
+  function completes(tg, r, c, t) {
+    tg[r][c] = t;
+    const ok = lineAt(tg, r, c) || squareAt(tg, r, c);
+    tg[r][c] = null;
+    return ok;
+  }
+
+  /**
+   * tg 의 빈 칸(null)을 제자리에서 채운다. 순서: 열 왼→오른, 각 열 아래→위. P = { pair, auto }.
+   * 이웃(왼·오른·아래·위) 중 이미 정해진 칸에 같은 색이 k 개면 그 색의 가중은 pair^k, 줄·2×2 를 완성하는 색은 auto(색 번호는 보지 않는다).
+   * autoOverride 가 있으면 P.auto 대신 쓴다(시작 보드는 0). 이미 있는 칸은 바꾸지 않는다.
+   */
+  function fillStructured(tg, P, rng, autoOverride) {
+    const auto = autoOverride == null ? P.auto : autoOverride;
+    const R = tg.length;
+    const C = tg[0].length;
+    for (let c = 0; c < C; c++) {
+      for (let r = R - 1; r >= 0; r--) {
+        if (tg[r][c] != null) continue;
+        const w = [];
+        for (let t = 0; t < TYPE_COUNT; t++) {
+          let k = 0;
+          if (cellAt(tg, r, c - 1) === t) k++;
+          if (cellAt(tg, r, c + 1) === t) k++;
+          if (cellAt(tg, r + 1, c) === t) k++;
+          if (cellAt(tg, r - 1, c) === t) k++;
+          w[t] = k === 0 ? 1 : (completes(tg, r, c, t) ? auto : Math.pow(P.pair, k));
+        }
+        tg[r][c] = pickWeighted(w, rng);
+      }
+    }
+    return tg;
+  }
+
+  /**
+   * 중력 뒤 종류 격자 tg(빈 칸 = null)를 채워 새 격자로 돌려준다(tg 는 바꾸지 않는다). 후보를 최대 P.tries 번 뽑아,
+   * 안정된 후보 중 맞출 곳이 [P.lo, P.hi] 인 것을 고르고 없으면 가장 가까운 것을 쓴다. 연쇄가 이어지는 후보는 거르지 않는다.
+   */
+  function refillStructured(tg, P, rng) {
+    const tries = Math.max(1, P.tries | 0);
+    let best = null;
+    let bestDist = Infinity;
+    for (let k = 0; k < tries; k++) {
+      const cand = copyGrid(tg);
+      fillStructured(cand, P, rng);
+      if (findMatches(cand).length > 0) { best = cand; break; }
+      const m = listMoves(cand).length;
+      const dist = m < P.lo ? P.lo - m : (m > P.hi ? m - P.hi : 0);
+      if (dist < bestDist) { best = cand; bestDist = dist; }
+      if (dist === 0) break;
+    }
+    return best;
+  }
+
+  /** 구조 등급의 시작 보드: 매치 0 + 맞출 곳 [max(1,lo), hi]. 1000번 안에 못 찾으면 기존 generateBoard 로 폴백 */
+  function generateBoardStructured(rows, cols, P, rng) {
+    for (let a = 0; a < 1000; a++) {
+      const tg = makeMatrix(rows, cols, null);
+      fillStructured(tg, P, rng, 0);                                  // auto = 0: 시작 보드에 즉시 매치가 없다
+      if (findMatches(tg).length === 0) {
+        const m = listMoves(tg).length;
+        if (m >= Math.max(1, P.lo) && m <= P.hi) return tg;
+      }
+    }
+    return generateBoard(rows, cols, TYPE_COUNT, rng);
   }
 
   /** 기존 종류 구성은 유지한 채 재배치. 매치(3연속·2×2) 0개 + 유효한 수 >= 1 보장 */
@@ -875,9 +1043,11 @@
       fmtTime: fmtTime, fmtDur: fmtDur, stageTarget: stageTarget, starsFor: starsFor, isCleared: isCleared,
       stageUnlocked: stageUnlocked, applyStageResult: applyStageResult, parseSave: parseSave, leftFromTime: leftFromTime, leftFloorForStars: leftFloorForStars, defaultSave: defaultSave, gaugeGain: gaugeGain, praiseLevel: praiseLevel, listMoves: listMoves,
       pickTrack: pickTrack,
+      boardGrade: boardGrade, boardParams: boardParams, completes: completes, fillStructured: fillStructured,
+      refillStructured: refillStructured, generateBoardStructured: generateBoardStructured,
       // [EDU] ? 선물상자 시험용 내보내기
       WILD: WILD, wouldMatch: wouldMatch, findMatchesPlain: findMatchesPlain, findMatchesWild: findMatchesWild, hasWild: hasWild,
-      uniqueCells: uniqueCells, wildCellsOfGroups: wildCellsOfGroups, countWild: countWild, pickRefillTypes: pickRefillTypes,
+      uniqueCells: uniqueCells, wildCellsOfGroups: wildCellsOfGroups, countWild: countWild, pickRefillTypes: pickRefillTypes, pickRefillTypesStructured: pickRefillTypesStructured,
       boltTargets: boltTargets, bonusFor: bonusFor, cleanEduField: cleanEduField, resolveEduField: resolveEduField,
       makeMatrix: makeMatrix
       // [/EDU]
@@ -931,6 +1101,7 @@
     warnSec: 99,
     level: 'normal',
     stage: 1,         // 현재(또는 마지막) 스테이지 레벨 1~10
+    board: null,      // 이번 스테이지의 보드 구조 등급 손잡이(boardParams, spec §26). null = 균등 무작위(기존 경로)
     target: 0,        // 이번 스테이지 목표 점수
     startTime: 120,   // 별 계산 기준 시작 시간
     idle: 0,
@@ -1419,7 +1590,7 @@
     el.fx.innerHTML = '';
     liveParticles = 0;
     state.grid = makeMatrix(ROWS, COLS, null);
-    const tg = generateBoard(ROWS, COLS, TYPE_COUNT);
+    const tg = state.board ? generateBoardStructured(ROWS, COLS, state.board) : generateBoard(ROWS, COLS, TYPE_COUNT);   // spec §26: 구조 등급이 없으면(s = 0) 기존 경로 그대로. 시작 보드에는 ?가 없다(E4)
     const frag = document.createDocumentFragment();
     for (let r = 0; r < ROWS; r++) {
       for (let c = 0; c < COLS; c++) {
@@ -1555,13 +1726,19 @@
     return n;
   }
 
-  /** 이번 리필의 새 칸 count개 종류. spawn 이 0 이면 일반 무작위와 완전히 같다 */
+  /**
+   * 이번 리필의 새 칸 count개 종류. spawn 이 0 이면 일반 무작위와 완전히 같다.
+   * spec §26.9: 구조 등급이 켜져 있으면(state.board) ? 여부를 기존 규칙으로 먼저 정하고 나머지 칸을 구조 규칙으로 채운다
+   * (pickRefillTypesStructured). 꺼져 있으면(state.board == null) 위의 기존 경로 그대로다.
+   */
   function planRefill(count) {
     const w = CONFIG.edu.wild;
     const on = w.spawn > 0 && quizReady();
     const force = on && w.guaranteeFirst && !state.edu.firstDone && count > 0;
     if (force) state.edu.firstDone = true;
-    return pickRefillTypes(count, on ? gridWildCount() : 0, Math.random, { spawn: on ? w.spawn : 0, max: on ? w.max : 0, force: force, n: TYPE_COUNT });
+    const opt = { spawn: on ? w.spawn : 0, max: on ? w.max : 0, force: force, n: TYPE_COUNT };
+    if (state.board) return pickRefillTypesStructured(typeGrid(), on ? gridWildCount() : 0, state.board, Math.random, opt);
+    return pickRefillTypes(count, on ? gridWildCount() : 0, Math.random, opt);
   }
 
   /** 첫 ? 등장 안내(조준 안내 줄을 잠깐 빌려 쓴다. 조준 중이면 건너뜀) */
@@ -1588,7 +1765,8 @@
       placeGem(gem, ms);
     });
     const pending = [];
-    // [EDU] 새 칸 종류를 한꺼번에 정한다(열 순서대로 소비). ?가 하나라도 있으면 첫 등장 안내
+    // [EDU] 새 칸 종류를 한꺼번에 정한다(열 순서대로 소비). ?가 하나라도 있으면 첫 등장 안내.
+    // spec §26: 구조 등급이 있으면(state.board) planRefill 이 중력 뒤 격자(state.grid)를 보고 ? 먼저·나머지는 구조 규칙으로 정한다(소비 순서는 그대로)
     const newTypes = planRefill(res.empties.reduce(function (a, b) { return a + b; }, 0));
     let nk = 0;
     if (!giftHintShown && newTypes.indexOf(WILD) !== -1) { giftHintShown = true; showGiftHint(); }
@@ -2592,6 +2770,7 @@
     state.cursor = { r: 0, c: 0 };
     state.kbd = false;
     state.stats = { maxChain: 0, skills: 0, matches: 0 };
+    state.board = null;
     state.confirmFrom = null;
     state.cutinActive = false;
     state.quizActive = false;                                              // [EDU]
@@ -2689,6 +2868,7 @@
     resetState();
     const lv = CONFIG.level;
     state.stage = stage;
+    state.board = boardParams(lv, stage);     // spec §26: 난이도·레벨의 구조 등급(null = 균등 무작위). 입력은 (난이도, 레벨)뿐
     state.target = stageTarget(lv, stage);
     state.startTime = CONFIG.time.start;
     el['level-chip'].textContent = levelLabel(lv) + ' · Lv' + stage;

@@ -1247,6 +1247,7 @@ test('문제 뒤 NO MOVES: ? 가 지워지고 정산 뒤 유효한 수가 없으
   assert.ok(picked, '유효한 수가 없는 보드를 만들 새 칸 조합이 없음');
   let popupAtAsk = null;
   const env = await prepScenario({
+    cfg: (cfg) => { cfg.board.enabled = false; },   // 이 시나리오는 Math.random 강제값으로 새 칸 종류를 직접 정한다(§26 구조 규칙은 맞출 곳이 적은 후보를 다시 뽑으므로 끈다)
     reduceMotion: true, wilds: [[0, 4]],
     edit: (B) => { B[0][7] = 2; B[0][6] = 2; },
     quiz: { thinkMs: 800, onAsk: () => { popupAtAsk = env.doc._ids.popup.textContent; } }
@@ -1288,7 +1289,8 @@ test('문제: 연쇄 2단계에서 ? 가 지워져도(스왑으로 시작한 행
 });
 
 test('스킬 행동의 연쇄(2단계)에서 ? 가 지워져도 문제 없음 — 같은 보드를 불 스킬로 시작', async () => {
-  const env = await prepScenario({ reduceMotion: true, wilds: [[0, 3]], quiz: { thinkMs: 500 } });
+  // 이 시나리오는 Math.random 강제값으로 새 칸 종류를 직접 정한다(§26 구조 규칙은 맞출 곳이 적은 후보를 다시 뽑으므로 구조를 끈다)
+  const env = await prepScenario({ reduceMotion: true, wilds: [[0, 3]], quiz: { thinkMs: 500 }, cfg: (cfg) => { cfg.board.enabled = false; } });
   // 불(0,6) 3×3 이 (0,5)(0,6)(0,7)(1,5)(1,6)(1,7) 을 지우고, 새 (0,5)=3 이 W 3 3 을 만든다. 새 칸 순서: 5열 위·아래, 6열 위·아래, 7열 위·아래
   env.sandbox.__forced.push.apply(env.sandbox.__forced, [3, 1, 4, 2, 0, 3].map((v) => (v + 0.5) / 6));
   env.resetAction();
@@ -1340,7 +1342,7 @@ test('spawn=0 이면 한 판 전체(보드·점수·시간·게이지)가 같은
     const lv = ['easy', 'normal', 'hard'][seed % 3];
     const patch = (cfg) => {
       shortGame(cfg, 30, (c) => { ['easy', 'normal', 'hard'].forEach((k) => { c.difficulty[k].max = [4, 4, 4, 4, 4, 4]; }); });
-      cfg.stages.targets[lv][0] = 3000;
+      cfg.stages.targets[lv][0] = 6000;          // §26 구조 규칙 뒤 3000점이면 3~5행동에 끝나는 시드가 있어 6000으로 올림
       if (cfg.edu) { cfg.edu.wild.spawn = 0; cfg.edu.targetScale = 1; }
     };
     const edu = createEnv('edu', 1000 + seed, patch);
