@@ -51,8 +51,8 @@ test('기존 규칙 회귀: 점수·게이지·시간 표기·목표 표', () =>
   assert.strictEqual(G.fmtTime(59.2), '1:00');
   assert.strictEqual(G.fmtTime(59), '59');
   assert.strictEqual(G.fmtDur(130), '2분 10초');
-  assert.strictEqual(G.stageTarget('normal', 1), 5500);      // spec §22.2.2 안 B
-  assert.strictEqual(G.stageTarget('hard', 10), 12100);
+  assert.strictEqual(G.stageTarget('normal', 1), 4500);      // spec §25.6
+  assert.strictEqual(G.stageTarget('hard', 10), 9900);
   assert.strictEqual(G.stageTarget('easy', 11), 0);
   assert.deepStrictEqual(G.CONFIG.stages.targets.easy.length, 10);
   assert.strictEqual(G.stageUnlocked(0, 1), true);
