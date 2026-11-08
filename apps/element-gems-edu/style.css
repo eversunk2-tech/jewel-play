@@ -1552,3 +1552,96 @@ body::after {
 .pf-carry b { font-weight: 900; }
 .pf-carry.warn { background: #ffe9ec; border-color: #ffb3bd; color: #5a0017; }
 .pf-small b { font-weight: 800; color: var(--ink); }
+
+/* =====================================================================
+ * 미션 HUD (spec §27) — M1. 점수형(기본)에서는 #mission 이 hidden 이라 이 블록의 어떤 규칙도 화면에 닿지 않는다.
+ * 미션형 레벨(game.js 가 #screen-game 에 data-goal="mission", data-chips="칩 개수"를 붙인다)에서만 목표 바 대신 칩이 보인다.
+ * 칩 높이 44px(칩 1개 = 목표 바보다 22px, 2개 = 71px 더 큼). 글자색은 잉크(#2a2160) 계열이라 연분홍·연초록 바탕 위에서도 4.5:1 이상.
+ * ===================================================================== */
+.mission { width: max(var(--board), min(calc(100vw - 24px), 360px)); flex: none; }   /* 보드 폭 이상(보드가 높이 때문에 아주 작아져도 칩 글이 접히지 않게 최대 360px 까지는 넓힌다). 보드가 폭을 채우는 보통 화면에서는 보드와 같은 폭 */
+.m-list { display: flex; flex-direction: column; gap: 5px; }
+.m-live { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; border: 0; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }
+.m-chip {
+  position: relative; display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 2px 10px;
+  border: 3px solid #fff; border-radius: 16px; overflow: hidden; background: rgba(255, 255, 255, .78); color: var(--ink);
+  box-shadow: inset 0 3px 6px rgba(70, 50, 160, .18), 0 3px 0 rgba(90, 60, 200, .35), 0 6px 12px rgba(40, 30, 120, .22);
+}
+.m-chip > :not(.m-fill) { position: relative; }
+.m-fill { position: absolute; inset: 0; transform-origin: left center; transform: scaleX(0); background: linear-gradient(90deg, #ffc2e6, #ffdca0); transition: transform .15s linear; }
+.m-ico { flex: none; display: flex; align-items: center; }
+.m-ico:empty { display: none; }
+.m-gem { display: inline-block; flex: none; width: 28px; height: 28px; }
+.m-gem .gi { display: block; width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 2px 1px rgba(40, 20, 100, .35)); }
+.m-badge { display: inline-block; flex: none; min-width: 28px; height: 28px; padding: 0 3px; border-radius: 8px; background: var(--ink); color: #fff; font-size: .8rem; font-weight: 900; line-height: 28px; text-align: center; }
+.k-chain .m-badge { border-radius: 50%; background: #5b3df5; }
+.m-body { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: center; line-height: 1.15; }
+.m-name { font-size: clamp(.66rem, 3.1vw, .88rem); font-weight: 900; }
+.m-sub { font-size: .66rem; font-weight: 700; color: var(--ink); }
+.m-sub:empty { display: none; }
+.m-eg { display: inline-flex; align-items: center; gap: 2px; margin-right: 8px; }
+.m-eg .m-gem { width: 15px; height: 15px; }
+.m-eg b { font-size: .72rem; font-weight: 900; font-variant-numeric: tabular-nums; }
+.m-eg.ok b { color: #0d3b24; }   /* Review R-M1: var(--ok)(#0f7a43)는 분홍·노랑 채움 위에서 3.6~4.1:1 이라 AA(4.5:1) 미달 → 완료 칩 글자와 같은 짙은 초록. 완료 표시는 ✓ 글자가 맡는다(색에만 의존하지 않음) */
+.m-eg.ok::after { content: "\2713"; font-size: .7rem; font-weight: 900; color: #0d3b24; }
+.m-num { flex: none; font-size: .95rem; font-weight: 900; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.m-ok { display: none; flex: none; width: 24px; height: 24px; border-radius: 50%; background: var(--ok); color: #fff; font-size: 14px; font-weight: 900; line-height: 24px; text-align: center; }
+.m-chip.done { background: linear-gradient(180deg, #d4fbe6 0%, #a8f0c8 100%); color: #0d3b24; }
+.m-chip.done .m-fill { background: linear-gradient(90deg, #8de8b4, #6fdc98); }
+.m-chip.done .m-sub { color: #0d3b24; }
+.m-chip.done .m-ok { display: block; }
+.m-chip.pop { animation: mChipPop .5s ease-out; }
+@keyframes mChipPop { 0% { transform: scale(1); } 40% { transform: scale(1.04); } 100% { transform: scale(1); } }
+
+/* 미션형: HUD 가 목표 바(22px)보다 칩만큼 커진다 → 쌓아 올린 레이아웃(세로 화면·폭 800 미만 가로)에서 보드 크기 식에 그만큼을 뺀다.
+ * --board 는 :root 에서 계산돼 상속되므로 이 요소에서 같은 식을 다시 선언한다(--board-cap 은 세로 태블릿 규칙이 정한 값, 없으면 520px). 가로 와이드·낮은 가로는 HUD 가 보드 옆 열이라 식에 --ui-h 가 없다. */
+@media (orientation: portrait), (orientation: landscape) and (min-height: 501px) and (max-width: 799px) {
+  #screen-game[data-goal="mission"] {
+    --mis-extra: 22px;
+    --board: min(calc(100vw - 24px), calc(var(--vh100) - var(--ui-h) - var(--mis-extra)), var(--board-cap, 520px));
+    --cell: calc(var(--board) / 8);
+  }
+  #screen-game[data-goal="mission"][data-chips="2"] { --mis-extra: 71px; }
+  #screen-game[data-goal="mission"][data-chips="3"] { --mis-extra: 120px; }
+  #screen-game[data-goal="mission"][data-chips="4"] { --mis-extra: 169px; }
+}
+/* 낮은 가로(휴대폰 가로): 칩이 오른쪽 열의 목표 자리에 들어간다. 세로 공간이 모자라 칩을 낮추고 연쇄의 보조 글을 숨긴다 */
+@media (orientation: landscape) and (max-height: 500px) {
+  .mission { grid-area: goal; width: 100%; }
+  .m-list { gap: 3px; }
+  .m-chip { min-height: 30px; padding: 1px 8px; border-width: 2px; border-radius: 12px; gap: 6px; }
+  .m-gem { width: 20px; height: 20px; }
+  .m-eg .m-gem { width: 13px; height: 13px; }
+  .m-badge { min-width: 20px; height: 20px; line-height: 20px; font-size: .68rem; }
+  .m-name { font-size: .7rem; }
+  .m-num { font-size: .8rem; }
+  .m-ok { width: 20px; height: 20px; line-height: 20px; font-size: 12px; }
+  .k-chain .m-sub { display: none; }
+}
+/* 와이드(태블릿·PC 가로): 칩이 오른쪽 패널의 목표 자리에 들어간다. 크기는 보드에 비례(목표 바와 같은 방식) */
+@media (min-width: 800px) and (min-height: 501px) and (orientation: landscape) {
+  .mission { grid-area: goal; width: 100%; }
+  .m-chip { min-height: clamp(40px, calc(var(--board) * .055), 56px); }
+  .m-name { font-size: clamp(.85rem, calc(var(--board) * .0135), 1.05rem); }
+  .m-sub { font-size: clamp(.7rem, calc(var(--board) * .011), .85rem); }
+  .m-num { font-size: clamp(1rem, calc(var(--board) * .0165), 1.3rem); }
+}
+/* 감소 모션. "screen and" 형식으로 쓴 이유: 기존 시험(widescreen)이 파일 끝쪽 마지막 감소 모션 미디어 쿼리를 와이드 블록의 것으로 읽는다 */
+@media screen and (prefers-reduced-motion: reduce) {
+  .m-chip.pop { animation: none; }
+  .m-fill { transition: none; }
+}
+
+/* 레벨 카드의 미션 요약(spec §32.5.4 계약의 .sc-mis — 스킨은 U-3). 점수형 카드는 .sc-target 을 그대로 쓴다 */
+.stage-card .sc-mis { display: flex; align-items: center; justify-content: center; min-width: 0; max-width: 100%; font-size: .62rem; font-weight: 800; line-height: 1.1; color: var(--ink-2); }
+.stage-card.cleared .sc-mis { color: #14532d; }
+.stage-card.current .sc-mis { color: #6a4300; }
+.stage-card.locked .sc-mis, .stage-card:disabled .sc-mis { color: #5f5990; }
+.sc-mis .mc { display: inline-flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 1px 2px; max-width: 100%; font-style: normal; }
+.sc-mis .mc u { text-decoration: none; }
+.sc-mis .mc b { font-weight: 900; font-variant-numeric: tabular-nums; }
+.sc-mis .m-gem { width: 15px; height: 15px; }
+.sc-mis .mc.each b::after { content: "\ac01";  /* "각" */ margin-left: 1px; font-size: .85em; }
+@media (min-width: 800px) and (min-height: 501px) and (orientation: landscape) {
+  .stage-card .sc-mis { font-size: .85rem; }
+  .sc-mis .m-gem { width: 20px; height: 20px; }
+}

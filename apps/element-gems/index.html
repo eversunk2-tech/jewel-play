@@ -232,6 +232,12 @@
         <span class="goal-text" id="goal-text">0 / 0</span>
       </div>
 
+      <!-- 미션 칩 (spec §27): 미션형 레벨에서만 보인다. 점수형(기본)에서는 숨겨져 있고 위의 목표 바가 보인다. 칩은 game.js 가 만든다 -->
+      <div class="mission" id="mission" role="group" aria-label="미션" hidden>
+        <div class="m-list" id="mission-list"></div>
+        <p class="m-live" id="mission-live" role="status" aria-live="polite"></p>
+      </div>
+
       <div class="board-wrap" id="board-wrap">
         <div class="board" id="board" role="application" aria-label="보석 판. 방향키로 이동, 스페이스로 선택"></div>
         <div class="fx" id="fx"></div>
