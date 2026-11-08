@@ -5233,3 +5233,29 @@ function comboNext(r, idleSec, windowSec) { return (r > 0 && idleSec <= windowSe
 - 화면: `P2/shots/final/{0,0m,V1,V2,V3}-{root,start,stages,stages-easy,stages-hard,profile,hall,edu-start,edu-pick,edu-stages,game-first}_{t1180,t1024,t1280,phone}.jpg`(레벨 선택 폰·1024·1280은 start/stages/stages-easy만). 지도형(폐기) `…V?-stagesmap_*.jpg`.
 - **나란히 보드**: `P2/shots/board/` — 1180×820: `root_t1180.jpg`·`start_t1180.jpg`·`profile_t1180.jpg`·`hall_t1180.jpg`·`edu-start_t1180.jpg`·`edu-pick_t1180.jpg`·`stages_t1180.jpg`·`stages-easy_t1180.jpg`·`stages-hard_t1180.jpg`·`edu-stages_t1180.jpg`, 1024×768: `start_t1024.jpg`·`stages_t1024.jpg`, 1280×800: `start_t1280.jpg`·`stages_t1280.jpg`, 폰 세로: `start_phone.jpg`·`stages_phone.jpg`, 전환 쌍 `pair-{0,V1,V2,V3}.jpg`. 참고 사이트 캡처는 분석용이라 `P2/ref/`에만 있고 보드에는 넣지 않았다.
 - 도구: `P2/tools/`(`shoot.js`·`all2.sh`·`boards2.sh`·`audit.js`·`diffgame.js`·`measure.js`·`contrast.js`·`refshot.js`·`reftext.js`·`static.js`·`lib.js`·`seed.js`·`build.sh`). 임시 서버(8941)·목 서버(8942)·헤드리스 Chrome(9444)는 작업 끝에 정리했다.
+
+## 34. 승인 기록 — §32 메뉴 시안 재작업 (메인 세션 기록, 2026-11-08)
+
+> **상태: §32 계획서는 사용자 선택 완료. 구현(Build)은 시작 조건 확인 뒤.** §32는 고치지 않고 승인 결과만 기록한다. 이전 §29의 A·B·C·D는 모두 철회됨(§32 머리말).
+
+### 34.1 사용자 선택 (질문 도구 응답, 이미지 시안 보드를 보고)
+| 질문 | 선택 |
+|---|---|
+| 시안 방향 | **V1 풍경 속 타이틀** (V2 좌우 분할·V3 탐험 수첩은 채택하지 않음) |
+| 레벨 선택 화면 | **V1형 새 카드**(현재 유지 0m·V2 행 카드·V3 티켓은 채택하지 않음) |
+| 쉬어가기(3·6·9단계) 표시 | **표시하지 않음**(중수·고수 카드에도 쉬어가기 태그를 달지 않는다. 초보는 §33대로 점수만) |
+
+### 34.2 나머지 열린 질문 — 권장안을 **잠정 기본값**으로 둠 (Build 시작 전 사용자 최종 확인)
+| § | 질문 | 잠정 기본값 |
+|---|---|---|
+| 32.11-1 | V2의 진행 10칸·난이도 타일 진행도를 가져올지 | 이번에는 가져오지 않음(V1만, 후속 선택) |
+| 32.11-4 | 시작 화면의 규칙 접기 | 접기(? 게임 방법), 첫 방문에는 펼침 |
+| 32.11-5 | 교육용 단원 선택 | 이번에는 색·제목 토큰만 |
+| 32.11-6 | V3 손글씨 글꼴(Gaegu) | 해당 없음(V3 미채택) → **글꼴 파일 내려받기·글꼴 추가 없음**(V1은 글꼴을 바꾸지 않는다) |
+| 32.11-7 | 일반용 동결 해제 | 해제(메뉴 Build 범위) |
+| 32.11-8 | 폰 세로·낮은 가로 화면 | 정식 단계 U-5에서 확인 |
+
+### 34.3 시작 조건과 순서(제안)
+1. 시작 조건: 34.2 기본값에 대한 사용자 최종 확인 + 시작 허락.
+2. 순서(§32.10): §27 M2가 레벨 카드 **마크업 계약(§32.5.4)**을 따라 최소 CSS로 먼저 들어가고, V1형 레벨 카드 스킨(U-3)은 M2 뒤에 입힌다. 시작·프로필·순위·선택 화면(U-1·U-2·U-4)은 M2와 독립이나 `style.css` 끝은 한 번에 한 Build만 쓴다(§27 M1과 순차).
+3. 모든 새 규칙은 `.menu-screen` 접두어로 격리해 게임 화면 불변을 시험으로 확인하고(§32.7), 서버·`game.js` 변경 없음(메뉴 단계 한정).
