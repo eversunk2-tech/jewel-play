@@ -65,7 +65,10 @@ test('index.html: 래퍼 5개가 있고 기존 id 순서가 그대로다', () =>
     last = i;
   });
   const pf = html.slice(html.indexOf('id="screen-profile"'), html.indexOf('id="screen-hall"'));
-  const pfIds = ['pf-title', 'pf-sub', 'pf-rename', 'pf-av-label', 'pf-avatars', 'pf-nick', 'pf-count', 'pf-msg-wrap', 'pf-left', 'pf-save', 'pf-skip', 'pf-cancel', 'pf-delete', 'pf-confirm', 'pf-confirm-yes', 'pf-confirm-no'];
+  // spec §23: 새 id 추가(pf-carry·pf-wipe·pf-actions, 확인 ① 내용, 확인 ②). 기존 id 의 상대 순서는 그대로이고, 확인 ①의 두 버튼만 '안전한 쪽(pf-confirm-no)이 먼저'로 바뀌었다
+  // (키보드 이동 순서와 화면 순서를 맞추려는 것 — 시안 pf-plan/shots/01 과 같은 모양)
+  const pfIds = ['pf-title', 'pf-sub', 'pf-rename', 'pf-av-label', 'pf-avatars', 'pf-nick', 'pf-count', 'pf-msg-wrap', 'pf-left', 'pf-carry', 'pf-wipe', 'pf-actions', 'pf-save', 'pf-skip', 'pf-cancel', 'pf-delete',
+    'pf-confirm', 'pf-del-rec', 'pf-del-hall', 'pf-confirm-no', 'pf-confirm-yes', 'pf-confirm2', 'pf-pend', 'pf-confirm2-no', 'pf-confirm2-yes'];
   last = -1;
   pfIds.forEach((id) => {
     const i = pf.indexOf('id="' + id + '"');

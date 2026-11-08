@@ -127,3 +127,10 @@ test('연결(정적 점검): index.html 팝업 마크업, game.js 게이트, ran
   assert.ok(ui.includes('host.setStartGate(startGate)'));
   assert.ok(game.includes('setStartGate') && game.includes('enterStages'));
 });
+
+test('연결(정적 점검, spec §23): ranking-ui.js 가 지우기 확인 ①②·새 프로필 판정·다른 탭 감지를 쓰고 옛 삭제 호출은 없다', () => {
+  const ui = fs.readFileSync(path.join(__dirname, '..', 'ranking-ui.js'), 'utf8');
+  ['client.createMode()', 'client.erasePending()', 'client.eraseDevice()', "'storage'", 'R.RECORD_KEYS.note', 'window.location.reload()'].forEach((s) => assert.ok(ui.includes(s), s));
+  assert.doesNotMatch(ui, /deleteProfile\s*\(/);
+  assert.match(ui, /input\.records = ui\.createInfo\.records/);
+});

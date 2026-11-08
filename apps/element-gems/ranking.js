@@ -13,6 +13,26 @@
   'use strict';
 
   const KEYS = { profile: 'element-gems:profile:v1', sync: 'element-gems:sync:v1', hall: 'element-gems:hall:v1' };
+  /**
+   * 프로필 지우기·새 프로필이 정리하는 저장 키의 한 곳(spec §23.3.3). 두 앱(일반용·교육용)이 같은 origin 이라 서로의 키도 지운다.
+   * 새 저장 키가 생기면 여기에 추가한다(코드 전체의 localStorage·sessionStorage 키와 대조).
+   *   save    진행·별·점수·풀이 통계가 설정 3개와 섞여 있는 저장 -> 기록 필드를 지우고 SETTING_FIELDS 만 남긴다
+   *   sync    제출 대기 상태 -> 지운다(한쪽 앱이 지워도 다른 쪽 대기가 새 프로필에 따라가지 않게 두 키 모두)
+   *   drop    순위표 캐시(내 순위가 들어 있음) -> 지운다
+   *   profile 프로필 -> { skipped: true, hadProfile: true } 만 남긴다(이력 표식)
+   *   keep    건드리지 않는 키(모드 선택 기억 localStorage 'element-gems:mode', sessionStorage 'eg-from-chooser')
+   *   note    sessionStorage: 지운 뒤 새로고침한 시작 화면에 한 번만 보여 줄 안내 표식(ranking-ui.js 가 쓰고 읽고 바로 지운다)
+   */
+  const RECORD_KEYS = {
+    save: ['element-gems:v1', 'element-gems-edu:v1'],
+    sync: ['element-gems:sync:v1', 'element-gems-edu:sync:v1'],
+    drop: ['element-gems:hall:v1'],
+    profile: 'element-gems:profile:v1',
+    keep: ['element-gems:mode', 'eg-from-chooser'],
+    note: 'eg-erase-note'
+  };
+  /** 지울 때 남기는 설정(기록이 아니다): 소리·컷인·튜토리얼 본 표시 */
+  const SETTING_FIELDS = ['muted', 'cutin', 'tutorialSeen'];
   const DIFFS = ['easy', 'normal', 'hard'];
   const BOARDS = ['all', 'easy', 'normal', 'hard'];
   const AVATAR_COUNT = 16;
@@ -256,7 +276,7 @@
   }
 
   function normalizeProfile(o) {
-    const p = { pid: '', pub: '', nick: '', tag: null, avatar: 0, skipped: false, createdAt: 0, hidden: 0, notice: '', nickLeft: null };
+    const p = { pid: '', pub: '', nick: '', tag: null, avatar: 0, skipped: false, hadProfile: false, createdAt: 0, hidden: 0, notice: '', nickLeft: null };
     if (!o || typeof o !== 'object') return p;
     if (typeof o.pid === 'string' && /^[0-9a-fA-F-]{32,36}$/.test(o.pid)) p.pid = o.pid;
     if (typeof o.pub === 'string' && o.pub.length <= 16) p.pub = o.pub;
@@ -264,6 +284,9 @@
     if (isInt(o.tag) && o.tag >= 0 && o.tag <= 9999) p.tag = o.tag;
     if (isInt(o.avatar) && o.avatar >= 1 && o.avatar <= AVATAR_COUNT) p.avatar = o.avatar;
     p.skipped = o.skipped === true;
+    // 프로필 이력(spec §23.4.2): 이 기기에서 프로필을 만든 적이 있는가. 옛 저장도 읽자마자 파생된다 —
+    // skipped:true 는 "지웠거나 서버 행이 사라진 적 있음", pid+pub 는 서버가 받아 준 프로필. pid 만 있는 값은 만들다 만 시도(응답을 못 받음)라 이력이 아니다.
+    p.hadProfile = o.hadProfile === true || o.skipped === true || (p.pid !== '' && p.pub !== '');
     if (typeof o.createdAt === 'number' && isFinite(o.createdAt)) p.createdAt = o.createdAt;
     p.hidden = o.hidden === 1 || o.hidden === 2 ? o.hidden : 0;
     p.notice = o.notice === 'gone' || o.notice === 'rename' ? o.notice : '';
@@ -304,6 +327,62 @@
   }
 
   /* ---------------------------------------------------------------------
+   * 이 기기의 기록 정리 (spec §23.3 프로필 지우기 · §23.4 새 프로필) — 순수 함수, 저장소는 주입
+   * ------------------------------------------------------------------- */
+  /** 저장 객체의 별 개수 합계(가중 없음, 세 난이도 전체). 한 스테이지 최대 3개 */
+  function starsOfSave(save) {
+    let n = 0;
+    DIFFS.forEach(function (d) {
+      const arr = save && save.stages && Array.isArray(save.stages[d]) ? save.stages[d] : [];
+      arr.forEach(function (e) { if (e && isInt(e.stars) && e.stars > 0) n += Math.min(3, e.stars); });
+    });
+    return n;
+  }
+
+  function starsOfRaw(raw) {
+    try { return starsOfSave(typeof raw === 'string' && raw ? JSON.parse(raw) : null); } catch (e) { return 0; }
+  }
+
+  /** 두 앱(일반용·교육용)의 저장 값에서 읽은 별 개수: { gen, edu, total } */
+  function deviceStars(store) {
+    const gen = starsOfRaw(store.get(RECORD_KEYS.save[0]));
+    const edu = starsOfRaw(store.get(RECORD_KEYS.save[1]));
+    return { gen: gen, edu: edu, total: gen + edu };
+  }
+
+  /**
+   * 저장 값(원본 문자열)에서 설정 3개(boolean 일 때만)만 남기고 나머지를 버린 새 JSON 문자열.
+   * 앱 코드를 거치지 않고 쓰므로 다른 앱의 키도 지울 수 있다. 깨진 JSON·배열·null 도 새 JSON 으로 복구된다.
+   * 그 앱이 다음에 열릴 때 parseSave 가 빠진 값을 기본값으로 채운다(교육용 edu 필드 포함).
+   */
+  function wipeSaveRaw(raw) {
+    let o = null;
+    try { o = typeof raw === 'string' && raw ? JSON.parse(raw) : null; } catch (e) { o = null; }
+    const out = {};
+    if (o && typeof o === 'object' && !Array.isArray(o)) {
+      SETTING_FIELDS.forEach(function (k) { if (typeof o[k] === 'boolean') out[k] = o[k]; });
+    }
+    return JSON.stringify(out);
+  }
+
+  /**
+   * 이 기기의 게임 기록을 지운다(서버는 부르지 않는다).
+   *   기본(전체): 두 앱 기록·sync 두 키·순위표 캐시를 지우고 프로필은 { skipped: true, hadProfile: true } 만 남긴다.
+   *   opts.recordsOnly: 프로필은 건드리지 않는다(새 프로필 만들기 성공 뒤 행 4).  opts.keepSync: 지우지 않을 sync 키(방금 저장한 이 앱의 것)
+   * 저장 값이 아직 없는 키(null)는 새로 만들지 않는다.
+   */
+  function eraseDeviceData(store, opts) {
+    const o = opts || {};
+    RECORD_KEYS.save.forEach(function (k) {
+      const raw = store.get(k);
+      if (raw !== null && raw !== undefined) store.set(k, wipeSaveRaw(raw));
+    });
+    RECORD_KEYS.sync.forEach(function (k) { if (k !== o.keepSync) store.remove(k); });
+    RECORD_KEYS.drop.forEach(function (k) { store.remove(k); });
+    if (!o.recordsOnly) store.set(RECORD_KEYS.profile, JSON.stringify({ skipped: true, hadProfile: true }));
+  }
+
+  /* ---------------------------------------------------------------------
    * [시작] 버튼 판정 (프로필 만들기 순서: 메인 화면 먼저, [시작]에서 안내 팝업)
    * 'prompt' = 프로필 안내 팝업을 띄운다 / 'go' = 바로 난이도·레벨 선택으로 간다
    * 랭킹이 꺼져 있거나(apiBase 없음) 프로필이 있거나 이번 접속에서 "프로필 없이 시작"을 골랐으면 'go'
@@ -334,6 +413,7 @@
     const isOffline = opts.isOffline || function () { return false; };
     const log = opts.log || function () {};
     const timeoutMs = cfg.timeoutMs || 8000;
+    const eraseMs = cfg.eraseFlushTimeoutMs || 4000;        // 지우기 직전 전송의 제한 시간(CONFIG.ranking.eraseFlushTimeoutMs)
     const gapMs = cfg.minSubmitGapMs == null ? 3000 : cfg.minSubmitGapMs;
     const pageSize = cfg.pageSize || 50;
 
@@ -346,13 +426,15 @@
     let lastSendAt = 0;
     let chain = Promise.resolve();
     let sessionOptOut = false;                              // 이번 접속에서 "프로필 없이 시작"을 골랐는가(메모리에만 둔다 — 새로 열면 다시 묻는다)
+    let erasing = false;                                    // 지우기가 시작됐다: 새 제출 타이머를 걸지 않는다(spec §23.3.4)
+    let erased = false;                                     // 이 기기의 기록을 지웠다: 이 클라이언트는 더 이상 아무 키도 쓰지 않는다(늦게 도는 응답이 키를 되살리지 못하게)
     const boardFlights = {};
 
     function apiBase() { return String(cfg.apiBase || cfg.api || '').replace(/\/+$/, ''); }
     function enabled() { return !!apiBase() && !disabledCode; }
     function emit(name, data) { try { emitEvent(name, data); } catch (e) { /* UI 오류가 로직을 멈추지 않게 */ } }
-    function saveProfile() { writeJson(store, KEYS.profile, profile); }
-    function saveSync() { writeJson(store, KEYS.sync, sync); }
+    function saveProfile() { if (!erased) writeJson(store, KEYS.profile, profile); }
+    function saveSync() { if (!erased) writeJson(store, KEYS.sync, sync); }
     function registered() { return !!(profile.pid && profile.pub && profile.nick); }
     function snapshot() { return buildSnapshot(getSave(), stageCount, caps); }
 
@@ -362,12 +444,12 @@
     }
 
     /* ---- 네트워크 한 번 ---- */
-    async function request(method, path, body) {
+    async function request(method, path, body, limitMs) {
       if (!fetchFn) return { kind: 'retry', code: 'no_fetch', status: 0 };
       const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
       let timeoutId = null;
       const timeoutP = new Promise(function (resolve) {
-        timeoutId = timers.set(function () { if (ctrl) { try { ctrl.abort(); } catch (e) { /* 무시 */ } } resolve({ kind: 'retry', code: 'timeout', status: 0 }); }, timeoutMs);
+        timeoutId = timers.set(function () { if (ctrl) { try { ctrl.abort(); } catch (e) { /* 무시 */ } } resolve({ kind: 'retry', code: 'timeout', status: 0 }); }, limitMs || timeoutMs);
       });
       const run = (async function () {
         const init = { method: method, credentials: 'omit', redirect: 'follow' };
@@ -426,12 +508,18 @@
       return { ok: false, kind: c.kind, code: c.code, field: c.field || '', message: message };
     }
 
+    /**
+     * 프로필 만들기/수정. input.records(spec §23.4): 'carry' = 첫 /api/sync 에 이 기기 기록(d)을 싣는다(이어서 쓰기) /
+     * 'none' = 싣지 않는다 / 'wipe' = 싣지 않고, 만들기에 성공한 뒤에만 두 앱 기록을 지운다.
+     * 값이 없으면: 이미 만든 프로필의 수정은 지금처럼 'carry', 새로 만들 때는 createMode() 판정표를 따른다.
+     */
     function saveProfileRemote(input) {
       return enqueue(async function () {
         if (!enabled()) return { ok: false, kind: 'disable', code: 'disabled', field: '', message: MESSAGES.disabled };
+        const records = input.records === 'carry' || input.records === 'none' || input.records === 'wipe' ? input.records : (registered() ? 'carry' : createMode().records);
         if (!profile.pid) { profile.pid = newPlayerId(opts.crypto); saveProfile(); }   // 응답을 못 받아도 같은 ID로 다시 시도(중복 가입 방지)
         const prof = { nick: String(input.nick).normalize('NFC'), avatar: input.avatar };
-        let c = await request('POST', '/api/sync', buildSyncBody({ pid: profile.pid, profile: prof, d: snapshot() }));
+        let c = await request('POST', '/api/sync', buildSyncBody(records === 'carry' ? { pid: profile.pid, profile: prof, d: snapshot() } : { pid: profile.pid, profile: prof }));
         let progressBlocked = false;
         if (c.kind === 'block' && /^progress_/.test(c.code)) {
           // 기록 모양이 이상해도 프로필 만들기는 되게: 프로필만 다시 보내고 기록 제출은 멈춘다(콘솔에 남김)
@@ -450,15 +538,21 @@
         if (!profile.pub && typeof me.pub !== 'string') { return failResult({ kind: 'retry', code: 'bad_response' }); }
         applyMe(me);
         profile.hidden = me.hidden === 1 || me.hidden === 2 ? me.hidden : 0;
+        profile.hadProfile = true;                          // 이력 표식(지운 뒤에도 남는다)
         noteNickLeft(j.nickChangesLeft);
         saveProfile();
         sync.fails = 0; sync.nextTryAt = 0; sync.lastOkAt = now();
         sync.blocked = progressBlocked; sync.blockedCode = progressBlocked ? c.code || 'progress_invalid' : '';
         sync.dirty = progressBlocked ? sync.dirty : false;
         saveSync();
+        let wiped = false;
+        if (records === 'wipe') {                           // 행 4: 새 프로필은 0부터 — 만들기에 성공한 뒤에만 지난 기록을 지운다(실패하면 그대로)
+          eraseDeviceData(store, { recordsOnly: true, keepSync: KEYS.sync });
+          wiped = true;
+        }
         emit('profile', publicProfile());
         emit('status', status());
-        return { ok: true, me: me, nickChangesLeft: isInt(j.nickChangesLeft) ? j.nickChangesLeft : null };
+        return { ok: true, me: me, nickChangesLeft: isInt(j.nickChangesLeft) ? j.nickChangesLeft : null, wiped: wiped };
       });
     }
 
@@ -512,13 +606,13 @@
 
     function publicProfile() {
       const left = profile.nickLeft && profile.nickLeft.day === kstDay(now()) ? profile.nickLeft.n : null;
-      return { pid: profile.pid, pub: profile.pub, nick: profile.nick, tag: profile.tag, avatar: profile.avatar, skipped: profile.skipped,
+      return { pid: profile.pid, pub: profile.pub, nick: profile.nick, tag: profile.tag, avatar: profile.avatar, skipped: profile.skipped, hadProfile: profile.hadProfile,
         hidden: profile.hidden, notice: profile.notice, registered: registered(), nickLeft: left, createdAt: profile.createdAt };
     }
 
     /* ---- 진행 제출 (스냅샷 1개 + single-flight + 백오프) ---- */
     function schedule(ms) {
-      if (!enabled()) return;
+      if (!enabled() || erasing) return;
       const delay = Math.max(0, ms);
       const at = now() + delay;
       if (timer && timerAt <= at) return;
@@ -619,6 +713,74 @@
       if (sync.dirty && !sync.blocked && now() >= sync.nextTryAt) schedule(500);
     }
 
+    /* ---- 새 프로필 판정 · 프로필 지우기 (spec §23.3·§23.4) ---- */
+    /**
+     * 새 프로필을 만들 때의 판정(spec §23.4.1 표). 기준: 프로필 이력(hadProfile) × 이 기기 기록(두 앱 별 합계 > 0).
+     *   행 1 이력 없음·기록 있음 -> 'carry'(이어서 쓰기) / 행 2 이력 없음·기록 없음 -> 'none' / 행 3 이력 있음·기록 없음 -> 'none'(지운 뒤의 표준) /
+     *   행 4 이력 있음·기록 있음 -> 'wipe'(만들기에 성공한 뒤 두 앱 기록을 지운다)
+     * 별 개수는 저장소의 두 앱 값에서 읽고, 지금 실행 중인 앱의 메모리 저장(getSave)이 더 크면 그것을 쓴다(저장소를 못 쓰는 환경 대비).
+     */
+    function createMode() {
+      const st = deviceStars(store);
+      const total = Math.max(st.total, starsOfSave(getSave()));
+      const had = !!profile.hadProfile;
+      const has = total > 0;
+      let row = 2;
+      let records = 'none';
+      if (!had && has) { row = 1; records = 'carry'; }
+      else if (had && !has) { row = 3; }
+      else if (had && has) { row = 4; records = 'wipe'; }
+      return { row: row, records: records, history: had, hasRecords: has, stars: { gen: st.gen, edu: st.edu, total: total } };
+    }
+
+    /** 지우기 직전에 올릴 기록이 있는가(프로필·서버 연결·제출 대기·막히지 않음). 오프라인 여부는 보지 않는다 */
+    function erasePending() { return enabled() && registered() && !sessionOptOut && !!sync.dirty && !sync.blocked; }
+
+    /**
+     * 지우기 직전 마지막 전송 1회(spec §23.3.5). 결과 { pending, sent, ok }. 지우기 전용이라 끝난 뒤에도 제출 타이머를 다시 걸지 않는다.
+     * 오프라인이면 보내지 않고 끝낸다. 직전 전송이 gapMs(3초) 안이면 남은 시간만큼 기다린 뒤 1회 보낸다(서버의 같은 pid 쓰기 간격).
+     * 요청 제한은 eraseFlushTimeoutMs. 최악 gapMs + eraseMs(약 7초) 뒤에는 결과와 상관없이 끝난다.
+     */
+    function flushForErase() {
+      const info = { pending: erasePending(), sent: false, ok: false };
+      erasing = true;
+      if (timer) { timers.clear(timer); timer = null; timerAt = 0; }
+      if (!info.pending) { info.ok = true; return Promise.resolve(info); }
+      if (isOffline()) return Promise.resolve(info);
+      return new Promise(function (resolve) {
+        let finished = false;
+        let guard = null;
+        function finish() { if (finished) return; finished = true; if (guard != null) timers.clear(guard); resolve(info); }
+        guard = timers.set(finish, gapMs + eraseMs + 300);
+        (async function () {
+          if (inflight) { try { await inflight; } catch (e) { /* 무시 */ } }
+          if (!sync.dirty) { info.ok = true; return; }          // 방금 끝난 전송이 이미 다 올렸다
+          const wait = lastSendAt ? lastSendAt + gapMs - now() : 0;
+          if (wait > 0) await new Promise(function (r) { timers.set(r, wait); });
+          if (finished) return;
+          info.sent = true;
+          lastSendAt = now();
+          const c = await request('POST', '/api/sync', buildSyncBody({ pid: profile.pid, d: snapshot() }), eraseMs);
+          info.ok = c.kind === 'ok';
+        })().then(finish, finish);
+      });
+    }
+
+    /**
+     * [프로필 지우기] = 이 기기에서만 지우기. 서버의 삭제 API 는 부르지 않는다(순위표에는 남는다).
+     * 마지막 전송을 한 번 시도한 뒤(실패해도) 저장소를 정리한다. 그 뒤 이 클라이언트는 아무것도 쓰지 않으므로 호출한 쪽이 페이지를 새로고침한다.
+     */
+    async function eraseDevice() {
+      let pre = { pending: false, sent: false, ok: true };
+      try { pre = await flushForErase(); } catch (e) { pre = { pending: true, sent: false, ok: false }; }
+      erasing = true; erased = true;                            // 이 시점부터 늦게 도는 응답·타이머가 키를 되살리지 못한다
+      if (timer) { timers.clear(timer); timer = null; timerAt = 0; }
+      eraseDeviceData(store);
+      profile = normalizeProfile({ skipped: true, hadProfile: true });
+      sync = normalizeSync(null);
+      return { ok: true, pending: pre.pending, uploaded: pre.ok, lastFailed: pre.pending && !pre.ok };
+    }
+
     /* ---- 순위표 ---- */
     function loadCache(board) {
       const all = readJson(store, KEYS.hall);
@@ -630,6 +792,7 @@
     }
 
     function saveCache(board, data) {
+      if (erased) return;
       const all = readJson(store, KEYS.hall);
       const o = all && typeof all === 'object' ? all : {};
       o[board] = { asOf: data.asOf, of: data.of, rows: data.rows, me: data.me, savedAt: now() };
@@ -695,6 +858,7 @@
       saveProfile: saveProfileRemote, deleteProfile: deleteProfileRemote, skipProfile: skipProfile, dismissNotice: dismissNotice,
       setSessionOptOut: setSessionOptOut, sessionOptOut: function () { return sessionOptOut; }, needsProfilePrompt: needsProfilePrompt,
       markDirty: markDirty, flush: flush, start: start, onOnline: onOnline, onVisible: onVisible,
+      createMode: createMode, erasePending: erasePending, flushForErase: flushForErase, eraseDevice: eraseDevice,
       fetchBoard: fetchBoard, loadCache: loadCache, snapshot: snapshot,
       _internals: { getSync: function () { return sync; }, getProfile: function () { return profile; } }
     };
@@ -707,6 +871,7 @@
     newPlayerId: newPlayerId, buildSnapshot: buildSnapshot, buildSyncBody: buildSyncBody, classify: classify, messageFor: messageFor,
     findNickFn: findNickFn, fallbackNickCheck: fallbackNickCheck, checkNick: checkNick,
     createStore: createStore, normalizeProfile: normalizeProfile, normalizeSync: normalizeSync, normalizeRows: normalizeRows,
-    createClient: createClient, startGate: startGate
+    createClient: createClient, startGate: startGate,
+    RECORD_KEYS: RECORD_KEYS, SETTING_FIELDS: SETTING_FIELDS, starsOfSave: starsOfSave, deviceStars: deviceStars, wipeSaveRaw: wipeSaveRaw, eraseDeviceData: eraseDeviceData
   };
 });
