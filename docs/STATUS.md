@@ -194,7 +194,7 @@ apps/element-gems/
 |---|---|---|---|
 | Plan 보드 구조(보드 생성·리필·섞기, 난이도별 구조 지렛대, 시중 게임 조사) | `agents/plan-board-structure-element-gems.md` | spec **§26** | 보드 구조는 점수에 매우 민감(색 수 6→5: 점수 2.2배) |
 | Plan 목표 유형 계단·톱니 곡선·미션·비폭력 특별 레벨·선물상자 증가(동시 ≤6) | `agents/plan-goal-types-element-gems.md` + `plan-goal-types-addendum1-element-gems.md` + `plan-goal-types-addendum2-element-gems.md` | spec **§27** | 핵심 쟁점: 보너스가 크면 레벨이 짧아져 문제 수가 줄 수 있음 → 문제 수 보장 설계, "초보 1단계 4000"의 의미(일반용 값 vs 교육용 화면 값, 교육용은 ×1.2) |
-| Review R3(§25.6 값 재검증) | `agents/review-difficulty-r3-element-gems.md` | review.md **§22** | **완료·통과**(수정 0건, 162칸 중 161칸 ±5%p, 벗어난 1칸 +5.4%p는 spec 표본 오차). 메인 세션이 값·추가 전용 여부 직접 확인, 시험 재실행 결과는 커밋 전 확인 |
+| Review R3(§25.6 값 재검증) | `agents/review-difficulty-r3-element-gems.md` | review.md **§22** | **완료·통과**(수정 0건, 162칸 중 161칸 ±5%p, 벗어난 1칸 +5.4%p는 spec 표본 오차). 메인 세션이 값·추가 전용 여부·시험 3묶음(일반용 123 / 교육용 301 중 300 통과·건너뜀 1 / 서버 65) 직접 확인, 시뮬레이션 수치는 보고 내용만 확인(재실행 안 함). 커밋됨 |
 - 에이전트 보고를 받으면 **요약해 사용자에게 승인 요청**(승인 전 구현 금지). 승인 뒤 §27의 단계 분해대로 Build(단계별)→Review→푸시 확인.
 ### 14.6 다음 할 일 (순서)
 1. R3 결과 확인(±5%p), 문제가 있으면 후속 커밋. 2. §26·§27 수령 → 요약·승인 요청(열린 질문 포함). 3. 승인 후 Build·Review·푸시 확인. 4. 마무리 갱신: **`base-general-v3` 태그, `tools/SYNC.md`, `PRD.md` 난이도 표(§25.6)**. 5. 홍보 캡처·워드·소개 페이지는 사용자가 요청할 때.
