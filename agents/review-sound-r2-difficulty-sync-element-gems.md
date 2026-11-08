@@ -24,3 +24,11 @@
 
 ## 완료 보고 (짧게)
 판정, 체크리스트 요약, 시험 개수, 시뮬레이션 재현 결과, 수정한 곳, 남은 문제, 확인하지 못한 것.
+
+## 추가 지시 (메인 세션, R1 완료 후 — 위 내용과 충돌하면 이 절이 우선)
+- **검증 대상**: 일반용 Build `46952d5`, 교육용 Build `90307fd`, R1 Review 커밋(`review.md` §18, 메인 세션이 곧 커밋: 작업 트리에 `review.md`·이 지침 파일의 수정이 있을 수 있다. `docs/intro/teacher-intro-edu.docx`는 다른 세션 파일이라 무시). `base-general-v2` 태그는 **아직 없다**(Review 뒤 메인 세션이 만든다) → 지침 6번의 무변경 검사식은 기준을 **`HEAD`**로 평가하고(`git diff HEAD -- apps/element-gems ':!apps/element-gems/spec.md' ':!apps/element-gems/review.md'`가 비어 있어야 함), 추가로 `git diff base-general-v1 -- apps/element-gems/game.js`가 **B1이 한 변경(소리·난이도) 외의 흔적을 담지 않는지** 훑는다.
+- **시험 기대 개수**: 일반용 95(통과 95), 교육용 267(통과 266·건너뜀 1). 시험은 `node --test apps/element-gems/test/*.test.js`처럼 **글롭**으로 실행(디렉터리 인자는 Node v24에서 0개로 끝남). 요약은 `ℹ tests/pass/fail/skipped` 줄.
+- **R1 결과**(`review.md` §18): 통과·수정 0건. 소리 쪽은 다시 보지 않는다. R2는 목표 점수·자리표시자·시험 값·시뮬레이션 재현·서버/저장 호환·동기화 정합·문서 정합에 집중한다.
+- **B2가 알린 점 확인**: 교육용 `game.js`는 일반용과 **`module.exports`의 `pickTrack` 줄 하나(위치만)** 외에 새 차이가 없다고 보고했다 → `diff`로 직접 대조하고, `git diff base-general-v1`로 만든 B1 이전 차이와 비교해 새 차이가 `[EDU]` 블록 밖에 없는지 확인. 교육용 `index.html` 자리표시자 4곳, `test/game.test.js`·`test/edu-engine.test.js` 목표 기대값(교육용 표: 초보 6200·7100·7700·8200·8800·9400·10100·10700·11500·12400 / 중수 6600·7600·8200·8600·9400·10000·10700·11400·12200·13200 / 고수 7300·8300·9000·9500·10300·10900·11800·12600·13400·14500)이 §22.2.4와 일치하는지.
+- **`PRD.md`·소개 캡처 점검(제안만)**: `PRD.md`의 목표 점수 표 위치, `docs/intro/shot-3-levels.jpg`·`edu-shot-6-levels.jpg`·`teacher-intro*.md`에 옛 목표 점수 숫자가 있는지(이미지 속 숫자는 읽을 수 있으면 읽고, 못 읽으면 "확인하지 못함").
+- `review.md`에는 **`## 19.`** 로 이어 붙인다. 수정이 필요하면 일반용 → 교육용 순으로 최소 수정, **커밋은 하지 않는다**.
