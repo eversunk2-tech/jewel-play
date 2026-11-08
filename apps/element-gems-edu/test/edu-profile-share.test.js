@@ -33,7 +33,10 @@ test('normalizeProfile: 같은 입력에 같은 결과 (여러 모양의 입력)
     Object.assign({}, good, { avatar: 99 }), Object.assign({}, good, { avatar: -1 }), Object.assign({}, good, { avatar: 3.5 }),
     Object.assign({}, good, { nick: 'a'.repeat(40) }), Object.assign({}, good, { tag: 'abc' }), Object.assign({}, good, { hidden: 2, notice: 'rename' }),
     Object.assign({}, good, { skipped: true }), Object.assign({}, good, { createdAt: 'x' }), Object.assign({}, good, { extra: 'keep?' }),
-    { nick: '이름만' }, { skipped: true }
+    { nick: '이름만' }, { skipped: true },
+    // spec §23.4.2 hadProfile 파생: 명시 값·skipped·pid+pub·만들다 만 pid·깨진 값
+    Object.assign({}, good, { hadProfile: true }), { hadProfile: true }, { hadProfile: 'yes' }, { skipped: 'true' },
+    { pid: '123e4567-e89b-42d3-a456-426614174000' }, { pid: '123e4567-e89b-42d3-a456-426614174000', pub: 'ABCD1234' }, { pid: 'not-a-uuid', pub: 'ABCD1234' }
   ];
   inputs.forEach((x, i) => assert.deepStrictEqual(edu.normalizeProfile(x), gen.normalizeProfile(x), '입력 #' + i));
   assert.strictEqual(String(edu.normalizeProfile), String(gen.normalizeProfile));
@@ -46,8 +49,24 @@ test('프로필 관련 상수·함수가 같다(아바타 수·닉네임 길이�
   assert.strictEqual(edu.NICK_MAX, gen.NICK_MAX);
   assert.deepStrictEqual(edu.MESSAGES, gen.MESSAGES);
   assert.strictEqual(edu.pad4(7), gen.pad4(7));
-  ['normalizeSync', 'normalizeRows', 'buildSnapshot', 'buildSyncBody', 'newPlayerId', 'checkNick', 'fallbackNickCheck'].forEach((fn) => {
+  ['normalizeSync', 'normalizeRows', 'buildSnapshot', 'buildSyncBody', 'newPlayerId', 'checkNick', 'fallbackNickCheck',
+    // spec §23: 이 기기의 기록 정리(프로필 지우기·새 프로필)
+    'starsOfSave', 'deviceStars', 'wipeSaveRaw', 'eraseDeviceData'].forEach((fn) => {
+    assert.strictEqual(typeof edu[fn], 'function', fn);
     assert.strictEqual(String(edu[fn]), String(gen[fn]), fn);
+  });
+});
+
+test('기록 정리 상수(RECORD_KEYS·SETTING_FIELDS)와 함수 결과가 일반용과 같다(spec §23.3.3)', () => {
+  assert.deepStrictEqual(edu.RECORD_KEYS, gen.RECORD_KEYS);
+  assert.deepStrictEqual(edu.SETTING_FIELDS, gen.SETTING_FIELDS);
+  // 두 앱 키가 모두 들어 있다: 어느 앱에서 지워도 반대 앱 키까지 정리된다
+  assert.deepStrictEqual(edu.RECORD_KEYS.save, ['element-gems:v1', 'element-gems-edu:v1']);
+  assert.deepStrictEqual(edu.RECORD_KEYS.sync, ['element-gems:sync:v1', 'element-gems-edu:sync:v1']);
+  const raws = [null, undefined, '', '{broken', '[1]', '{"muted":true,"stages":{"easy":[{"stars":3}]},"edu":{"stats":{"a":1}}}', '{"muted":"x","cutin":false}'];
+  raws.forEach((raw) => {
+    assert.strictEqual(edu.wipeSaveRaw(raw), gen.wipeSaveRaw(raw));
+    assert.strictEqual(edu.deviceStars({ get: () => raw }).total, gen.deviceStars({ get: () => raw }).total);
   });
 });
 
@@ -71,6 +90,17 @@ test('교육용 ranking.js 는 일반용과 [EDU] 표식 줄(sync 키 한 줄)�
   const gu = fs.readFileSync(path.join(genDir, 'ranking-ui.js'), 'utf8');
   const eu = fs.readFileSync(path.join(eduDir, 'ranking-ui.js'), 'utf8');
   assert.strictEqual(eu, gu);
+});
+
+test('프로필 화면 마크업(#screen-profile ~ #screen-hall 앞)과 style.css 는 일반용과 같다(spec §23.7, 문구의 \'푼 문제 기록\'은 스크립트가 넣는다)', () => {
+  const section = (dir) => {
+    const html = fs.readFileSync(path.join(dir, 'index.html'), 'utf8');
+    return html.slice(html.indexOf('<section id="screen-profile"'), html.indexOf('<section id="screen-hall"'));
+  };
+  const g = section(genDir);
+  assert.ok(g.length > 3000 && g.includes('id="pf-confirm2"'));
+  assert.strictEqual(section(eduDir), g);
+  assert.strictEqual(fs.readFileSync(path.join(eduDir, 'style.css'), 'utf8'), fs.readFileSync(path.join(genDir, 'style.css'), 'utf8'));
 });
 
 test('교육용 CONFIG.ranking.apiBase 는 일반용과 같은 Worker 주소다(서버 공유, 합산)', () => {

@@ -118,6 +118,7 @@
     ranking: {
       apiBase: 'https://element-gems-ranking.sunkyboy.workers.dev',
       timeoutMs: 8000,                                   // 요청 1회 제한 시간
+      eraseFlushTimeoutMs: 4000,                         // 프로필 지우기 직전 마지막 기록 전송의 제한 시간(spec §23.3.5, 최악 약 7초 = 3초 간격 + 4초)
       retryMs: [5000, 15000, 60000, 300000, 900000],     // 제출 실패 백오프(5초→15초→1분→5분→15분 상한)
       minSubmitGapMs: 3000,                              // 서버의 같은 pid 쓰기 간격(3초)을 지킨다
       refreshMinMs: 5000,                                // 순위표 [새로고침] 간격

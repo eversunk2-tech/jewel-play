@@ -600,3 +600,15 @@ test('별 점수(전체 탭, 난이도 가중 1·2·3)와 라벨 포맷', () => 
   assert.strictEqual(R.weightedStarsOf(s2), 3 + 4 + 3);                 // 초보 3★, 중수 2★, 고수 1★ = 10
   assert.strictEqual(R.weightedStarsOf(null), 0);
 });
+
+/* ---- spec §23 보강: 프로필 이력(hadProfile) ---- */
+test('hadProfile: 프로필 만들기 성공 뒤 저장·공개 프로필에 true, 옛 저장(pid+pub)은 읽자마자 true, 만들다 만 pid 는 false', async () => {
+  const t = setup({});
+  assert.strictEqual(t.client.profile().hadProfile, false);
+  const res = await t.client.saveProfile({ nick: '별빛냥', avatar: 3 });
+  assert.strictEqual(res.ok, true);
+  assert.strictEqual(t.client.profile().hadProfile, true);
+  assert.strictEqual(JSON.parse(t.store.get('element-gems:profile:v1')).hadProfile, true);
+  assert.strictEqual(setup({ store: registeredStore() }).client.profile().hadProfile, true);            // 옛 모양 저장
+  assert.strictEqual(setup({ store: memStore({ 'element-gems:profile:v1': JSON.stringify({ pid: UUID }) }) }).client.profile().hadProfile, false);
+});

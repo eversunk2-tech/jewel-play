@@ -1529,3 +1529,26 @@ body::after {
   .gauge .fill { transition: none; }
   .gauge.full { animation: none; }
 }
+
+/* =====================================================================
+ * 프로필 지우기(이 기기에서만) 확인 ①② · 새 프로필 안내 줄 (spec §23.3·§23.4, 시안 pf-plan/shots 01~05)
+ * 기존 규칙은 수정하지 않고 끝에 덧붙인다. 빨강 글자·분홍 바탕은 모두 대비 4.5:1 이상(#8a1126/#5a0017 계열).
+ * ===================================================================== */
+.btn.danger { background: linear-gradient(180deg, #fff6f7 0%, #ffe0e5 100%); color: #8a1126; border-color: #ffb3bd; text-shadow: none; box-shadow: inset 0 -3px 0 rgba(217, 48, 74, .14), 0 4px 0 #ff9aa9; }
+.btn.danger:hover { background: linear-gradient(180deg, #fff 0%, #ffd2d9 100%); }
+.btn.danger:active { box-shadow: inset 0 -2px 0 rgba(217, 48, 74, .14), 0 1px 0 #ff9aa9; }
+.pf-ask { padding: 12px 12px 10px; }
+.pf-ask h3 { margin: 0 0 6px; font-size: 1.1rem; font-weight: 900; color: #5a0017; text-align: left; }
+.pf-ask p { margin: 0 0 8px; font-size: .9rem; font-weight: 700; line-height: 1.5; text-align: left; }
+.pf-ask-list { margin: 0 0 10px; padding: 0 0 0 1.1em; font-size: .88rem; font-weight: 700; line-height: 1.5; text-align: left; }
+.pf-ask-list li { margin: 0 0 5px; }
+.pf-ask-list b { font-weight: 900; }
+.pf-ask .stack { display: grid; gap: 8px; }
+.pf-ask .stack .btn { width: 100%; min-height: 48px; }
+.pf-ask .cap { display: block; margin-top: -2px; text-align: center; font-size: .76rem; font-weight: 700; color: #5a0017; }
+.pf-pend { display: flex; gap: 8px; align-items: flex-start; margin: 0 0 10px; padding: 8px 10px; border-radius: 12px; background: #fff4cc; border: 2px solid #ffd23f; color: var(--ink); font-size: .84rem; font-weight: 700; line-height: 1.45; text-align: left; }
+.pf-pend i { flex: none; width: 20px; height: 20px; border-radius: 50%; background: #b05a00; color: #fff; font-style: normal; font-weight: 900; text-align: center; line-height: 20px; font-size: 13px; }
+.pf-carry { margin: 10px 0 6px; padding: 9px 12px; border-radius: 14px; background: #dcf9e8; border: 2px solid #86e6ae; color: #0d3b24; font-size: .86rem; line-height: 1.5; font-weight: 700; text-align: left; }
+.pf-carry b { font-weight: 900; }
+.pf-carry.warn { background: #ffe9ec; border-color: #ffb3bd; color: #5a0017; }
+.pf-small b { font-weight: 800; color: var(--ink); }

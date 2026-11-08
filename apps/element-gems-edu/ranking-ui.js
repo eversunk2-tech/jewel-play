@@ -2,6 +2,7 @@
  * game.js 가 내보내는 window.ElementGemsHost 이벤트(init, renderStart, stageResult)에만 연결된다.
  * CONFIG.ranking.apiBase 가 비어 있으면 이 파일은 아무것도 하지 않는다(UI 숨김 유지, 네트워크 0회).
  * 닉네임·순위 이름은 항상 textContent 로만 출력한다(HTML 삽입 금지).
+ * spec §23: [프로필 지우기] = 이 기기에서만 지우기(확인 ①②, 서버 삭제 API 는 부르지 않는다) · 새 프로필 안내 줄 · 다른 탭 변경 감지.
  */
 (function () {
   'use strict';
@@ -49,8 +50,13 @@
     renamePrompted: false,
     lastHidden: 0,
     pendingStart: false,        // 프로필 안내 팝업 -> [프로필 만들기]로 왔는가(저장하면 레벨 선택으로 이어간다)
-    askOpen: false
+    askOpen: false,
+    createInfo: null,           // 프로필 만들기 화면을 열 때의 판정(client.createMode(), spec §23.4.1) — 안내 줄·버튼 이름·records 옵션
+    erasing: false,             // [네, 지울게요] 진행 중(마지막 전송 → 정리 → 새로고침). 이 동안 취소·Esc·저장은 모두 무시한다
+    eraseNote: '',              // 지운 뒤 새로고침한 시작 화면에 한 번만 보여 줄 안내('1' 기본, '2' = 마지막 기록을 못 올렸을 수 있음)
+    stale: false                // 다른 탭이 프로필을 바꿨는데 지금은 게임 중이라 미룬 새로고침
   };
+  const IS_EDU = !!host.CONFIG.edu;                          // 교육용 빌드(game.js CONFIG.edu)에서만 '푼 문제 기록' 문구가 더해진다(spec §23.3.2)
   const el = {};
 
   /* ---------------------------------------------------------------------
@@ -59,6 +65,7 @@
   function cacheDom() {
     ['btn-profile-chip', 'me-note', 'btn-hall', 'end-rank', 'screen-profile', 'screen-hall', 'pf-title', 'pf-sub', 'pf-rename', 'pf-avatars', 'pf-nick', 'pf-count',
       'pf-msg-wrap', 'pf-left', 'pf-save', 'pf-skip', 'pf-cancel', 'pf-delete', 'pf-confirm', 'pf-confirm-yes', 'pf-confirm-no',
+      'pf-actions', 'pf-carry', 'pf-wipe', 'pf-del-rec', 'pf-del-hall', 'pf-confirm2', 'pf-confirm2-yes', 'pf-confirm2-no', 'pf-pend',
       'overlay-profile-ask', 'pa-close', 'pa-create', 'pa-without', 'btn-start', 'screen-start',
       'hall-title', 'hall-back', 'hall-refresh', 'hall-banner', 'hall-tabs', 'hall-asof', 'hall-rule', 'hall-weight', 'hall-panel', 'hall-list', 'hall-empty', 'hall-me', 'hall-foot'
     ].forEach(function (id) { el[id] = $(id); });
@@ -135,11 +142,36 @@
       chip.setAttribute('aria-label', '내 프로필 만들기');
     }
     let note = '';
-    if (p.notice === 'gone') note = '서버에 있던 프로필이 지워졌어요. 다시 만들 수 있어요.';
+    if (ui.eraseNote) note = eraseNoteText(ui.eraseNote);
+    else if (p.notice === 'gone') note = '서버에 있던 프로필이 지워졌어요. 다시 만들 수 있어요.';
     else if (p.registered && (p.hidden === 2 || p.notice === 'rename')) note = '이 이름은 순위표에서 잠시 숨겨졌어요. 프로필에서 새 이름을 정해 주세요.';
     else if (p.registered && p.hidden === 1) note = '지금은 순위표에 보이지 않아요.';
     el['me-note'].textContent = note;
     el['me-note'].hidden = !note;
+  }
+
+  /** 지운 뒤 새로고침한 시작 화면의 안내(spec §23.3.1 4). '2' = 마지막 기록을 순위표에 올리지 못했을 수 있다 */
+  function eraseNoteText(kind) {
+    return '프로필과 게임 기록을 이 기기에서 지웠어요. 순위표에는 이전 프로필이 남아 있어요.' + (kind === '2' ? ' 마지막 기록은 순위표에 올라가지 못했을 수 있어요.' : '');
+  }
+
+  /** 안내 표식을 한 번 읽고 바로 지운다(sessionStorage 를 못 쓰면 안내 없이) */
+  function takeEraseNote() {
+    try {
+      const v = window.sessionStorage.getItem(R.RECORD_KEYS.note);
+      if (v) window.sessionStorage.removeItem(R.RECORD_KEYS.note);
+      return v === '1' || v === '2' ? v : '';
+    } catch (e) { return ''; }
+  }
+  function putEraseNote(kind) {
+    try { window.sessionStorage.setItem(R.RECORD_KEYS.note, kind); } catch (e) { /* 못 써도 지우기는 끝난다 */ }
+  }
+
+  /** 시작 화면을 떠나면 안내를 거둔다(한 번만 보인다) */
+  function clearEraseNote() {
+    if (!ui.eraseNote) return;
+    ui.eraseNote = '';
+    renderStartExtras();
   }
 
   function disableUi(code) {
@@ -240,6 +272,7 @@
   }
 
   function openProfile(mode, opts) {
+    clearEraseNote();
     const p = client.profile();
     ui.pendingStart = !!(opts && opts.pendingStart) && mode !== 'edit';
     ui.mode = mode === 'edit' && p.registered ? 'edit' : 'create';
@@ -249,11 +282,14 @@
     const edit = ui.mode === 'edit';
     el['pf-title'].textContent = edit ? '내 프로필 고치기' : '내 프로필 만들기';
     el['pf-sub'].textContent = edit ? '그림이나 이름을 바꿀 수 있어요.' : '명예의 전당에서 나를 보여 줄 그림과 이름을 골라요.';
-    el['pf-save'].textContent = edit || !ui.pendingStart ? '저장' : '저장하고 시작';
+    ui.createInfo = edit ? null : client.createMode();       // 새 프로필 판정(행 1~4). 수정 화면에서는 기록을 건드리지 않는다
+    const wipe = !!ui.createInfo && ui.createInfo.row === 4;
+    el['pf-save'].textContent = wipe ? '지우고 만들기' : (edit || !ui.pendingStart ? '저장' : '저장하고 시작');   // 행 4: 버튼 이름이 곧 확인
     el['pf-skip'].hidden = edit;
     el['pf-cancel'].hidden = !edit;
     el['pf-delete'].hidden = !edit;
-    el['pf-confirm'].hidden = true;
+    closeConfirms(false);
+    renderCreateNotes();
     el['pf-nick'].value = edit ? p.nick : '';
     el['pf-nick'].disabled = false;
     el['pf-rename'].hidden = !(edit && (p.hidden === 2 || p.notice === 'rename'));
@@ -281,9 +317,12 @@
     const label = el['pf-save'].textContent;
     el['pf-save'].textContent = '저장하는 중…';
     let res;
-    try { res = await client.saveProfile({ nick: r.nick, avatar: ui.avatar }); } catch (e) { res = { ok: false, message: R.MESSAGES.generic }; }
+    const input = { nick: r.nick, avatar: ui.avatar };
+    if (ui.mode !== 'edit' && ui.createInfo) input.records = ui.createInfo.records;     // 화면에 보여 준 판정 그대로(행 1만 기록을 싣고, 행 4는 성공 뒤에 지운다)
+    try { res = await client.saveProfile(input); } catch (e) { res = { ok: false, message: R.MESSAGES.generic }; }
     ui.busy = false;
     el['pf-save'].textContent = label;
+    if (res.ok && res.wiped) { window.location.reload(); return; }   // 지난 기록을 지웠으니 메모리의 옛 기록을 비우려고 새로고침(시작 화면으로 돌아온다)
     if (!onProfileScreen()) return;
     if (res.ok) {
       if (ui.pendingStart) { ui.pendingStart = false; host.enterStages(); window.scrollTo(0, 0); }   // 원래 가려던 곳(난이도·레벨 선택)으로 이어간다
@@ -305,27 +344,87 @@
     home();                                                    // 시작 화면으로 돌아온다(게임으로 보내지 않고, 영구 저장도 하지 않는다)
   }
 
+  /** 새 프로필 판정 안내 줄(spec §23.4.1): 행 1 초록(이어서 쓰기), 행 4 빨강(지워짐). 행 2·3 은 아무것도 보이지 않는다 */
+  function noteLine(node, bold, rest) {
+    clear(node);
+    node.appendChild(mk('b', '', bold));
+    node.appendChild(document.createTextNode(rest));
+  }
+  function renderCreateNotes() {
+    const info = ui.mode === 'create' ? ui.createInfo : null;
+    el['pf-carry'].hidden = true;
+    el['pf-wipe'].hidden = true;
+    if (!info) return;
+    const n = info.stars.total;
+    if (info.row === 1) {
+      noteLine(el['pf-carry'], '이 기기의 기록을 이어서 써요.', ' 프로필 없이 모은 별 ' + n + '개가 이 프로필의 기록이 돼요.');
+      el['pf-carry'].hidden = false;
+    } else if (info.row === 4) {
+      noteLine(el['pf-wipe'], '지난 프로필의 기록(별 ' + n + '개)이 이 기기에 남아 있어요.', ' 새 프로필은 처음부터 시작해서, 만들면 이 기록이 지워져요.');
+      el['pf-wipe'].hidden = false;
+    }
+  }
+
+  /* ---- 프로필 지우기 = 이 기기에서만 지우기 (spec §23.3): 확인 ① → 확인 ② → 마지막 전송 1회 → 정리 → 새로고침 ---- */
+  function confirmOpen() { return !el['pf-confirm'].hidden || !el['pf-confirm2'].hidden; }
+
+  /** 확인 ①②를 닫고 버튼 묶음으로 돌아온다. focus 면 [프로필 지우기]로 포커스를 돌려준다 */
+  function closeConfirms(focus) {
+    el['pf-confirm'].hidden = true;
+    el['pf-confirm2'].hidden = true;
+    el['pf-actions'].hidden = false;
+    el['pf-confirm2-yes'].disabled = false;
+    el['pf-confirm2-no'].disabled = false;
+    if (focus) el['pf-delete'].focus({ preventScroll: true });
+  }
+
+  /** 기록 줄 문구: 두 앱 저장 값에서 읽은 별 개수. 0 이 아닌 쪽만 쓰고, 교육용 화면은 '푼 문제 기록'을 덧붙인다 */
+  function recordsLine(st) {
+    const parts = [];
+    if (st.gen > 0) parts.push('일반용 별 ' + st.gen + '개');
+    if (st.edu > 0) parts.push('교육용 별 ' + st.edu + '개');
+    if (!parts.length) return '이 기기의 게임 기록' + (IS_EDU ? '과 푼 문제 기록' : '') + '이 사라져요. 되돌릴 수 없어요.';
+    return '이 기기의 게임 기록(' + parts.join(' · ') + (IS_EDU ? '와 푼 문제 기록' : '') + ')이 사라져요. 되돌릴 수 없어요.';
+  }
+
   function askDelete() {
+    if (ui.erasing) return;
+    const p = client.profile();
+    el['pf-del-rec'].textContent = recordsLine(client.createMode().stars);
+    el['pf-del-hall'].textContent = '순위표에는 ‘' + p.nick + ' ' + tagText(p.tag) + '’이 그대로 남아요.';   // 닉네임은 textContent 로만
+    el['pf-actions'].hidden = true;
+    el['pf-confirm2'].hidden = true;
     el['pf-confirm'].hidden = false;
-    el['pf-confirm-no'].focus({ preventScroll: true });
+    el['pf-confirm-no'].focus({ preventScroll: true });             // 기본 포커스는 안전한 쪽
     el['pf-confirm'].scrollIntoView({ block: 'nearest' });
   }
-  function cancelDelete() {
+  function askDelete2() {
+    if (ui.erasing) return;
+    el['pf-pend'].hidden = !client.erasePending();                 // 아직 못 올린 기록이 있을 때만 노랑 줄
     el['pf-confirm'].hidden = true;
-    el['pf-delete'].focus({ preventScroll: true });
+    el['pf-confirm2'].hidden = false;
+    el['pf-confirm2-no'].focus({ preventScroll: true });
+    el['pf-confirm2'].scrollIntoView({ block: 'nearest' });
   }
-  async function doDelete() {
-    if (ui.busy) return;
+  function cancelDelete() {
+    if (ui.erasing) return;                                        // 지우기가 시작된 뒤에는 되돌릴 수 없다
+    closeConfirms(true);
+  }
+  async function doErase() {
+    if (ui.erasing || ui.busy) return;
+    ui.erasing = true;
     ui.busy = true;
-    el['pf-confirm-yes'].disabled = true;
+    el['pf-confirm2-yes'].disabled = true;
+    el['pf-confirm2-no'].disabled = true;
+    if (client.erasePending()) el['pf-confirm2-yes'].textContent = '마지막 기록을 올리는 중…';
     let res;
-    try { res = await client.deleteProfile(); } catch (e) { res = { ok: false, message: R.MESSAGES.generic }; }
-    ui.busy = false;
-    el['pf-confirm-yes'].disabled = false;
-    if (!onProfileScreen()) return;
-    if (res.ok) { home(); return; }
-    el['pf-confirm'].hidden = true;
-    setMsg('err', res.message || R.MESSAGES.generic);
+    try { res = await client.eraseDevice(); } catch (e) { res = null; }
+    if (!res) {                                                    // 방어: 어떤 이유로든 실패하면 저장소만이라도 직접 정리한다
+      try { R.eraseDeviceData(R.createStore(window)); } catch (e) { /* 무시 */ }
+      res = { lastFailed: false };
+    }
+    putEraseNote(res.lastFailed ? '2' : '1');
+    window.location.reload();                                      // 메모리의 옛 기록·프로필이 되살아나지 않게 새로 시작한다
   }
 
   /* ---------------------------------------------------------------------
@@ -356,6 +455,7 @@
   }
 
   function askWithout() {
+    clearEraseNote();
     client.setSessionOptOut(true);                             // 이번 접속에서만. 서버로 아무것도 보내지 않는다
     closeAsk(false);
     host.enterStages();
@@ -378,6 +478,7 @@
 
   /** [시작] 게이트: 프로필 안내가 필요하면 팝업을 띄우고 false(여기서 멈춤), 아니면 true */
   function startGate() {
+    clearEraseNote();
     if (!client.needsProfilePrompt()) return true;
     openAsk();
     return false;
@@ -399,6 +500,7 @@
     input.addEventListener('keydown', function (e) {
       if (e.key === 'Enter' && !e.isComposing && !ui.composing) {
         e.preventDefault();
+        if (confirmOpen() || ui.erasing) return;                    // 지우기 확인 중에는 저장하지 않는다
         window.clearTimeout(ui.debounce);
         if (curNick()) validateNick();
         if (!el['pf-save'].disabled) saveProfileNow();
@@ -424,7 +526,9 @@
     el['pf-cancel'].addEventListener('click', function () { home(); });
     el['pf-delete'].addEventListener('click', askDelete);
     el['pf-confirm-no'].addEventListener('click', cancelDelete);
-    el['pf-confirm-yes'].addEventListener('click', doDelete);
+    el['pf-confirm-yes'].addEventListener('click', askDelete2);
+    el['pf-confirm2-no'].addEventListener('click', cancelDelete);
+    el['pf-confirm2-yes'].addEventListener('click', doErase);
   }
 
   /* ---------------------------------------------------------------------
@@ -652,6 +756,7 @@
   }
 
   function openHall() {
+    clearEraseNote();
     client.dismissNotice();
     host.showScreen('hall');
     renderTabs();
@@ -754,16 +859,39 @@
     });
   }
 
+  /**
+   * 다른 탭이 프로필을 바꿨을 때(spec §23.3.6, 열린 질문 E): 그 탭에서 지우거나 만들면 이 탭의 메모리 상태가 낡은 것이 된다.
+   * 프로필의 pid·이력이 이 탭이 아는 것과 달라지면, 시작 화면 단계(게임 시작 전)일 때 새로고침하고, 게임 중이면 시작 화면으로 돌아올 때 새로고침한다.
+   * 완화일 뿐이다(개발자 도구로 저장소를 직접 바꾸는 것까지는 막지 못한다).
+   */
+  function profileSig(p) { return String(p.pid || '') + '|' + (p.hadProfile ? 1 : 0); }
+  function onStorage(e) {
+    if (ui.erasing) return;
+    let other;
+    if (e.key === null) other = { pid: '', hadProfile: false };                      // localStorage.clear()
+    else if (e.key !== R.KEYS.profile) return;
+    else {
+      let o = null;
+      try { o = e.newValue ? JSON.parse(e.newValue) : null; } catch (err) { o = null; }
+      other = R.normalizeProfile(o);
+    }
+    if (profileSig(other) === profileSig(client.profile())) return;
+    ui.stale = true;
+    if (host.getPhase() === 'start' && !ui.busy) window.location.reload();
+  }
+
   function bindGlobal() {
     document.addEventListener('keydown', function (e) {
       if (e.key !== 'Escape') return;
       if (ui.askOpen) { closeAsk(true); return; }
       if (onHallScreen()) { home(); return; }
       if (onProfileScreen()) {
-        if (!el['pf-confirm'].hidden) { cancelDelete(); return; }
+        if (ui.erasing) return;                         // 지우는 중에는 닫지 않는다
+        if (confirmOpen()) { cancelDelete(); return; }  // 확인 ①②는 Esc 로 닫고 버튼 묶음으로 돌아온다(기록 변화 0)
         home();                                         // 시작 화면으로 돌아온다
       }
     });
+    window.addEventListener('storage', onStorage);
     window.addEventListener('online', client.onOnline);
     document.addEventListener('visibilitychange', function () { if (!document.hidden) client.onVisible(); });
   }
@@ -776,6 +904,7 @@
     bindAsk();
     bindGlobal();
     host.setStartGate(startGate);
+    ui.eraseNote = takeEraseNote();
     renderStartExtras();
     client.start();
     const p = client.profile();
@@ -786,6 +915,7 @@
 
   host.on('renderStart', function () {
     if (!el['btn-hall']) return;
+    if (ui.stale && !ui.busy && !ui.erasing) { window.location.reload(); return; }   // 게임 중에 다른 탭이 프로필을 바꿨다 -> 시작 화면으로 돌아온 지금 새로고침
     renderStartExtras();
     const p = client.profile();
     if (client.enabled() && p.registered && p.hidden === 2 && !ui.renamePrompted) {
