@@ -1,7 +1,7 @@
 # STATUS — 원소 보석 (Element Gems) 진행 상황
 
 > **세션을 시작하면 이 문서를 먼저 읽는다.** 마일스톤마다 갱신한다(커밋 포함). 규칙은 `CLAUDE.md`, 제품 요약은 `PRD.md`, 결정·수치의 정답지는 `apps/element-gems/spec.md`(§1~§19)다.
-> 최종 갱신: 2026-11-08 (소리 개선·난이도 재조정 Plan 작성 중; 아래 §12가 최신, §11은 교육용 버전, §1~§10은 그 이전 기록)
+> 최종 갱신: 2026-11-08 (소리 개선·난이도 재조정 §22 Build·Review 완료, 푸시 대기; 아래 §12가 최신, §11은 교육용 버전, §1~§10은 그 이전 기록)
 
 ## 1. 한눈에 보기
 | 항목 | 내용 |
@@ -10,9 +10,9 @@
 | 작업 폴더 | `/Users/sungchul/Desktop/play2/jewel play` (git, `main`). 앱: `apps/element-gems/`. 옛 폴더 `/Users/sungchul/Desktop/워크숍`은 과거 복제본이므로 **쓰지 않는다** |
 | 원격 | `https://github.com/eversunk2-tech/jewel-play.git` (`origin`) |
 | 배포 | GitHub Pages 자동 배포 — `https://eversunk2-tech.github.io/jewel-play/` (루트 `index.html`이 `apps/element-gems/`로 이동). 이미지 캐시 10분 |
-| 마지막 푸시 | `67358a1` (컷인 캐릭터 교체 + 아바타 15종(구버전)까지 배포됨) |
-| **미푸시 로컬 커밋 6개** | `44c0a33` CLAUDE.md 개정+랭킹 Plan 지침 / `bb8061f`·`45b8ea6` 대상 사용자 변경 / `3dde81d` spec §19 / `70aaf96` 아바타 16종 교체 / `3b69d29` §19 승인 기록 — **푸시는 사용자 확인 후** |
-| 작업 트리 | 랭킹 Build 산출물이 **미커밋 상태**로 쌓이는 중(아래 §3) |
+| 마지막 푸시 | `8230627` (교육용 버전·선택 화면까지 배포됨, 2026-11-08) |
+| **미푸시 로컬 커밋 6개(이 커밋 포함)** | `e8eb50b` 교육용 홍보 글 v2 / `6075ece` Plan §22 / `46952d5` Build B1 일반용 / `90307fd` Build B2 교육용 / `0014a19` Review R1 / R2 검증·PRD·STATUS 커밋 — 소리 개선(시작 화면 BGM·플레이 BGM 4곡 랜덤·버튼 효과음 S3)과 난이도 안 B. **푸시는 사용자 확인 후** |
+| 작업 트리 | 깨끗함(다른 세션 파일 `docs/intro/teacher-intro-edu.docx`·`agents/plan-profile-records-element-gems.md`는 이 작업과 무관한 미추적 파일) |
 
 ## 2. 완료된 작업 (타임라인)
 | 단계 | 내용 | 커밋 |
@@ -147,3 +147,6 @@ apps/element-gems/
 - **다음 순서**: 사용자 §22 승인 → 메인 세션이 최종 음악 인코딩(−1.5dB→64kbps)·S1 복사 → Build B1(일반용)→B2(교육용) → Review R1·R2 → 커밋·푸시(푸시는 확인 후), `base-general-v2` 태그·SYNC.md 갱신.
 - **한계**: 소리는 에이전트가 들을 수 없다(곡 품질·이음매·효과음 느낌은 미확인), 실기기·iOS Safari 자동재생 미확인.
 - **구현 진행(2026-11-08)**: 최종 음원 5곡(64kbps, −1.5dB, float 최대 ≤ 0.941, 곡 간 LUFS 차 0.2)과 `click.wav`(S3)를 두 앱 `assets/`에 복사 완료, 음원 원본은 `~/Documents/원소보석 음원 원본/`(번호표 `번호표.txt`)에 보관(저장소에는 넣지 않음). Plan 커밋 `6075ece`. B1(일반용) 진행 중 → B2(교육용) → R1 → R2 → `base-general-v2` 태그·SYNC 갱신. 지침: `agents/build-sound-b1-general-element-gems.md`·`build-sound-b2-edu-…`·`review-sound-r1-…`·`review-sound-r2-difficulty-sync-…`.
+- **완료 기록(2026-11-08)**: 사용자가 §22를 승인하고 최종 선택(M1 / P0~P3 / S3 / P0 64kbps 괜찮음)을 확정 → **B1 일반용 `46952d5`**(시험 95개 통과), **B2 교육용 `90307fd`**(시험 267개: 266 통과·1 건너뜀, 검증기 오류 0), **R1 소리 Review `0014a19`**(review.md §18, 통과·수정 0건, §22.8 소리 체크리스트 17항목: 확인 14·흉내 2·미확인 1·실패 0), **R2 난이도·동기화 Review**(review.md §19, 통과·수정 0건: 목표 30칸·교육용 ×1.2 30칸·자리표시자·서버 호환·시뮬레이션 재현(같은 시드 완전 일치)·일반용↔교육용 `game.js` 차이는 `[EDU]` 블록뿐). 태그 **`base-general-v2`**(= 일반용 변경 커밋 `46952d5`), `tools/SYNC.md`는 v2 기준으로 갱신됨. **일반용 동결은 이 작업 뒤 다시 적용**(치명적 결함만 수정, §21.2.5). PRD §8 목표 표도 안 B로 갱신함.
+- **남은 후보(Review 제안, 미적용)**: ① **소개 캡처 8장**에 옛 목표 점수가 찍혀 있음(일반용 `shot-1-game`·`shot-2-cutin`·`shot-3-levels`, 교육용 `edu-shot-1-game`·`edu-shot-2-quiz-ox`·`edu-shot-3-answer`·`edu-shot-5-result`·`edu-shot-6-levels`; 소개 글 본문에는 숫자 없음) → 다시 찍을지는 사용자 결정. ② 일반용 `game.test.js`의 목표 직접 검사가 2칸뿐 → 교육용처럼 30칸 표 + 순증가 검사 추가 후보. ③ 느린 망에서 첫 입력 때 효과음 26개(1.5MB)와 `menu.mp3`가 함께 내려받혀 시작 화면 곡이 늦을 수 있음(50KB/s 모의에서 약 28초, HTTP/1.1 모의라 GitHub Pages(HTTP/2)와 다름) → 곡 먼저 요청·효과음 지연 로딩 후보. ④ 일시적 네트워크 끊김도 곡을 세션 내내 실패 목록에 넣음 → 재시도 정책 후보. ⑤ 같은 곡이 A-B-A로 번갈아 나올 확률 1/3(셔플 가방은 범위 밖). ⑥ 교육용 문제 팝업 중 탭이 숨겨져도 BGM이 계속 흐름(기존 동작). ⑦ 사람 플레이 뒤 난이도 재조정(숙련·익숙 모델은 상단이 쉬움: 중수 L10 97%·고수 L10 84%, 느림 모델은 중수 완주 33~37판). CLAUDE.md 용량 규칙 개정 제안은 spec §22.5.5(사용자가 직접 정함).
+- **확인하지 못한 것(§22 전체)**: 곡·효과음의 실제 소리(청각), 64kbps 음질·곡 이음매·페이드, 실기기·iOS Safari(요소의 `src` 교체 뒤 재생 잠금 유지), 실제 탭 전환, `file://`, GitHub Pages 헤더·Range 캐시, 사람 플레이 밸런스.
