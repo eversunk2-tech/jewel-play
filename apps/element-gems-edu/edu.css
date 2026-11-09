@@ -246,3 +246,110 @@
   .gem[data-type="gift"] .gi, .gem[data-type="gift"]:not(.selected):not(.hint):not(.removing):not(.shake):not(.zapped):not(.reshuffle):not(.intro) .gi { animation: none; filter: drop-shadow(0 0 5px rgba(255, 247, 168, .95)) drop-shadow(0 0 1px #fff); }
   .eg-chip:active, .eg-sub:active, .eg-opt:not(:disabled):active { transform: none; }
 }
+
+/* =====================================================================
+ * 선물상자 문제 양 "보통 / 많이"와 학습 칩 (spec §27.7·§27.8, M3-B)
+ *  ① 학습단원 선택 화면의 라디오 두 개(.eg-amount) · 시작 화면 단원 칩의 한 줄(.eg-unit-amount)
+ *  ② 게임 화면의 "선물상자 문제 풀기 3 / 7" 칩(.learn-chip): 문제 양 "많이"인 판에서만 보이고, 점수형은 목표 바 아래·미션형은 미션 칩 아래에 놓인다
+ *  ③ 선택 레벨 설명판의 학습 줄(.sd-learn)
+ * 글자색은 잉크(#2a2160) 계열 + 밝은 노랑 바탕이라 4.5:1 이상. 완료는 ✓ 글자 + 초록(색에만 의존하지 않음). 터치 타깃 44px 이상(라디오 48px).
+ * ===================================================================== */
+.eg-unit-top { flex-wrap: wrap; row-gap: 0; }     /* 단원 칩 맨 윗줄(교육용 · 학습 단원)에 문제 양 한 줄을 오른쪽 끝으로 붙인다 — 칩이 한 줄 더 길어지지 않아 [시작] 단추가 내려가지 않는다 */
+.eg-unit-amount { margin-left: auto; color: var(--ink-2); font-size: .78rem; font-weight: 700; white-space: nowrap; }
+.eg-unit-amount[hidden] { display: none; }
+
+.eg-amount { display: grid; gap: 6px; margin-top: 2px; padding-top: 8px; border-top: 2px dashed var(--line); }
+.eg-amount-label { font-weight: 900; font-size: .9rem; color: var(--ink); }
+.eg-amount-opts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.eg-amt { min-height: 48px; padding: 6px 14px; border-radius: 999px; border: 2px solid var(--line); background: #fff; color: var(--ink); font-weight: 900; font-size: 1rem; box-shadow: 0 3px 0 var(--lip); }
+.eg-amt:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--lip); }
+.eg-amt.on { background: var(--focus); border-color: var(--focus); color: #fff; box-shadow: 0 3px 0 #3a22b8; }
+.eg-amt.on::before { content: "✓ "; }
+.eg-amt:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; box-shadow: 0 0 0 6px #fff; }
+.eg-amount-desc, .eg-amount-note { margin: 0; font-size: .78rem; line-height: 1.4; font-weight: 600; word-break: keep-all; overflow-wrap: break-word; }
+.eg-amount-desc { color: var(--ink-2); }
+.eg-amount-note { color: #7a4a00; font-weight: 700; }
+.eg-amount-note[hidden] { display: none; }
+
+.sd-learn { margin-top: 2px; font-size: max(11px, .78rem); font-weight: 800; line-height: 1.3; color: #7a4a00; }
+.sd-learn[hidden] { display: none; }
+
+/* 학습 칩: 높이 40px(작은 글 한 줄 포함). 보드 폭 이상으로 폭을 맞추는 방식은 미션 칩(.mission)과 같다 */
+.learn-chip {
+  position: relative; display: flex; align-items: center; gap: 8px; flex: none;
+  width: max(var(--board), min(calc(100vw - 24px), 360px)); min-height: 40px; padding: 2px 10px;
+  border: 3px solid #fff; border-radius: 16px; overflow: hidden; background: #fff1b8; color: #2a2160;
+  box-shadow: inset 0 3px 6px rgba(70, 50, 160, .12), 0 3px 0 rgba(224, 161, 0, .6), 0 6px 12px rgba(40, 30, 120, .2);
+}
+.learn-chip[hidden] { display: none; }
+.learn-chip > :not(.lc-fill) { position: relative; }
+.lc-fill { position: absolute; inset: 0; transform-origin: left center; transform: scaleX(0); background: linear-gradient(90deg, #ffe27a, #ffc94d); transition: transform .15s linear; }
+.lc-ico { flex: none; width: 26px; height: 26px; filter: drop-shadow(0 2px 1px rgba(40, 20, 100, .35)); }
+.lc-body { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: center; line-height: 1.15; }
+.lc-name { font-size: clamp(.66rem, 3.1vw, .88rem); font-weight: 900; }
+.lc-sub { font-size: max(11px, .66rem); font-weight: 700; }
+.lc-num { flex: none; font-size: .95rem; font-weight: 900; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.lc-ok { display: none; flex: none; width: 24px; height: 24px; border-radius: 50%; background: var(--ok); color: #fff; font-size: 14px; font-weight: 900; line-height: 24px; text-align: center; }
+.learn-chip.done { background: linear-gradient(180deg, #d4fbe6 0%, #a8f0c8 100%); color: #0d3b24; box-shadow: inset 0 3px 6px rgba(15, 122, 67, .14), 0 3px 0 rgba(15, 122, 67, .45), 0 6px 12px rgba(40, 30, 120, .2); }
+.learn-chip.done .lc-fill { background: linear-gradient(90deg, #8de8b4, #6fdc98); }
+.learn-chip.done .lc-ok { display: block; }
+.learn-chip.pop { animation: lcPop .5s ease-out; }
+@keyframes lcPop { 0% { transform: scale(1); } 40% { transform: scale(1.04); } 100% { transform: scale(1); } }
+
+/* 세로 화면: 보드 크기 식에 학습 칩이 차지하는 높이(칩 + 간격)를 더 뺀다. 미션 칩의 --mis-extra 와 함께 쓴다(점수형이면 없다 -> 0).
+ * 높이가 700px 이하인 세로 폰은 작은 글 줄을 접어 칩을 한 줄(30px)로 줄인다(작은 글은 aria-describedby 로 그대로 읽힌다). */
+@media (orientation: portrait), (orientation: landscape) and (min-height: 501px) and (max-width: 799px) {
+  #screen-game[data-learn="1"][data-goal] {
+    --learn-extra: 48px;
+    --board: min(calc(100vw - 24px), calc(var(--vh100) - var(--ui-h) - var(--mis-extra, 0px) - var(--learn-extra)), var(--board-cap, 520px));
+    --cell: calc(var(--board) / 8);
+  }
+}
+@media (max-height: 700px) and (orientation: portrait) {
+  #screen-game[data-learn="1"][data-goal] { --learn-extra: 38px; }
+  .learn-chip { min-height: 30px; padding: 1px 10px; }
+  .lc-sub { display: none; }
+  .lc-ico { width: 22px; height: 22px; }
+  .lc-ok { width: 20px; height: 20px; line-height: 20px; font-size: 12px; }
+}
+/* R-M3: 폭 340px 이하 세로 폰에서 미션 칩 2개 + 학습 칩이면 보드가 157px 까지 줄어 하단 단추 세 개가 각 47px 이 된다(안쪽 여백 10px 씩 → 글자 폭 23px) — "힌트"·"메뉴"·"리셋" 이 두 글자씩 쪼개져 보였다. 여백을 줄여 한 줄을 지킨다 */
+@media (max-width: 340px) and (orientation: portrait) {
+  #screen-game[data-learn="1"] .buttons .btn { padding-left: 2px; padding-right: 2px; white-space: nowrap; }
+}
+/* 낮은 가로(휴대폰 가로): 오른쪽 열의 목표 칸 아래에 새 칸(learn)을 하나 더 둔다. 칩은 한 줄로 낮춘다 */
+@media (orientation: landscape) and (max-height: 500px) {
+  #screen-game[data-learn="1"] .game {
+    grid-template-rows: auto auto auto auto 1fr;
+    grid-template-areas: "board gauges timer" "board gauges score" "board gauges goal" "board gauges learn" "board gauges buttons";
+    row-gap: 5px;     /* 칸이 하나 늘어난 만큼 간격을 줄인다: 미션 칩 2개 + 학습 칩(740×360)에서 [리셋]이 화면 밖으로 9px 나가던 것 */
+  }
+  .learn-chip { grid-area: learn; width: 100%; min-height: 26px; padding: 1px 8px; border-width: 2px; border-radius: 12px; gap: 6px; }
+  .lc-sub { display: none; }
+  .lc-ico { width: 20px; height: 20px; }
+  .lc-name { font-size: .7rem; }
+  .lc-num { font-size: .8rem; }
+  .lc-ok { width: 20px; height: 20px; line-height: 20px; font-size: 12px; }
+  .eg-unit-amount { margin: 0; font-size: .72rem; line-height: 1.2; white-space: normal; text-align: center; }
+  .eg-amount { grid-template-columns: auto minmax(0, 1fr); align-items: center; column-gap: 10px; row-gap: 2px; margin-top: 0; padding-top: 4px; }
+  .eg-amount-label { grid-column: 1; grid-row: 1; font-size: .82rem; }
+  .eg-amount-opts { grid-column: 2; grid-row: 1; gap: 6px; }
+  .eg-amt { min-height: 44px; padding: 4px 12px; }
+  .eg-amount-desc, .eg-amount-note { grid-column: 1 / -1; font-size: .72rem; line-height: 1.3; }
+}
+/* 와이드(태블릿·PC 가로): 오른쪽 패널의 목표 칸 아래에 새 칸(learn)을 하나 더 둔다. 크기는 보드에 비례(미션 칩과 같은 방식) */
+@media (min-width: 800px) and (min-height: 501px) and (orientation: landscape) {
+  #screen-game[data-learn="1"] .game {
+    grid-template-rows: auto auto auto auto minmax(0, 1fr) auto;
+    grid-template-areas: "board timer" "board score" "board goal" "board learn" "board gauges" "board buttons";
+  }
+  .learn-chip { grid-area: learn; width: 100%; min-height: clamp(36px, calc(var(--board) * .05), 50px); }
+  .lc-name { font-size: clamp(.85rem, calc(var(--board) * .0135), 1.05rem); }
+  .lc-sub { font-size: clamp(.7rem, calc(var(--board) * .011), .85rem); }
+  .lc-num { font-size: clamp(1rem, calc(var(--board) * .0165), 1.3rem); }
+  .sd-learn { font-size: .9rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .learn-chip.pop { animation: none; }
+  .lc-fill { transition: none; }
+  .eg-amt:active { transform: none; }
+}

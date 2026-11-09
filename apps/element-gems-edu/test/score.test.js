@@ -1,6 +1,6 @@
 /* 점수 규칙 "강 R4" 교육용 시험 — spec §28.5(공식·숫자)·§28.7.4(정답 보너스 ×3)·§28.8(CONFIG 키·시험 항목)·§28.9(저장 호환)·§31.3(목표 점수 표).
  * 실행: node --test apps/element-gems-edu/test/*.test.js
- * 일반용 test/score.test.js(B1)를 교육용 game.js·하네스에 맞게 옮긴 것이다(§27 M1 미션 엔진은 교육용에 없으므로 미션 항목은 뺐다). 교육용 추가 항목은 "[EDU]" 로 표시했다.
+ * 일반용 test/score.test.js(B1)를 교육용 game.js·하네스에 맞게 옮긴 것이다(§27 미션 엔진 항목은 이 파일이 아니라 mission.test.js 에 있다 — 이 파일의 판은 중수·고수도 점수 목표로 고정해 돌린다). 교육용 추가 항목은 "[EDU]" 로 표시했다.
  *
  * ① 순수 함수(콤보 배수·연쇄 상한·곱 상한·스킬 점수·콤보 이어짐) ② CONFIG 표·난이도 복사 ③ 목표 점수 표 ④ 칭찬 문턱 ⑤ 저장 호환(scoreRule·bestOld, 교육용 키)
  * ⑥ 실제 판 흐름(가짜 DOM + 가상 시계로 교육용 game.js 를 그대로 실행, spawn=0 으로 ? 없이): 콤보 이어짐/끊김·시계 정지·스킬 점수·일시불·무효 스왑·연쇄 보호·HUD 칩·결과 줄
@@ -191,7 +191,7 @@ test('⑧ 목표 점수 원본 표(일반용과 같은 값): 초보 = §31.3, �
   const old = { normal: [4500, 4900, 5300, 5400, 5900, 6300, 6800, 7100, 7600, 8200], hard: [5500, 6000, 6300, 6700, 7000, 7400, 8000, 8500, 9100, 9900] };
   old.normal.forEach((v, i) => assert.ok(Math.abs(T.normal[i] / (v * 3.3) - 1) < 0.01, '중수 ' + (i + 1)));
   old.hard.forEach((v, i) => assert.ok(Math.abs(T.hard[i] / (v * 3.2) - 1) < 0.01, '고수 ' + (i + 1)));
-  assert.strictEqual(G.CONFIG.stages.goalType, undefined, '(§27 M1 미션 엔진은 교육용에 아직 없다 — M3 몫)');
+  assert.deepStrictEqual(G.CONFIG.stages.goalType, { easy: 'score', normal: 'mission', hard: 'mission' }, '§27 M2·M3-A: 중수·고수는 미션형(위 점수 표는 goalType 을 score 로 되돌릴 때 쓰는 폴백)');
 });
 
 /* ===================================================================
@@ -392,6 +392,8 @@ function createEnv(seed, cfgPatch, opts) {
   env.CONFIG = env.I.CONFIG;
   env.CONFIG.board.enabled = false;                          // 새 칸 종류를 시험이 정한다(§26 구조 규칙은 끈다)
   if (env.CONFIG.edu) env.CONFIG.edu.wild.spawn = 0;         // [EDU] ? 선물상자가 나오지 않게(기본). ? 시험은 cfgPatch 로 다시 켜지 않고 보드에 직접 놓는다
+  env.CONFIG.stages.goalType.normal = 'score'; env.CONFIG.stages.goalType.hard = 'score';   // 시험 도구(spec §27.9.3): 점수 규칙 시험은 미션 표 값과 무관하게 점수 목표 판에서 돈다(미션이 필요한 시험은 cfgPatch 에서 켠다; 일반용 score.test.js 와 같은 한 줄)
+  if (env.CONFIG.edu) env.CONFIG.edu.defaultIntensity = 'normal';   // 시험 도구(spec §27.7 M3-B): 점수 규칙 시험은 문제 양 "보통"(= M3-A 직후의 공급·목표)을 전제로 한다
   if (cfgPatch) cfgPatch(env.CONFIG);
   env.unhandled = (e) => { env.errors.push(e); };
   process.on('unhandledRejection', env.unhandled);
@@ -1228,7 +1230,7 @@ test('[EDU] 같은 시드 스크립트 플레이(스왑·무효 스왑·스킬 6
     const patch = (cfg) => {
       cfg.stages.targets[lv] = cfg.stages.targets[lv].map((v) => v * 1000);          // 판이 중간에 끝나지 않게
       if (cfg.edu) cfg.edu.targetScale = 1;
-      if (cfg.stages.goalType) { cfg.stages.goalType.normal = 'score'; cfg.stages.goalType.hard = 'score'; }   // §27 M2: 일반용 중수·고수는 미션형이 기본이라, 점수 목표 비교(교육용은 아직 점수형 — M3 전)를 위해 일반용 쪽을 점수형으로 고정(시험 setup 만)
+      if (cfg.stages.goalType) { cfg.stages.goalType.normal = 'score'; cfg.stages.goalType.hard = 'score'; }   // §27 M2·M3-A: 두 앱 모두 중수·고수는 미션형이 기본이라, 점수 목표 비교를 위해 점수형으로 고정(시험 setup 만; createEnv 에서도 같은 값을 둔다)
     };
     const edu = createEnv(900 + seed, patch);
     const gen = createEnv(900 + seed, patch, { which: 'gen' });

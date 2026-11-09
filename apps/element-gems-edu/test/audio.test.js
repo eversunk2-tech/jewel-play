@@ -370,6 +370,8 @@ function createEnv(opt) {
   env.doc = doc;
   env.store = store;
   env.I = sandbox.__EG_TEST__.audioInternals;
+  env.I.CONFIG.stages.goalType.normal = 'score'; env.I.CONFIG.stages.goalType.hard = 'score';   // 시험 도구(spec §27.9.3): 소리 시험은 미션 표 값과 무관하게 점수 목표 판에서 돈다(일반용 audio.test.js 와 같은 한 줄)
+  if (env.I.CONFIG.edu) env.I.CONFIG.edu.defaultIntensity = 'normal';   // 시험 도구(spec §27.7 M3-B): 소리 시험은 문제 양 "보통"(= M3-A 직후의 공급·목표)을 전제로 한다
   env.errors = [];
   process.on('unhandledRejection', env.unhandled = (e) => { env.errors.push(e); });
   env.dispose = () => process.removeListener('unhandledRejection', env.unhandled);

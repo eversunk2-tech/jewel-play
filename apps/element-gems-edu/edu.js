@@ -10,6 +10,8 @@
  *   EduQuiz.ask()        문제 팝업을 띄우고 [계속하기]까지 기다린다 → Promise<{right, bonus}>. 낼 수 없으면 null
  *   EduQuiz.unitLabel()  '5학년 2학기 · 1-(1) 소단원 이름' (unitLabel(true) 이면 이름 없이 짧게)
  *   EduQuiz.summary()    결과 화면용 한 줄('선물상자 문제 3개 중 2개 맞혔어요 · 보너스 +600점'), 문제가 없었으면 ''
+ *   EduQuiz.intensity()  선물상자 문제 양 선택('many' 많이 | 'normal' 보통, spec §27.7.6). 저장은 edu.intensity, 효과는 EduQuiz.ready 일 때만 game.js 가 쓴다
+ *   ElementGemsEdu.refreshStages()  문제 양을 바꾸거나 단원 불러오기가 끝났을 때 레벨 선택 화면이 보이면 카드·설명판을 다시 그리게 한다(game.js 소관)
  *   이벤트 'stageStart'·'stageEnd'(game.js → ElementGemsHost.on) 로 스테이지별 통계를 센다.
  *
  * 안전: 풀이 기록은 이 기기의 localStorage 에만 남고 서버로 보내지 않는다(§21.5.2). 외부 주소를 부르지 않는다.
@@ -28,6 +30,7 @@
     quiz: { answerLockMs: 500, continueLockMs: 350, nextGapMs: 0 },  // 열린 직후 0.5초 답 입력 무시 · [계속하기] 오터치 방지
     load: { timeoutMs: 15000, dir: 'edu-data/q/' },                  // 소단원 문제 파일 로드 제한 시간 · 허용 폴더
     bonus: { base: 300, mult: { easy: 0.8, normal: 1.0, hard: 1.3 } },   // 정답 보너스(기본값; game.js CONFIG.edu.bonus 가 있으면 우선)
+    intensity: { default: 'many' },         // 선물상자 문제 양 기본값(spec §27.7.6 '많이'; game.js CONFIG.edu.defaultIntensity 가 있으면 그쪽을 따른다)
     statsKeepUnits: 200,                    // 저장하는 소단원 통계·bag 수 상한
     showPages: false                        // 교과서 쪽수 표시(사용자 결정 2026-11-08: 표시하지 않음). 다시 켜려면 true (카탈로그 pages 는 데이터로 남아 있다)
   };
@@ -173,11 +176,18 @@
     return Math.round(c.base * m);
   }
 
-  /** 저장된 edu 객체를 검증해 새 객체로. 잘못된 값은 모두 기본값 */
-  function normalizeEdu(o) {
-    const out = { v: 1, unit: null, pool: {}, stats: {} };
+  /** 문제 양 값: 'many'(많이) | 'normal'(보통). 없거나 잘못된 값은 기본값(def 가 유효하면 def, 아니면 EDU_UI.intensity.default) */
+  function normalizeIntensity(v, def) {
+    if (v === 'many' || v === 'normal') return v;
+    return def === 'many' || def === 'normal' ? def : EDU_UI.intensity.default;
+  }
+
+  /** 저장된 edu 객체를 검증해 새 객체로. 잘못된 값은 모두 기본값. defIntensity = 문제 양 기본값(옛 저장처럼 필드가 없을 때) */
+  function normalizeEdu(o, defIntensity) {
+    const out = { v: 1, unit: null, intensity: normalizeIntensity(undefined, defIntensity), pool: {}, stats: {} };
     if (!o || typeof o !== 'object' || Array.isArray(o)) return out;
     if (validId(o.unit)) out.unit = o.unit;
+    out.intensity = normalizeIntensity(o.intensity, defIntensity);
     const keep = EDU_UI.statsKeepUnits;
     if (o.pool && typeof o.pool === 'object' && !Array.isArray(o.pool)) {
       Object.keys(o.pool).slice(0, keep).forEach(function (id) {
@@ -214,11 +224,22 @@
     return JSON.stringify(o);
   }
 
-  function readEduFromRaw(raw) {
+  function readEduFromRaw(raw, defIntensity) {
     try {
       const o = typeof raw === 'string' && raw ? JSON.parse(raw) : null;
-      return normalizeEdu(o && o.edu);
-    } catch (e) { return normalizeEdu(null); }
+      return normalizeEdu(o && o.edu, defIntensity);
+    } catch (e) { return normalizeEdu(null, defIntensity); }
+  }
+
+  /** 문제 양 선택 아래 작은 안내(쉬운 말): 선택은 저장되지만 효과는 문제를 불러온 뒤에만 있다. 효과가 있는 상태면 ''.
+   *  st = { skip: 이번 방문만 문제 없이 퍼즐만, unit: 선택한 단원이 있는가, load: 'idle'|'loading'|'ready'|'failed' } */
+  function intensityNote(st) {
+    if (!st) return '';
+    if (st.skip) return '지금은 문제 없이 퍼즐만 하고 있어요. 문제를 쓰면 이 선택이 적용돼요.';
+    if (!st.unit) return '단원을 고르면 이 선택이 적용돼요.';
+    if (st.load === 'loading') return '문제를 불러오는 중이에요. 다 불러오면 적용돼요.';
+    if (st.load === 'failed') return '문제를 불러오지 못해서 지금은 퍼즐만 해요.';
+    return '';
   }
 
   /* ---------- 카탈로그(§21.4.3) ---------- */
@@ -399,7 +420,8 @@
       drawFromBag: drawFromBag, bonusFor: bonusFor, normalizeEdu: normalizeEdu, mergeEduIntoSave: mergeEduIntoSave, readEduFromRaw: readEduFromRaw,
       readySubjects: readySubjects, gradesOf: gradesOf, termsOf: termsOf, unitsOf: unitsOf, termReady: termReady, findSub: findSub, hasAnySub: hasAnySub,
       defaultChips: defaultChips, unitLabelOf: unitLabelOf, pagesText: pagesText, questionId: questionId, statLine: statLine, summaryLine: summaryLine,
-      answerText: answerText, parseEmphasis: parseEmphasis, stripStars: stripStars, safeFile: safeFile, createLoader: createLoader
+      answerText: answerText, parseEmphasis: parseEmphasis, stripStars: stripStars, safeFile: safeFile, createLoader: createLoader,
+      normalizeIntensity: normalizeIntensity, intensityNote: intensityNote
     };
   }
   if (typeof document === 'undefined') return;
@@ -415,6 +437,7 @@
   function gameCfg() { return (host && host.CONFIG && host.CONFIG.edu) || null; }
   function storageKey() { const g = gameCfg(); return g && typeof g.storageKey === 'string' && g.storageKey ? g.storageKey : EDU_UI.storageKey; }
   function bonusCfg() { const g = gameCfg(); return g && g.bonus && typeof g.bonus.base === 'number' ? g.bonus : EDU_UI.bonus; }
+  function defaultIntensity() { const g = gameCfg(); return g && (g.defaultIntensity === 'many' || g.defaultIntensity === 'normal') ? g.defaultIntensity : EDU_UI.intensity.default; }
 
   /** 지금 하는 난이도(easy/normal/hard). ElementGemsEdu.state().level → 저장된 선택 → normal */
   function currentLevel() {
@@ -446,7 +469,7 @@
   };
 
   /* ---------- 상태 ---------- */
-  let edu = readEduFromRaw(store.get(storageKey()));      // { unit, pool, stats }
+  let edu = readEduFromRaw(store.get(storageKey()), defaultIntensity());      // { unit, intensity, pool, stats }
   let skipQuiz = false;                                    // 이번 방문만 '문제 없이 퍼즐만' (저장하지 않음)
   let stageF = {};                                         // 이번 스테이지에서 이미 낸 f
   let tally = { asked: 0, right: 0, bonus: 0, closed: false };   // 이번 스테이지 문제 풀이
@@ -483,7 +506,9 @@
   function loadSelected() {
     const f = selectedFound();
     if (!f) return Promise.resolve('none');
-    return loader.load(edu.unit, f.sub.file).then(function (st) { renderUnitCard(); return st; });
+    const p = loader.load(edu.unit, f.sub.file);
+    renderIntensity();     // 불러오는 중이면 문제 양 선택 아래 안내를 바로 보인다
+    return p.then(function (st) { renderUnitCard(); refreshGameStages(); return st; });     // 불러오기가 끝나면 레벨 선택 화면이 보일 때 카드·설명판을 다시 그린다(문제가 준비되면 '많이' 표가 적용된다)
   }
 
   /* ---------- 출제 ---------- */
@@ -714,6 +739,76 @@
   }
 
   /* =====================================================================
+   * 선물상자 문제 양 "보통 / 많이" (spec §27.7.6) — 학습단원 선택 화면의 라디오 두 개 + 시작 화면 단원 칩의 한 줄
+   * 누르는 즉시 저장(edu.intensity)하고 레벨 선택 화면이 보이면 카드를 다시 그리게 한다. 효과는 문제가 준비된 뒤에만 있다(안내 줄).
+   * ===================================================================== */
+  const AMOUNT_LABEL = { many: '많이', normal: '보통' };
+  const AMOUNT_ORDER = ['normal', 'many'];
+
+  function intensityNow() { return normalizeIntensity(edu.intensity, defaultIntensity()); }
+
+  /** 레벨 선택 화면이 보이면 카드·설명판을 다시 그리게 한다(game.js 소관, 없으면 조용히 건너뜀) */
+  function refreshGameStages() {
+    try { const g = window.ElementGemsEdu; if (g && typeof g.refreshStages === 'function') g.refreshStages(); } catch (e) { /* 무시 */ }
+  }
+
+  function renderIntensity() {
+    const v = intensityNow();
+    const line = $('eg-unit-amount');
+    if (line) { line.textContent = '선물상자 문제: ' + AMOUNT_LABEL[v]; line.hidden = false; }
+    const grp = $('eg-amount');
+    if (!grp) return;
+    [].slice.call(grp.querySelectorAll('.eg-amt')).forEach(function (b) {
+      const on = b.dataset.v === v;
+      b.setAttribute('aria-checked', on ? 'true' : 'false');
+      b.tabIndex = on ? 0 : -1;
+      b.classList.toggle('on', on);
+    });
+    const note = $('eg-amount-note');
+    if (note) {
+      const t = intensityNote({ skip: skipQuiz, unit: !!selectedFound(), load: unitStatus() });
+      note.textContent = t;
+      note.hidden = !t;
+    }
+  }
+
+  function setIntensity(v, focus) {
+    if (v !== 'many' && v !== 'normal') return;
+    const changed = intensityNow() !== v || edu.intensity !== v;
+    edu.intensity = v;
+    if (changed) persist();
+    renderIntensity();
+    if (focus) { const b = $('eg-amt-' + v); if (b) { try { b.focus({ preventScroll: true }); } catch (e) { /* 무시 */ } } }
+    if (changed) refreshGameStages();
+  }
+
+  /** 라디오 키보드: ←/↑ 앞으로, →/↓ 뒤로(끝에서 돌아옴), Home/End 처음·끝 — 옮기면서 선택한다. Space/Enter 는 단추 기본 동작(클릭)이 선택한다 */
+  function onAmountKey(e) {
+    const k = e.key;
+    let i = AMOUNT_ORDER.indexOf(intensityNow());
+    const f = e.target && e.target.dataset && e.target.dataset.v;
+    if (f && AMOUNT_ORDER.indexOf(f) >= 0) i = AMOUNT_ORDER.indexOf(f);
+    let n = -1;
+    if (k === 'ArrowRight' || k === 'ArrowDown') n = (i + 1) % AMOUNT_ORDER.length;
+    else if (k === 'ArrowLeft' || k === 'ArrowUp') n = (i + AMOUNT_ORDER.length - 1) % AMOUNT_ORDER.length;
+    else if (k === 'Home') n = 0;
+    else if (k === 'End') n = AMOUNT_ORDER.length - 1;
+    if (n < 0) return;
+    e.preventDefault();
+    setIntensity(AMOUNT_ORDER[n], true);
+  }
+
+  function bindAmount() {
+    const grp = $('eg-amount');
+    if (!grp) return;
+    grp.addEventListener('click', function (e) {
+      const b = e.target && e.target.closest ? e.target.closest('.eg-amt') : null;
+      if (b && grp.contains(b)) setIntensity(b.dataset.v, false);
+    });
+    grp.addEventListener('keydown', onAmountKey);
+  }
+
+  /* =====================================================================
    * 시작 화면 단원 칩 · 학습단원 선택 화면
    * ===================================================================== */
   const pick = { subject: null, grade: null, term: null, unit: null, fromGate: false, busy: false, failed: false };
@@ -736,6 +831,7 @@
     }
     label.textContent = f ? unitLabelOf(f) : '아직 단원을 고르지 않았어요';
     card.classList.toggle('empty', !f);
+    renderIntensity();
     const line = f ? statLine(edu.stats[edu.unit]) : '';
     stat.textContent = line;
     stat.hidden = !line;
@@ -879,6 +975,7 @@
     else { const d = defaultChips(catalog()); pick.subject = d.subject; pick.grade = d.grade; pick.term = d.term; pick.unit = null; }
     setPickMsg('', false);
     renderPicker();
+    renderIntensity();
     hideAllScreens();
     $('screen-edu-pick').hidden = false;
     window.scrollTo(0, 0);
@@ -903,15 +1000,19 @@
     edu.unit = pick.unit;
     skipQuiz = false;
     persist();
+    refreshGameStages();     // 단원을 바꾸면 새 단원 문제가 준비될 때까지는 '보통' 표다 — 레벨 선택 화면이 보이면 다시 그린다
     pick.busy = true;
     pick.failed = false;
     setPickMsg('', false);
     updatePickButtons();
     const f = selectedFound();
     renderUnitCard();
-    loader.load(edu.unit, f.sub.file).then(function (st) {
+    const loading = loader.load(edu.unit, f.sub.file);
+    renderIntensity();
+    loading.then(function (st) {
       pick.busy = false;
       renderUnitCard();
+      refreshGameStages();
       if (!pickerVisible()) return;
       if (st === 'ready') { closePicker(pick.fromGate); return; }
       pick.failed = true;
@@ -922,6 +1023,7 @@
   function playWithoutQuiz() {
     skipQuiz = true;
     pick.failed = false;
+    refreshGameStages();     // 이번 방문은 문제 없이 퍼즐만 — '보통' 표로 돌아간다
     closePicker(pick.fromGate);
   }
 
@@ -929,6 +1031,7 @@
     $('eg-pick-back').addEventListener('click', function () { closePicker(false); });
     $('eg-pick-ok').addEventListener('click', confirmPick);
     $('eg-pick-skip').addEventListener('click', playWithoutQuiz);
+    bindAmount();
     $('eg-unit-btn').addEventListener('click', function () { if (host && host.getPhase && host.getPhase() !== 'start') return; openPicker(false); });
     $('eg-pick-side').addEventListener('click', function (e) {
       const b = e.target.closest && e.target.closest('.eg-chip');
@@ -1011,6 +1114,7 @@
     ask: ask,
     cancel: cancelQuiz,
     unitLabel: function (short) { return unitLabelOf(selectedFound(), !!short); },
+    intensity: function () { return intensityNow(); },
     summary: function (stats) { return summaryLine(stats && stats.asked > 0 ? stats : tally); },
     stats: function () { return JSON.parse(JSON.stringify(edu.stats)); },
     status: function () { return { unit: edu.unit, load: unitStatus(), open: quiz.open }; }
@@ -1024,7 +1128,7 @@
   function start() {
     if (inited) return;
     inited = true;
-    edu = readEduFromRaw(store.get(storageKey()));
+    edu = readEduFromRaw(store.get(storageKey()), defaultIntensity());
     attachToSave();
     // 카탈로그에서 사라진 소단원이면 선택을 비운다(선택 화면이 다시 열린다)
     if (edu.unit && hasAnySub(catalog()) && !findSub(catalog(), edu.unit)) { edu.unit = null; persist(); }

@@ -111,6 +111,48 @@
         easy: [9000, 9500, 10100, 10400, 10600, 11100, 11600, 13000, 14200, 15200],
         normal: [14900, 16200, 17500, 17800, 19500, 20800, 22400, 23400, 25100, 27100],
         hard: [17600, 19200, 20200, 21400, 22400, 23700, 25600, 27200, 29100, 31700]
+      },
+      // spec §27.3·§27.9 M1·M2(사용자 승인 2026-11-08): 목표 유형 계단. goalType[난이도] = 'score'(점수 목표 = 위 targets) | 'mission'(레벨별 미션 = 아래 missions).
+      //   초보는 항상 'score'(spec §33 — 값이 'mission'이어도 무시한다). M2 부터 중수·고수는 'mission'이다. 'score'로 되돌리면 이전(점수 목표)과 같은 판이 된다(롤백 스위치).
+      //   미션 정의가 없거나 형식이 맞지 않는 레벨은 항상 점수 목표로 폴백한다(막히는 판이 생기지 않게). targets 는 점수 폴백·롤백 스위치로 그대로 둔다.
+      //   missions[난이도][레벨 - 1] = { parts: [ {k:'collect', color:0, need:20} | {k:'collectEach', colors:[0,1,2], need:21} | {k:'big', min:4, need:3} | {k:'chain', min:2, need:4} ], seq: false|true }
+      //     collect 지정한 색 보석 need 개 / collectEach 지정한 색 각각 need 개 / big 한 번에 min(4~5)개 이상 매치 need 번 / chain 내가 움직여 시작한 행동에서 연쇄 min(2~4) 이상 need 번.
+      //     seq false = 부분 미션을 순서 없이 모두 끝내기(COMBO, 동시에 보이는 칩은 최대 missionMaxChips 개), true = 앞에서부터 차례로(특별 레벨 SEQ, 최대 missionMaxParts 단계).
+      //   special = 특별 레벨 번호(카드 data-kind·"특별" 태그, 중수·고수 표에서는 seq:true), rest = 점수가 앞 레벨보다 쉬운 구간의 번호(카드 data-kind 속성용 — 화면에는 글자로 쓰지 않는다, spec §34).
+      goalType: { easy: 'score', normal: 'mission', hard: 'mission' },
+      missionMaxParts: 4,
+      missionMaxChips: 2,
+      special: [5, 10],
+      rest: [3, 6, 9],
+      // 색 번호: 불 0 · 물 1 · 풀 2 · 번개 3 · 어둠 4 · 빛 5.
+      // 아래 두 표 = spec §36(M2-CAL, 2026-11-09)에서 §26 보드 구조를 적용한 실제 게임으로 재보정한 값(유형·색은 §27.5 그대로, 개수·횟수만 바뀜).
+      //   기준 플레이어 D(중수)·H(고수)의 클리어율이 §27.4 목표 곡선과 중수 ±5%p 안, 고수는 2·4단계만 ±5%p 밖(정수 횟수 한계, §36.5). 사람 체감은 확인하지 못했다 — 사람 플레이 뒤 이 표만 조정한다.
+      //   고수 9단계는 원안 구성(5개 이상 3번 + 빛 11)이 지금 게임에서 25%로 떨어져 "5개 이상 1번 + 빛 22"로 바꿨다(§36.5).
+      missions: {
+        normal: [
+          { parts: [{ k: 'collect', color: 0, need: 21 }], seq: false },
+          { parts: [{ k: 'collect', color: 1, need: 23 }], seq: false },
+          { parts: [{ k: 'chain', min: 2, need: 10 }], seq: false },
+          { parts: [{ k: 'collectEach', colors: [0, 1, 2], need: 21 }], seq: false },
+          { parts: [{ k: 'collect', color: 2, need: 12 }, { k: 'big', min: 4, need: 3 }, { k: 'chain', min: 2, need: 4 }], seq: true },
+          { parts: [{ k: 'collect', color: 2, need: 25 }], seq: false },
+          { parts: [{ k: 'collect', color: 3, need: 29 }, { k: 'chain', min: 2, need: 9 }], seq: false },
+          { parts: [{ k: 'collectEach', colors: [0, 1, 2, 3], need: 23 }], seq: false },
+          { parts: [{ k: 'collect', color: 4, need: 28 }, { k: 'collect', color: 5, need: 16 }], seq: false },
+          { parts: [{ k: 'collect', color: 0, need: 8 }, { k: 'big', min: 4, need: 3 }, { k: 'chain', min: 2, need: 4 }, { k: 'collectEach', colors: [1, 2, 3], need: 6 }], seq: true }
+        ],
+        hard: [
+          { parts: [{ k: 'big', min: 4, need: 7 }], seq: false },
+          { parts: [{ k: 'chain', min: 2, need: 12 }], seq: false },
+          { parts: [{ k: 'collectEach', colors: [3, 4, 5], need: 16 }], seq: false },
+          { parts: [{ k: 'chain', min: 3, need: 4 }], seq: false },
+          { parts: [{ k: 'collect', color: 1, need: 4 }, { k: 'big', min: 4, need: 2 }, { k: 'chain', min: 3, need: 1 }, { k: 'big', min: 5, need: 1 }], seq: true },
+          { parts: [{ k: 'collect', color: 0, need: 23 }, { k: 'collect', color: 2, need: 15 }], seq: false },
+          { parts: [{ k: 'big', min: 4, need: 7 }, { k: 'chain', min: 3, need: 4 }], seq: false },
+          { parts: [{ k: 'collectEach', colors: [0, 1, 2, 3, 4], need: 19 }], seq: false },
+          { parts: [{ k: 'big', min: 5, need: 1 }, { k: 'collect', color: 5, need: 22 }], seq: false },
+          { parts: [{ k: 'chain', min: 3, need: 1 }, { k: 'big', min: 5, need: 1 }, { k: 'collectEach', colors: [0, 1, 2], need: 5 }, { k: 'chain', min: 4, need: 1 }], seq: true }
+        ]
       }
     },
     // spec §26.4(사용자 승인 2026-11-08, 강도 1.0 · 사다리 R): 난이도·레벨별 보드 구조 "구조 등급 s"(−2~+2, 0.5 단위).
@@ -188,6 +230,48 @@
       targetScale: 1.2,                     // 교육용 목표 점수 = 일반용 목표 × targetScale (targetRound 점 단위 반올림)
       targetRound: 100,
       quiz: { maxPerAction: 3, gapMs: 400, praiseHoldMs: 700 },   // 한 행동 최대 문제 수 / 문제 사이 간격 / 칭찬 팝업을 보여 주는 시간
+      // [EDU] spec §27.7(사용자 승인 2026-11-08, M3-B): 선물상자 문제 양 선택 "보통 / 많이". 위의 wild 가 "보통"(= M3-A 직후와 같다: 1.6%·최대 2·첫 행동 확정·학습 조건 없음),
+      //   아래 many 가 "많이"(기본). 선택은 저장(edu.intensity)이고 교사가 수업 전에 정하며 학생이 바꿀 수도 있다(잠금 없음).
+      //   '많이'는 EduQuiz.ready 일 때만 쓴다(문제를 못 불러오면 ?가 없으므로 보통 표로 돌아간다). 판이 시작될 때 한 번 정하고 판 도중에는 바뀌지 않는다.
+      defaultIntensity: 'many',
+      wildCap: 6,                           // 보드 위 ? 동시 최대(사용자 결정). 코드가 Math.min(6, wildCap, max)로 다시 한 번 6을 넘지 못하게 한다
+      many: {
+        // spawn = 새 칸마다 ? 확률 / max = 보드 위 동시 최대(≤ wildCap) / pity = 마지막 ? 등장 뒤 이만큼의 플레이어 행동(스왑·스킬)이 지나면 하나를 확정 등장 / guardGap = 학습 조건에 모자랄 때 추가 등장의 최소 간격(행동 수)
+        // guardGapBy = 난이도별 guardGap 덮어쓰기(없으면 guardGap). 고수만 2: N이 큰(7·특별 9) 고수 레벨에서 느린 플레이어가 "목표는 채웠는데 문제가 모자라" 실패하는 일을 줄인다(spec §38.8·§39)
+        wild: { spawn: 0.03, max: 4, pity: 6, guardGap: 3, guardGapBy: { hard: 2 } },
+        // 학습 조건 = 선물상자 문제를 푼 개수(맞든 틀리든): 난이도별 N, 특별 레벨(CONFIG.stages.special)은 + specialPlus. 문제를 더 낼 수 없게 되면 자동으로 해제된다(막히지 않게)
+        learn: { easy: 5, normal: 6, hard: 7, specialPlus: 2 },
+        // M3-CAL(spec §38·§39)이 교육용 사본 하네스로 재보정한 "많이" 표다. 유형·색은 일반용 §36과 같고 개수·횟수만 다르다:
+        //   easyTargets = 초보 점수 목표(교육용 화면 값, 이미 ×targetScale 이 곱해졌으므로 다시 곱하지 않는다)
+        //   missions    = 중수·고수 미션 표
+        easyTargets: [10800, 13500, 16200, 18600, 19800, 20700, 21500, 23500, 25000, 28200],
+        missions: {
+          normal: [
+            { parts: [{ k: 'collect', color: 0, need: 24 }], seq: false },
+            { parts: [{ k: 'collect', color: 1, need: 28 }], seq: false },
+            { parts: [{ k: 'chain', min: 2, need: 12 }], seq: false },
+            { parts: [{ k: 'collectEach', colors: [0, 1, 2], need: 25 }], seq: false },
+            { parts: [{ k: 'collect', color: 2, need: 13 }, { k: 'big', min: 4, need: 4 }, { k: 'chain', min: 2, need: 5 }], seq: true },
+            { parts: [{ k: 'collect', color: 2, need: 31 }], seq: false },
+            { parts: [{ k: 'collect', color: 3, need: 35 }, { k: 'chain', min: 2, need: 11 }], seq: false },
+            { parts: [{ k: 'collectEach', colors: [0, 1, 2, 3], need: 29 }], seq: false },
+            { parts: [{ k: 'collect', color: 4, need: 34 }, { k: 'collect', color: 5, need: 20 }], seq: false },
+            { parts: [{ k: 'collect', color: 0, need: 10 }, { k: 'big', min: 4, need: 3 }, { k: 'chain', min: 2, need: 5 }, { k: 'collectEach', colors: [1, 2, 3], need: 7 }], seq: true }
+          ],
+          hard: [
+            { parts: [{ k: 'big', min: 4, need: 10 }], seq: false },
+            { parts: [{ k: 'chain', min: 2, need: 14 }], seq: false },
+            { parts: [{ k: 'collectEach', colors: [3, 4, 5], need: 21 }], seq: false },
+            { parts: [{ k: 'chain', min: 3, need: 6 }], seq: false },
+            { parts: [{ k: 'collect', color: 1, need: 8 }, { k: 'big', min: 4, need: 4 }, { k: 'chain', min: 3, need: 1 }, { k: 'big', min: 5, need: 1 }], seq: true },
+            { parts: [{ k: 'collect', color: 0, need: 29 }, { k: 'collect', color: 2, need: 18 }], seq: false },
+            { parts: [{ k: 'big', min: 4, need: 10 }, { k: 'chain', min: 3, need: 6 }], seq: false },
+            { parts: [{ k: 'collectEach', colors: [0, 1, 2, 3, 4], need: 25 }], seq: false },
+            { parts: [{ k: 'big', min: 5, need: 1 }, { k: 'collect', color: 5, need: 30 }], seq: false },
+            { parts: [{ k: 'chain', min: 3, need: 1 }, { k: 'big', min: 5, need: 1 }, { k: 'collectEach', colors: [0, 1, 2], need: 8 }, { k: 'chain', min: 4, need: 2 }], seq: true }
+          ]
+        }
+      },
       storageKey: 'element-gems-edu:v1',    // 진행·설정 저장 키(일반용 'element-gems:v1' 과 분리). 프로필·순위 캐시 키는 ranking.js 소관
       saveEduMaxChars: 200000,              // 저장 객체의 edu 필드(edu.js 소관) 크기 상한: 넘으면 버린다
       hintMs: 3500,                         // 첫 ? 등장 안내를 보여 주는 시간
@@ -533,25 +617,55 @@
     return n;
   }
 
+  // spec §27.7(M3-B) 문제 양 순수 도우미 — DOM·난수 없음. 모드를 고르는 변수 eduTableMode 는 stageTarget·missionDef 가 읽는다(기본 'normal' 이라 순수 함수 시험은 그대로 통과).
+  /** 보드 위 ? 동시 최대의 하드 상한(사용자 결정 2026-11-08: 한 보드 6개까지). 설정(CONFIG.edu.wildCap·wild.max)을 더 크게 줘도 줄어든다 */
+  const WILD_HARD_CAP = 6;
+  let eduTableMode = 'normal';
+
+  /** 실제로 쓰는 ? 상한 = min(6, CONFIG.edu.wildCap, max). max 가 0 이하이면 0 */
+  function wildCapOf(max) {
+    const cfg = CONFIG.edu.wildCap > 0 ? CONFIG.edu.wildCap : WILD_HARD_CAP;
+    return max > 0 ? Math.min(WILD_HARD_CAP, cfg, max) : 0;
+  }
+
+  /** 유효 문제 양: 선택이 'many' 이고 문제가 준비돼 있을 때만 'many', 그 밖에는 모두 'normal' (문제가 없으면 ?도 없으니 많이 표는 쓸 수 없다) */
+  function resolveEduMode(intensity, ready) { return intensity === 'many' && !!ready ? 'many' : 'normal'; }
+
+  /** 학습 조건 N(푼 개수, 맞든 틀리든): 난이도별 값 + 특별 레벨(CONFIG.stages.special)이면 specialPlus. 모르는 난이도·레벨이면 0 */
+  function learnNeed(diff, stage) {
+    const L = CONFIG.edu.many && CONFIG.edu.many.learn;
+    const base = L ? L[diff] : 0;
+    if (!(typeof base === 'number' && isFinite(base) && base > 0) || !(stage >= 1 && stage <= CONFIG.stages.count)) return 0;
+    const plus = CONFIG.stages.special.indexOf(stage) !== -1 && L.specialPlus > 0 ? Math.round(L.specialPlus) : 0;
+    return Math.round(base) + plus;
+  }
+
   /**
-   * 리필로 새로 생기는 count 칸의 종류를 정한다(§21.7.1). 칸마다 확률 opt.spawn 으로 ? (보드 위 ?가 opt.max 개가 되면 더 안 나옴).
+   * 리필로 새로 생기는 count 칸의 종류를 정한다(§21.7.1). 칸마다 확률 opt.spawn 으로 ? (보드 위 ?가 cap 개가 되면 더 안 나옴).
    * opt.force 이면 새 칸 중 하나를 ?로 확정한다(첫 행동 보장). spawn=0·force=false 이면 rng 를 count번 쓰는 일반 무작위와 똑같다.
    * wildOnBoard = 이미 보드 위에 있는 ? 수. n = 일반 종류 수.
+   * [EDU] spec §27.7.2(M3-B): cap = Math.min(6, CONFIG.edu.wildCap, opt.max) — 어떤 설정이든 보드 위 ? 는 6개를 넘지 못한다(WILD_HARD_CAP).
+   *   확정 등장은 forceNow = force(첫 행동) 또는 pity(마지막 ? 등장 뒤 pity.every 번의 플레이어 행동이 지났다: pity.since >= pity.every > 0)
+   *   또는 guard(학습 조건에 모자란다: guard.need > 0 이고 guard.since >= guard.gap)일 때 일어나고, 확정 칸을 고르는 난수 사용은 기존 force 경로와 같다.
+   *   pity·guard 가 없고 force 가 false 이면 이전과 난수 호출 순서까지 똑같다.
    */
   function pickRefillTypes(count, wildOnBoard, rng, opt) {
     const rand = rng || Math.random;
     const o = opt || {};
     const spawn = o.spawn > 0 ? o.spawn : 0;
     const max = o.max > 0 ? o.max : 0;
+    const cap = wildCapOf(max);
     const n = o.n > 0 ? o.n : TYPE_COUNT;
+    const pityDue = !!(o.pity && o.pity.every > 0 && o.pity.since >= o.pity.every);
+    const guardDue = !!(o.guard && o.guard.need > 0 && o.guard.since >= (o.guard.gap > 0 ? o.guard.gap : 0));
     let wilds = wildOnBoard;
     let forceAt = -1;
-    if (o.force && count > 0 && wilds < max) forceAt = Math.floor(rand() * count);
+    if ((o.force || pityDue || guardDue) && count > 0 && wilds < cap) forceAt = Math.floor(rand() * count);
     const out = [];
     for (let i = 0; i < count; i++) {
       if (i === forceAt) { out.push(WILD); wilds++; continue; }
-      const reserve = forceAt > i ? 1 : 0;      // 확정 칸이 아직 앞에 남아 있으면 그 자리를 비워 둔다(max 초과 방지)
-      if (spawn > 0 && wilds + reserve < max && rand() < spawn) { out.push(WILD); wilds++; continue; }
+      const reserve = forceAt > i ? 1 : 0;      // 확정 칸이 아직 앞에 남아 있으면 그 자리를 비워 둔다(cap 초과 방지)
+      if (spawn > 0 && wilds + reserve < cap && rand() < spawn) { out.push(WILD); wilds++; continue; }
       out.push(Math.floor(rand() * n));
     }
     return out;
@@ -923,6 +1037,11 @@
   function stageTarget(diff, stage) {
     const t = CONFIG.stages.targets[diff];
     if (!(t && stage >= 1 && stage <= t.length)) return 0;
+    // [EDU] spec §27.7(M3-B): 문제 양 "많이"의 초보 점수 표(CONFIG.edu.many.easyTargets)는 이미 교육용 화면 값이라 targetScale 을 곱하지 않는다. 표가 없거나 모양이 틀리면 보통 모드와 같은 파생값을 쓴다
+    if (eduTableMode === 'many' && diff === 'easy') {
+      const em = CONFIG.edu.many && CONFIG.edu.many.easyTargets;
+      if (Array.isArray(em) && em.length === t.length && em.every(function (v) { return intIn(v, 1, 99999999); })) return em[stage - 1];
+    }
     // [EDU] 교육용 목표 점수 = 일반용 목표 × targetScale(1.2), targetRound(100)점 단위 반올림 (§21.8.4)
     return Math.round(t[stage - 1] * CONFIG.edu.targetScale / CONFIG.edu.targetRound) * CONFIG.edu.targetRound;
     // [/EDU]
@@ -936,6 +1055,170 @@
   }
 
   function isCleared(score, target) { return target > 0 && score >= target; }
+
+  /* ---------- 미션(목표) 엔진 (spec §27.3.1, M1) — DOM·난수 없음 ----------
+   * 미션 상태 m = { def, seq, cur, rev, parts: [ { k, need, n, done, color | colors+each | min } ] }.
+   *   cur  seq(차례대로)일 때 지금 세고 있는 부분의 번호(모두 끝나면 parts.length). seq 가 아니면 쓰지 않는다.
+   *   rev  카운터가 바뀔 때마다 +1(HUD 가 바뀐 때만 그리게 하는 표시).
+   * 이벤트(게임이 호출하는 쪽): { t:'group', color, size } = awardGroup 에서 그룹 하나마다(스킬로 직접 지운 칸은 이 길을 거치지 않는다),
+   *   { t:'action', fromSwap, maxStep } = 행동(스왑·스킬)이 끝날 때 한 번. 달성 판정(missionDone)은 행동이 끝난 시점에서만 본다. */
+  const MISSION_KINDS = ['collect', 'collectEach', 'big', 'chain'];
+
+  function intIn(v, lo, hi) { return typeof v === 'number' && isFinite(v) && v % 1 === 0 && v >= lo && v <= hi; }
+
+  /** 미션 정의가 올바른가. 틀리면 그 레벨은 점수 목표로 폴백한다(막히는 판이 생기지 않게) */
+  function missionValid(def) {
+    if (!def || typeof def !== 'object' || !Array.isArray(def.parts)) return false;
+    if (def.parts.length < 1 || def.parts.length > CONFIG.stages.missionMaxParts) return false;
+    if (def.seq !== undefined && typeof def.seq !== 'boolean') return false;
+    // 동시에 세는(seq 아님) 부분은 칩이 한꺼번에 보이므로 missionMaxChips 개까지만(폰 세로·가로에서 칩 3~4개면 게이지 줄·리셋 단추가 잘린다, review.md §24-7). seq 는 칩 1개라 missionMaxParts 만 본다
+    if (!def.seq && def.parts.length > CONFIG.stages.missionMaxChips) return false;
+    const nColors = CONFIG.types.length;
+    return def.parts.every(function (p) {
+      if (!p || typeof p !== 'object' || MISSION_KINDS.indexOf(p.k) === -1 || !intIn(p.need, 1, 9999)) return false;
+      if (p.k === 'collect') return intIn(p.color, 0, nColors - 1);
+      if (p.k === 'collectEach') {
+        return Array.isArray(p.colors) && p.colors.length >= 2 && p.colors.length <= nColors &&
+          p.colors.every(function (c, i) { return intIn(c, 0, nColors - 1) && p.colors.indexOf(c) === i; });
+      }
+      if (p.k === 'big') return intIn(p.min, 4, 64);
+      return intIn(p.min, 2, 20);     // chain
+    });
+  }
+
+  // [EDU] spec §27.7(M3-B): 이 함수만 일반용과 다르다 — 문제 양 "많이"이면 미션 표를 CONFIG.edu.many.missions 에서 읽는다(eduTableMode, syncEduMode 가 판 시작·메뉴 그리기 때만 갱신). 나머지는 일반용과 같은 본문이다
+  /** 난이도 diff 의 레벨 stage(1~10)에 쓸 미션 정의. 점수형이거나(초보는 항상) 정의가 없거나 형식이 틀리면 null = 점수 목표 */
+  function missionDef(diff, stage) {
+    const S = CONFIG.stages;
+    if (diff === 'easy' || !S.goalType || S.goalType[diff] !== 'mission') return null;
+    const tbl = eduTableMode === 'many' && CONFIG.edu.many ? CONFIG.edu.many.missions : S.missions;
+    const list = tbl && tbl[diff];
+    const def = Array.isArray(list) && stage >= 1 && stage <= S.count ? list[stage - 1] : null;
+    return missionValid(def) ? def : null;
+  }
+  // [/EDU]
+
+  function missionInit(def) {
+    const m = { def: def, seq: !!def.seq, cur: 0, rev: 0, parts: [] };
+    def.parts.forEach(function (p) {
+      const part = { k: p.k, need: p.need, n: 0, done: false };
+      if (p.k === 'collect') part.color = p.color;
+      else if (p.k === 'collectEach') { part.colors = p.colors.slice(); part.each = p.colors.map(function () { return 0; }); }
+      else part.min = p.min;
+      m.parts.push(part);
+    });
+    return m;
+  }
+
+  /** 부분 미션의 지금 값: collectEach 는 색별 개수 중 가장 작은 값, 나머지는 센 값 */
+  function missionValue(p) { return p.k === 'collectEach' ? Math.min.apply(null, p.each) : p.n; }
+
+  /** 이벤트 하나를 부분 미션 하나에 센다. 바뀌었으면 true */
+  function missionCount(p, ev) {
+    if (ev.t === 'group') {
+      if (p.k === 'collect') { if (ev.color === p.color) { p.n += ev.size; return true; } }
+      else if (p.k === 'collectEach') { const i = p.colors.indexOf(ev.color); if (i >= 0) { p.each[i] += ev.size; return true; } }
+      else if (p.k === 'big') { if (ev.size >= p.min) { p.n += 1; return true; } }
+    } else if (ev.t === 'action') {
+      if (p.k === 'chain' && ev.fromSwap === true && ev.maxStep >= p.min) { p.n += 1; return true; }
+    }
+    return false;
+  }
+
+  /** 이벤트를 미션에 반영한다(m 을 바꾸고 돌려준다). COMBO(seq 아님) = 모든 부분이 동시에 센다. SEQ = 지금 차례의 부분만 센다(앞 단계가 끝나야 다음 단계가 센다).
+   *  SEQ 해석(spec §27.3.1 "기준선", review.md §24-10 P5): 이벤트 하나는 지금 차례의 단계에만 세어진다. 그 이벤트로 단계가 끝나면 넘친 값(초과분)은 다음 단계로 넘기지 않고 버리며,
+   *  다음 단계는 그 이벤트 **뒤의** 이벤트부터 센다(같은 행동 안이라도 이미 지나간 그룹은 세지 않는다). 그래서 다음 단계의 카운터는 항상 0에서 시작한다 */
+  function missionUpdate(m, ev) {
+    const lo = m.seq ? m.cur : 0;
+    const hi = m.seq ? Math.min(m.cur, m.parts.length - 1) : m.parts.length - 1;
+    for (let i = lo; i <= hi; i++) {
+      const p = m.parts[i];
+      if (p.done) continue;
+      if (missionCount(p, ev)) {
+        m.rev++;
+        if (missionValue(p) >= p.need) p.done = true;
+      }
+    }
+    if (m.seq) while (m.cur < m.parts.length && m.parts[m.cur].done) m.cur++;     // 이 이벤트로 끝난 단계 다음 이벤트부터 다음 단계가 센다(기준선 = 단계가 시작된 때의 카운터)
+    return m;
+  }
+
+  function missionDone(m) { return m.parts.every(function (p) { return p.done; }); }
+
+  /** HUD 용 진행 요약. now 는 need 로 자른 값, each 는 collectEach 의 색별 값 */
+  function missionProgress(m) {
+    let n = 0;
+    const parts = m.parts.map(function (p, i) {
+      const e = { k: p.k, need: p.need, now: Math.min(p.need, missionValue(p)), done: p.done, active: m.seq ? i === m.cur : !p.done };
+      if (p.k === 'collectEach') e.each = p.each.map(function (v) { return Math.min(p.need, v); });
+      if (p.done) n++;
+      return e;
+    });
+    return { parts: parts, doneCount: n, total: parts.length, seq: m.seq, cur: m.seq ? Math.min(m.cur, parts.length - 1) : -1, done: n === parts.length };
+  }
+
+  /** 미션 정의를 쉬운 말로 풀어 쓴다(spec §27.8). parts[i] = { name: 칩 이름, hint: 작은 글, total: 한 줄 설명 }, summary = 부분을 이은 화면용 한 줄, spoken = 낭독용 한 문장 */
+  function missionDescribe(def) {
+    const T = CONFIG.types;
+    const parts = def.parts.map(function (p) {
+      if (p.k === 'collect') return { name: T[p.color].name + ' 보석 터뜨리기', hint: '', total: T[p.color].name + ' 보석 ' + p.need + '개' };
+      if (p.k === 'collectEach') {
+        const names = p.colors.map(function (c) { return T[c].name; }).join('·');
+        return { name: names + ' 보석 각각', hint: '', total: names + ' 보석 각각 ' + p.need + '개' };
+      }
+      if (p.k === 'big') return { name: '큰 매치 만들기(한 번에 ' + p.min + '개 이상)', hint: '', total: '한 번에 ' + p.min + '개 이상 ' + p.need + '번' };
+      return { name: '연쇄 만들기(CHAIN ' + p.min + ' 이상)', hint: '한 번 움직여서 이어서 터지게 해요', total: '연쇄(CHAIN ' + p.min + ' 이상) ' + p.need + '번' };
+    });
+    const summary = def.seq
+      ? parts.map(function (t, i) { return '①②③④⑤⑥'.charAt(i) + ' ' + t.total; }).join(' → ')
+      : parts.map(function (t) { return t.total; }).join(', ');
+    // spoken = 화면 낭독용 한 문장(카드 aria-label): 동시 미션은 "A 그리고 B", 차례대로는 "먼저 A, 그다음 B, 그다음 C". summary 는 화면용이라 그대로 둔다
+    const spoken = def.seq
+      ? parts.map(function (t, i) { return (i === 0 ? '먼저 ' : '그다음 ') + t.total; }).join(', ')
+      : parts.map(function (t) { return t.total; }).join(' 그리고 ');
+    return { parts: parts, summary: summary, spoken: spoken, count: parts.length };
+  }
+
+  /* ---------- 레벨 카드·선택 레벨 설명판의 글 (spec §32.5.4, M2) — DOM 없음 ---------- */
+  /** 레벨 카드 data-kind(스킨용 속성 — 화면에 글자로 나오지 않는다, spec §34): 특별 번호는 모든 난이도 'special', 쉬운 구간 번호는 중수·고수만 'rest', 그 밖은 '' */
+  function stageKind(diff, stage) {
+    const S = CONFIG.stages;
+    if (S.special.indexOf(stage) !== -1) return 'special';
+    if (diff !== 'easy' && S.rest.indexOf(stage) !== -1) return 'rest';
+    return '';
+  }
+
+  /** "특별" 태그·"특별 레벨" 낭독을 쓰는 레벨인가: 미션형으로 켜진(정의가 있는) 중수·고수의 특별 번호. 초보는 점수제 표현만이라 쓰지 않는다(spec §33) */
+  function isSpecialMission(diff, stage) {
+    return CONFIG.stages.special.indexOf(stage) !== -1 && !!missionDef(diff, stage);
+  }
+
+  function targetText(diff, stage) { return stageTarget(diff, stage).toLocaleString('ko-KR'); }
+
+  /** 레벨 카드 aria-label. 점수 카드는 "레벨 3, 목표 N점, 별 0개", 미션 카드는 부분을 "그리고"로 이은 한 문장 뒤에 별 정보를 따로("레벨 7, 미션 A 그리고 B, 별 0개"),
+   *  특별은 "레벨 5, 특별 레벨, 미션 먼저 A, 그다음 B", 잠김은 맨 끝이 "잠김" (review.md §24-10 P3). 3·6·9단계에는 별도 말을 달지 않는다(spec §34) */
+  function stageCardLabel(diff, stage, open, stars) {
+    const mdef = missionDef(diff, stage);
+    const goal = mdef ? (isSpecialMission(diff, stage) ? '특별 레벨, ' : '') + '미션 ' + missionDescribe(mdef).spoken : '목표 ' + targetText(diff, stage) + '점';
+    return '레벨 ' + stage + ', ' + goal + ', ' + (open ? '별 ' + stars + '개' : '잠김');
+  }
+
+  /** 선택 레벨 설명판의 글: { title, tag, goal, hint, time } (빈 문자열 = 그 줄을 숨긴다). 잠긴 레벨은 잠김 안내만, 초보·점수 폴백은 "목표 점수 N점"만(spec §33) */
+  function stageDetailInfo(diff, stage, open) {
+    const info = { title: '레벨 ' + stage, tag: '', goal: '', hint: '', time: '' };
+    if (!open) { info.goal = '아직 잠겨 있어요 — 앞 레벨을 먼저 클리어하세요'; return info; }
+    const mdef = missionDef(diff, stage);
+    if (mdef) {
+      const d = missionDescribe(mdef);
+      info.goal = d.summary;
+      info.hint = d.parts.map(function (p) { return p.hint; }).filter(Boolean)[0] || '';
+      if (isSpecialMission(diff, stage)) info.tag = '특별 레벨';
+    } else {
+      info.goal = '목표 점수 ' + targetText(diff, stage) + '점';
+    }
+    info.time = '제한 시간 ' + fmtTime(CONFIG.difficulty[diff].time.start);
+    return info;
+  }
 
   /** 레벨 N 선택 가능 = 1 <= N <= progress + 1 (N <= count) */
   function stageUnlocked(progress, stage) {
@@ -1084,11 +1367,15 @@
       pickTrack: pickTrack,
       boardGrade: boardGrade, boardParams: boardParams, completes: completes, fillStructured: fillStructured,
       refillStructured: refillStructured, generateBoardStructured: generateBoardStructured,
+      missionValid: missionValid, missionDef: missionDef, missionInit: missionInit, missionUpdate: missionUpdate, missionDone: missionDone,
+      missionProgress: missionProgress, missionDescribe: missionDescribe,
+      stageKind: stageKind, isSpecialMission: isSpecialMission, stageCardLabel: stageCardLabel, stageDetailInfo: stageDetailInfo,
       // [EDU] ? 선물상자 시험용 내보내기
       WILD: WILD, wouldMatch: wouldMatch, findMatchesPlain: findMatchesPlain, findMatchesWild: findMatchesWild, hasWild: hasWild,
       uniqueCells: uniqueCells, wildCellsOfGroups: wildCellsOfGroups, countWild: countWild, pickRefillTypes: pickRefillTypes, pickRefillTypesStructured: pickRefillTypesStructured,
       boltTargets: boltTargets, bonusFor: bonusFor, cleanEduField: cleanEduField, resolveEduField: resolveEduField,
-      makeMatrix: makeMatrix
+      makeMatrix: makeMatrix, wildCapOf: wildCapOf, guardGapOf: guardGapOf, resolveEduMode: resolveEduMode, learnNeed: learnNeed,
+      setEduTableMode: function (m) { eduTableMode = m === 'many' ? 'many' : 'normal'; }, getEduTableMode: function () { return eduTableMode; }
       // [/EDU]
     };
   }
@@ -1144,12 +1431,14 @@
     level: 'normal',
     stage: 1,         // 현재(또는 마지막) 스테이지 레벨 1~10
     board: null,      // 이번 스테이지의 보드 구조 등급 손잡이(boardParams, spec §26). null = 균등 무작위(기존 경로)
-    target: 0,        // 이번 스테이지 목표 점수
+    target: 0,        // 이번 스테이지 목표 점수(미션형 레벨에서는 점수 폴백·참고값)
+    mission: null,    // 이번 스테이지의 미션 상태(missionInit). null = 점수 목표(기본). 미션형이면 goalMet 이 이것으로 판정한다(spec §27)
     startTime: 120,   // 별 계산 기준 시작 시간
     idle: 0,
     // [EDU] 문제 중(칭찬 팝업 대기 포함)에는 게임 시계·쿨다운이 모두 멈춘다(advance 가 즉시 반환). edu = 이번 스테이지 문제 통계
     quizActive: false,
-    edu: { asked: 0, right: 0, bonus: 0, firstDone: false, skipped: 0 }
+    // since = 마지막 ? 등장 뒤 지난 플레이어 행동 수(스왑·스킬, spec §27.7.2 pity·guard) / mode = 이 판의 문제 양('many'|'normal', 판 시작 때 정하고 도중에는 바뀌지 않는다) / learn = 학습 조건 { need } 또는 null
+    edu: { asked: 0, right: 0, bonus: 0, firstDone: false, skipped: 0, since: 0, mode: 'normal', learn: null }
     // [/EDU]
   };
 
@@ -1169,8 +1458,10 @@
       'btn-hint', 'btn-menu', 'btn-reset', 'overlay-count', 'count-num', 'overlay-pause', 'btn-resume',
       'btn-restart', 'btn-sound-pause', 'btn-quit', 'overlay-confirm', 'btn-confirm-yes', 'btn-confirm-no',
       'overlay-end', 'end-title', 'level-select', 'level-desc', 'level-chip', 'pause-level', 'end-level', 'btn-cutin-start', 'btn-cutin-pause', 'cutin', 'cutin-img', 'cb-shout', 'cb-skill', 'cn-gem', 'cn-text', 'logo-img', 'title-fallback', 'end-score', 'end-best', 'end-combo', 'end-chain', 'end-skills',
-      'end-matches', 'combo-chip', 'combo-run', 'combo-mult', 'combo-max', 'combo-bar', 'combo-live', 'btn-again', 'btn-home'
+      'end-matches', 'combo-chip', 'combo-run', 'combo-mult', 'combo-max', 'combo-bar', 'combo-live', 'btn-again', 'btn-home', 'mission', 'mission-list', 'mission-live',
+      'stage-detail', 'sd-title', 'sd-tag', 'sd-goal', 'sd-hint', 'sd-time', 'btn-stage-go'
     ].forEach(function (id) { el[id] = $(id); });
+    ['learn-chip', 'learn-fill', 'learn-num', 'learn-live', 'sd-learn'].forEach(function (id) { el[id] = $(id); });     // [EDU] 학습 칩(spec §27.7)·설명판 학습 줄
   }
 
   /* =====================================================================
@@ -1769,19 +2060,148 @@
     return n;
   }
 
+  /* ---------- 문제 양 "보통 / 많이"·학습 조건 (spec §27.7, M3-B) ---------- */
+  /** 지금 선택된 문제 양: EduQuiz.intensity()(edu.js, 저장된 선택)가 있으면 그 값, 없으면 CONFIG.edu.defaultIntensity */
+  function eduIntensity() {
+    try {
+      const q = window.EduQuiz;
+      if (q && typeof q.intensity === 'function') {
+        const v = q.intensity();
+        if (v === 'many' || v === 'normal') return v;
+      }
+    } catch (e) { /* 기본값 */ }
+    return CONFIG.edu.defaultIntensity === 'normal' ? 'normal' : 'many';
+  }
+
+  /** 유효 문제 양: 'many' 는 선택이 many 이고 EduQuiz.ready 일 때만, 아니면 'normal' */
+  function eduMode() { return resolveEduMode(eduIntensity(), quizReady()); }
+
+  /** 목표 표를 고르는 변수(eduTableMode)를 지금의 유효 문제 양으로 맞춘다. 레벨 선택 화면을 그릴 때와 판을 시작할 때만 부른다 — 판 도중에는 부르지 않아 모드가 바뀌지 않는다 */
+  function syncEduMode() { eduTableMode = eduMode(); return eduTableMode; }
+
+  /** 판 시작: 이 판의 문제 양을 정하고(state.edu.mode) 많이 모드이면 학습 조건(푼 개수 N)을 만든다. 둘 다 판이 끝날 때까지 그대로다 */
+  function startEduMode(diff, stage) {
+    state.edu.mode = syncEduMode();
+    const mw = CONFIG.edu.many && CONFIG.edu.many.wild;
+    const canSpawn = !!mw && mw.spawn > 0 && wildCapOf(mw.max) > 0;      // ?가 나올 수 없는 설정이면 학습 조건도 두지 않는다(채울 수 없는 조건으로 막히지 않게)
+    const need = state.edu.mode === 'many' && canSpawn ? learnNeed(diff, stage) : 0;
+    state.edu.learn = need > 0 ? { need: need } : null;
+  }
+
+  /** [EDU] guard 의 추가 등장 간격: w.guardGapBy[난이도]가 0 이상의 수이면 그 값, 아니면 w.guardGap (spec §39) */
+  function guardGapOf(level, w) {
+    const by = w && w.guardGapBy && w.guardGapBy[level];
+    return typeof by === 'number' && isFinite(by) && by >= 0 ? by : w.guardGap;
+  }
+
+  /** 학습 조건에 모자란 개수 = N − 푼 개수 − 보드 위 ? 수 (guard 가 쓴다). 조건이 없거나 채웠으면 0 */
+  function learnShortfall() {
+    const L = state.edu.learn;
+    return L ? Math.max(0, L.need - state.edu.asked - gridWildCount()) : 0;
+  }
+
+  /** 학습 조건을 채웠는가: 조건이 없거나, 푼 개수(맞든 틀리든)가 N 이상이거나, 문제를 더 낼 수 없게 되면(EduQuiz 가 준비되지 않음) 자동으로 해제 — 막히지 않는다 */
+  function learnMet() {
+    const L = state.edu.learn;
+    return !L || state.edu.asked >= L.need || !quizReady();
+  }
+
+  /** 클리어 = 목표(점수 또는 미션)를 채웠고 학습 조건도 채움. 학습 조건이 없으면 goalMet() 과 같다 */
+  function stageDone() { return goalMet() && learnMet(); }
+
+  /** 레벨 선택 화면이 보일 때만 문제 양을 다시 맞추고 카드·설명판을 다시 그린다(edu.js 가 문제 양을 바꿨거나 단원 불러오기가 끝났을 때 부른다). 카드에 있던 포커스는 같은 레벨로 되돌린다 */
+  function refreshStages() {
+    if (state.phase !== 'stages') return;
+    const f = document.activeElement;
+    const keep = f && f.classList && f.classList.contains('stage-card') && f.dataset ? f.dataset.stage : null;
+    renderStages();
+    if (keep) {
+      const b = el['stage-grid'].querySelector('.stage-card[data-stage="' + keep + '"]');
+      if (b && !b.disabled && b.focus) { try { b.focus({ preventScroll: true }); } catch (e) { /* 무시 */ } }
+    }
+  }
+
+  /** 선택 레벨 설명판의 학습 줄(많이 모드·열린 레벨만): "선물상자 문제 N개도 풀어요" */
+  function eduDetailLearn(diff, stage, open) {
+    const e = el['sd-learn'];
+    if (!e) return;
+    const n = open && eduTableMode === 'many' ? learnNeed(diff, stage) : 0;
+    e.textContent = n > 0 ? '선물상자 문제 ' + n + '개도 풀어요' : '';
+    e.hidden = !(n > 0);
+  }
+
+  /* 학습 칩 HUD(#learn-chip): 학습 조건이 있는 판에서만 보인다. 이름 "선물상자 문제 풀기" + 진행 "3 / 7"(넘으면 N / N) + 작은 글 "맞든 틀리든 푼 개수예요" + 완료 ✓·초록.
+   * role="progressbar" + aria-valuenow/max + aria-label, 완료 알림은 #learn-live(role=status, polite). 값이 바뀔 때만 DOM 을 쓴다. 미션 칩 함수(buildMissionHud 등)는 건드리지 않는다. */
+  const LEARN_DONE_TEXT = '선물상자 문제 풀기를 끝냈어요';
+  const hudLearn = { n: -1, met: false, liveN: 0 };
+
+  function buildLearnHud() {
+    const chip = el['learn-chip'];
+    const game = el['screen-game'];
+    hudLearn.n = -1; hudLearn.met = false;
+    if (!chip) return;       // (캐시된 옛 index.html 과 새 game.js 가 잠깐 섞여도 판이 멈추지 않게)
+    const L = state.edu.learn;
+    chip.hidden = !L;
+    chip.classList.remove('done', 'pop');
+    if (el['learn-live']) el['learn-live'].textContent = '';
+    if (!L) { delete game.dataset.learn; return; }
+    game.dataset.learn = '1';
+    chip.setAttribute('aria-valuemin', '0');
+    chip.setAttribute('aria-valuemax', String(L.need));
+    updateLearnHud();        // 첫 프레임을 기다리지 않고 0 / N 과 aria 값을 바로 채운다
+  }
+
+  function updateLearnHud() {
+    const L = state.edu.learn;
+    const chip = el['learn-chip'];
+    if (!L || !chip || chip.hidden) return;
+    const asked = state.edu.asked;
+    const n = Math.min(asked, L.need);
+    const met = asked >= L.need;
+    if (n === hudLearn.n && met === hudLearn.met) return;
+    const fresh = met && !hudLearn.met;
+    hudLearn.n = n; hudLearn.met = met;
+    el['learn-num'].textContent = n + ' / ' + L.need;
+    el['learn-fill'].style.transform = 'scaleX(' + (n / L.need).toFixed(4) + ')';
+    chip.classList.toggle('done', met);
+    chip.setAttribute('aria-valuenow', String(n));
+    chip.setAttribute('aria-label', '선물상자 문제 풀기 ' + n + ' / ' + L.need + (met ? ', 완료' : ''));
+    if (fresh) {
+      hudLearn.liveN++;
+      if (el['learn-live']) el['learn-live'].textContent = LEARN_DONE_TEXT + (hudLearn.liveN % 2 ? '' : '.');     // 같은 문구가 이어서 나와도 다시 읽히게 마침표를 번갈아 붙인다
+      chip.classList.remove('pop');
+      void chip.offsetWidth;
+      chip.classList.add('pop');
+    }
+  }
+
   /**
    * 이번 리필의 새 칸 count개 종류. spawn 이 0 이면 일반 무작위와 완전히 같다.
    * spec §26.9: 구조 등급이 켜져 있으면(state.board) ? 여부를 기존 규칙으로 먼저 정하고 나머지 칸을 구조 규칙으로 채운다
    * (pickRefillTypesStructured). 꺼져 있으면(state.board == null) 위의 기존 경로 그대로다.
+   * spec §27.7.2(M3-B): 문제 양 "많이"인 판(state.edu.mode — 판 시작 때 정해 도중에는 안 바뀐다)은 CONFIG.edu.many.wild 를 쓰고 pity·guard 를 더한다.
+   *   guard.need = 학습 조건 N − 푼 개수 − 보드 위 ? 수 (학습 조건이 없거나 채웠으면 0). "보통"은 CONFIG.edu.wild 만 쓰고 이전과 똑같다.
    */
-  function planRefill(count) {
-    const w = CONFIG.edu.wild;
+  function planRefillTypes(count) {
+    const many = state.edu.mode === 'many';
+    const w = many ? CONFIG.edu.many.wild : CONFIG.edu.wild;
     const on = w.spawn > 0 && quizReady();
-    const force = on && w.guaranteeFirst && !state.edu.firstDone && count > 0;
+    const force = on && CONFIG.edu.wild.guaranteeFirst && !state.edu.firstDone && count > 0;
     if (force) state.edu.firstDone = true;
     const opt = { spawn: on ? w.spawn : 0, max: on ? w.max : 0, force: force, n: TYPE_COUNT };
+    if (on && many) {
+      opt.pity = { every: w.pity, since: state.edu.since };
+      opt.guard = { need: learnShortfall(), since: state.edu.since, gap: guardGapOf(state.level, w) };
+    }
     if (state.board) return pickRefillTypesStructured(typeGrid(), on ? gridWildCount() : 0, state.board, Math.random, opt);
     return pickRefillTypes(count, on ? gridWildCount() : 0, Math.random, opt);
+  }
+
+  /** 리필 새 칸 종류를 정하고, ?가 하나라도 나오면 "마지막 ? 등장 뒤 지난 행동 수"를 0으로 되돌린다(spec §27.7.2) */
+  function planRefill(count) {
+    const types = planRefillTypes(count);
+    if (types.indexOf(WILD) !== -1) state.edu.since = 0;
+    return types;
   }
 
   /** 첫 ? 등장 안내(조준 안내 줄을 잠깐 빌려 쓴다. 조준 중이면 건너뜀) */
@@ -1939,6 +2359,8 @@
       state.timeLeft = Math.min(CONFIG.time.max, state.timeLeft + timeBonusFor(g.size, step));
     }
     charge(g.type, g.size);
+    // spec §27.3.1: COLLECT·BIG 는 그룹마다 센다(연쇄 단계 무관, 스킬 뒤 연쇄 포함). 스킬로 직접 지운 칸은 removeSkillCells 를 거쳐 여기에 오지 않는다
+    if (state.mission) missionUpdate(state.mission, { t: 'group', color: g.type, size: g.size });
     const ctr = centroid(g.cells);
     floatText('+' + fmt(pts), ctr.r, ctr.c);
   }
@@ -1998,6 +2420,9 @@
     state.stats.skillPts += pts;
     floatText('+' + fmt(pts), (ROWS - 1) / 2, (COLS - 1) / 2, '#ffe9a0', true);
   }
+
+  /** 목표 달성 여부. 점수형(state.mission 이 null)이면 isCleared(점수, 목표 점수)와 완전히 같다 (spec §27.9) */
+  function goalMet() { return state.mission ? missionDone(state.mission) : isCleared(state.score, state.target); }
 
   /* ---------- 행동 실행기 ---------- */
   function setLocked(v) {
@@ -2083,10 +2508,12 @@
     state.multHold = 0;
     clearHint();
     setSelected(null);
-    const ctx = { total: 0, maxStep: 1, maxGroup: 3, noPost: false, fromSkill: false, quizzes: 0, comboDone: false };   // noPost: 무효 스왑/보드 변화 없는 스킬은 칭찬·재섞기 판정 생략 / [EDU] fromSkill·quizzes / comboDone: 이 행동의 콤보를 이미 올렸다(touchCombo, spec §28.5.2)
+    const ctx = { total: 0, maxStep: 1, maxGroup: 3, noPost: false, fromSwap: false, fromSkill: false, quizzes: 0, comboDone: false };   // noPost: 무효 스왑/보드 변화 없는 스킬은 칭찬·재섞기 판정 생략 / fromSwap: 플레이어의 스왑으로 시작한 행동(스킬은 false) / [EDU] fromSkill·quizzes / comboDone: 이 행동의 콤보를 이미 올렸다(touchCombo, spec §28.5.2)
     const id = state.gameId;
     try {
       await fn(ctx);
+      // spec §27.3.1: CHAIN 은 행동이 끝날 때 센다(스왑으로 시작한 행동만, 행동당 최대 1). NO MOVES 판정보다 먼저 반영해야 막판에 달성한 판이 재섞기 없이 끝난다
+      if (state.mission && id === state.gameId) missionUpdate(state.mission, { t: 'action', fromSwap: ctx.fromSwap, maxStep: ctx.maxStep });
       if (!ctx.noPost) {
         const level = praiseLevel(ctx.maxStep, ctx.maxGroup, ctx.total);
         let waited = false;
@@ -2103,7 +2530,7 @@
         }
         // [/EDU]
         // 목표 점수에 도달했다면 NO MOVES 재섞기는 생략하고 곧바로 클리어 처리한다
-        if (!isCleared(state.score, state.target) && !hasValidMove(typeGrid())) {
+        if (!stageDone() && !hasValidMove(typeGrid())) {
           if (waited) await wait(CONFIG.noMovesPauseMs);
           showPopup('NO MOVES', 'warn');
           sfx('nomoves');
@@ -2119,7 +2546,7 @@
     if (id !== state.gameId) return;
     setLocked(false);
     // 행동(연쇄 정산)이 모두 끝난 시점의 판정: 목표 달성이면 클리어, 시간이 소진됐으면 달성 여부로 클리어/실패
-    if (isCleared(state.score, state.target) || state.timeUp) finishStage();
+    if (stageDone() || state.timeUp) finishStage();     // [EDU] 학습 조건(선물상자 문제 N개 풀기)이 있으면 그것까지 채워야 클리어(spec §27.7)
   }
 
   /* =====================================================================
@@ -2161,6 +2588,7 @@
   function trySwap(a, b) {
     if (state.locked || state.phase !== 'playing') return;
     runAction(async function (ctx) {
+      ctx.fromSwap = true;
       swapGems(a, b);
       sfx('swap');
       await wait(CONFIG.anim.swapMs);
@@ -2179,6 +2607,7 @@
         await wait(CONFIG.anim.swapMs);
         return;
       }
+      state.edu.since++;     // [EDU] 보드가 바뀌는 플레이어 행동 한 번(무효 스왑은 세지 않는다): 마지막 ? 등장 뒤 지난 행동 수(pity·guard, spec §27.7.2)
       await cascade(ctx, 1);
     });
   }
@@ -2318,6 +2747,7 @@
   /** 컷인 -> 스킬 효과. 컷인이 끝난(또는 건너뛴/취소된) 뒤 정확히 한 번 실행된다 */
   async function castSkill(ctx, i, r, c) {
     ctx.fromSkill = true;     // [EDU] 스킬이 시작한 행동: 직접 지움이든 스킬 뒤 자동 연쇄든 ? 가 지워져도 문제 없음(§21.7.5)
+    state.edu.since++;        // [EDU] 스킬 한 번도 플레이어 행동 한 번(spec §27.7.2 pity·guard)
     await playCutin(i);
     await wait(0);   // 컷인 중 일시정지됐다면 재개될 때까지 대기
     const id = TYPES[i].id;
@@ -2625,7 +3055,101 @@
     el.chain.classList.toggle('active', state.chain >= 2);
   }
 
-  const hud = { goal: -1, goalText: '', bar: -1, text: '', frozen: null, low: null, dark: null, darkText: '', freezeText: '', hint: '' };
+  const hud = { goal: -1, goalText: '', bar: -1, text: '', frozen: null, low: null, dark: null, darkText: '', freezeText: '', hint: '', mis: null };
+
+  /* ---------- 미션 HUD (spec §27.8) ----------
+   * 미션형 레벨에서는 목표 바(#goal) 대신 칩(#mission)이 보인다. 점수형 기본 상태에서는 #mission 이 숨겨져 있고 목표 바가 지금처럼 보인다.
+   * 칩 = 아이콘 + 이름 + 진행 "12 / 30" + 완료 ✓·초록. role="progressbar" + aria-label("번개 보석 터뜨리기 12 / 30"). 완료 알림은 #mission-live(role="status").
+   * 차례대로(seq) 미션은 지금 차례의 부분 하나만 칩으로 보인다(정령 패널은 M4). hud.mis = 칩 참조·마지막으로 그린 rev·완료 표시 캐시 */
+  const MIS_DONE_TEXT = '미션 하나를 끝냈어요';
+
+  function gemIcon(type) { return '<span class="m-gem">' + gemMarkup(type) + '</span>'; }
+
+  /** startStage 에서 부른다(보석 그림 로드 뒤). 점수형이면 목표 바를 보이고 미션 칩을 숨긴다 */
+  function buildMissionHud() {
+    const m = state.mission;
+    const game = el['screen-game'];
+    game.dataset.goal = m ? 'mission' : 'score';
+    el.goal.hidden = !!m;
+    el.mission.hidden = !m;
+    el['mission-list'].innerHTML = '';
+    el['mission-live'].textContent = '';
+    hud.mis = null;
+    if (!m) { delete game.dataset.chips; return; }
+    const nChips = m.seq ? 1 : m.parts.length;
+    game.dataset.chips = String(nChips);
+    const chips = [];
+    for (let i = 0; i < nChips; i++) {
+      const c = document.createElement('div');
+      c.className = 'm-chip';
+      c.setAttribute('role', 'progressbar');
+      c.setAttribute('aria-valuemin', '0');
+      c.innerHTML = '<span class="m-fill"></span><span class="m-ico" aria-hidden="true"></span>' +
+        '<span class="m-body"><b class="m-name"></b><small class="m-sub"></small></span><span class="m-num"></span><span class="m-ok" aria-hidden="true">✓</span>';
+      el['mission-list'].appendChild(c);
+      chips.push({ el: c, fill: c.querySelector('.m-fill'), ico: c.querySelector('.m-ico'), name: c.querySelector('.m-name'), sub: c.querySelector('.m-sub'), num: c.querySelector('.m-num'), part: -1 });
+    }
+    hud.mis = { rev: -1, cur: -2, done: m.parts.map(function () { return false; }), chips: chips, desc: missionDescribe(m.def), liveN: 0 };
+    updateMissionHud();      // 첫 프레임을 기다리지 않고 이름·0 / need·aria 값을 바로 채운다
+  }
+
+  /** 칩 하나를 부분 미션 pi 의 값으로 그린다. 부분이 바뀐 때만 이름·아이콘을 다시 쓴다 */
+  function drawMissionChip(c, h, m, pr, pi) {
+    const p = pr.parts[pi];
+    const part = m.parts[pi];
+    const t = h.desc.parts[pi];
+    const circled = m.seq ? '①②③④⑤⑥'.charAt(pi) + ' ' : '';
+    if (c.part !== pi) {
+      c.part = pi;
+      c.el.className = 'm-chip k-' + p.k;
+      c.ico.innerHTML = part.k === 'collect' ? gemIcon(part.color)
+        : part.k === 'collectEach' ? ''
+        : '<span class="m-badge" aria-hidden="true">' + part.min + '+</span>';
+      c.name.textContent = circled + t.name;
+      c.sub.textContent = t.hint;
+    }
+    if (part.k === 'collectEach') {
+      c.sub.innerHTML = part.colors.map(function (col, i) {
+        return '<span class="m-eg' + (p.each[i] >= p.need ? ' ok' : '') + '">' + gemIcon(col) + '<b>' + p.each[i] + '</b></span>';
+      }).join('');
+    }
+    const frac = p.need > 0 ? p.now / p.need : 0;
+    c.fill.style.transform = 'scaleX(' + frac.toFixed(4) + ')';
+    c.num.textContent = p.now + ' / ' + p.need;
+    c.el.classList.toggle('done', p.done);
+    c.el.setAttribute('aria-valuemax', String(p.need));
+    c.el.setAttribute('aria-valuenow', String(p.now));
+    let label = (m.seq ? '단계 ' + (pi + 1) + '/' + pr.total + ', ' : '') + t.name + ' ' + p.now + ' / ' + p.need;
+    if (part.k === 'collectEach') label += ' (' + part.colors.map(function (col, i) { return TYPES[col].name + ' ' + p.each[i]; }).join(', ') + ')';
+    if (p.done) label += ', 완료';
+    c.el.setAttribute('aria-label', label);
+  }
+
+  /** 미션 칩 갱신. 카운터(rev)나 차례가 바뀐 때만 DOM 을 쓴다 */
+  function updateMissionHud() {
+    const m = state.mission;
+    const h = hud.mis;
+    if (!m || !h) return;
+    const cur = m.seq ? Math.min(m.cur, m.parts.length - 1) : -1;
+    if (m.rev === h.rev && cur === h.cur) return;
+    h.rev = m.rev;
+    h.cur = cur;
+    const pr = missionProgress(m);
+    h.chips.forEach(function (c, ci) { drawMissionChip(c, h, m, pr, m.seq ? cur : ci); });
+    // 부분 미션이 새로 끝났으면 한 번 알린다(같은 문구가 이어서 나와도 다시 읽히게 마침표를 번갈아 붙인다)
+    let fresh = false;
+    pr.parts.forEach(function (p, i) { if (p.done && !h.done[i]) { h.done[i] = true; fresh = true; } });
+    if (fresh) {
+      h.liveN++;
+      el['mission-live'].textContent = MIS_DONE_TEXT + (h.liveN % 2 ? '' : '.');
+      h.chips.forEach(function (c) {
+        if (!c.el.classList.contains('done')) return;
+        c.el.classList.remove('pop');
+        void c.el.offsetWidth;
+        c.el.classList.add('pop');
+      });
+    }
+  }
 
   /* ---------- 콤보 칩 (spec §28.5.7, B1) ----------
    * 점수줄 가운데 칸(#chain 아래)에 있는 칩. 콤보 r ≥ 2 일 때만 보인다("콤보 7 · ×3.0", 최대 배수면 "(최대!)" 병기) + 이어짐 시간 막대(창에서 줄어든다).
@@ -2707,8 +3231,10 @@
     }
     const secs = fmtTime(state.timeLeft);
     if (secs !== hud.text) { el['timer-text'].textContent = secs; hud.text = secs; }
-    // 목표 진행 바 (점수 롤링 값 기준, 변경 시에만 DOM 쓰기)
-    if (state.target > 0) {
+    // 목표: 미션형이면 칩(진행), 점수형이면 목표 진행 바 (점수 롤링 값 기준, 변경 시에만 DOM 쓰기)
+    if (state.mission) {
+      updateMissionHud();
+    } else if (state.target > 0) {
       const gf = Math.max(0, Math.min(1, state.shown / state.target));
       const gtxt = fmt(state.shown) + ' / ' + fmt(state.target);
       if (Math.abs(gf - hud.goal) > 0.0005 || gtxt !== hud.goalText) {
@@ -2740,6 +3266,7 @@
       if (dt2 !== hud.darkText) { el['dark-left'].textContent = dt2; hud.darkText = dt2; }
     }
     updateComboHud();
+    updateLearnHud();      // [EDU] 학습 칩
     // 힌트 버튼 쿨다운
     const cd = state.hintCd > 0 ? Math.ceil(state.hintCd) : 0;
     const hs = String(cd);
@@ -2766,7 +3293,7 @@
         cancelAim();
       }
     }
-    if (!state.locked && (state.timeUp || isCleared(state.score, state.target))) { finishStage(); return; }
+    if (!state.locked && (state.timeUp || stageDone())) { finishStage(); return; }     // [EDU] stageDone = goalMet() && learnMet()
     if (CONFIG.hint.auto > 0) {
       // 초보 자동 힌트: 입력 잠금·조준 중에는 카운트하지 않고, 힌트가 떠 있는 동안에도 멈춘다
       if (state.locked || state.aim !== null || state.hintLeft > 0) state.idle = 0;
@@ -2873,8 +3400,11 @@
     el['start-clear'].textContent = clearedCount(lv) + '/' + CONFIG.stages.count;
     el['start-stars'].textContent = String(starTotal(lv));
     const d = CONFIG.difficulty;
+    // 초보는 점수 목표, 중수·고수가 미션형이면 "목표를 이루면 클리어"(index.html 의 자리표시자와 같은 문장). 중수·고수를 점수형으로 되돌리면 옛 문장이 된다
+    const missionRule = CONFIG.stages.goalType.normal === 'mission' && CONFIG.stages.goalType.hard === 'mission';
     el['rule-stage'].innerHTML = '<b>스테이지</b> 제한 시간(초보 ' + fmtDur(d.easy.time.start) + ' / 중수 ' + fmtDur(d.normal.time.start) +
-      ' / 고수 ' + fmtDur(d.hard.time.start) + ') 안에 목표 점수를 넘기면 클리어! 레벨 1~' + CONFIG.stages.count + '에 도전하세요.';
+      ' / 고수 ' + fmtDur(d.hard.time.start) + ') 안에 ' + (missionRule ? '목표를 이루면 클리어! 초보는 목표 점수, 중수·고수는 레벨마다 다른 미션이에요.' : '목표 점수를 넘기면 클리어!') +
+      ' 레벨 1~' + CONFIG.stages.count + '에 도전하세요.';
   }
 
   function selectLevel(lv, focus) {
@@ -2921,14 +3451,15 @@
     state.stats = { maxChain: 0, skills: 0, matches: 0, maxCombo: 0, skillPts: 0 };
     state.board = null;
     state.confirmFrom = null;
+    state.mission = null;
     state.cutinActive = false;
     state.quizActive = false;                                              // [EDU]
-    state.edu = { asked: 0, right: 0, bonus: 0, firstDone: false, skipped: 0 };   // [EDU] 스테이지마다 문제 통계·첫 등장 보장 초기화
+    state.edu = { asked: 0, right: 0, bonus: 0, firstDone: false, skipped: 0, since: 0, mode: 'normal', learn: null };   // [EDU] 스테이지마다 문제 통계·첫 등장 보장·공급 규칙(pity/guard)·학습 조건 초기화
     state.warnSec = 99;
     state.idle = 0;
     state.level = CONFIG.level;
     drag = null;
-    hud.goal = -1; hud.goalText = ''; hud.bar = -1; hud.text = ''; hud.frozen = null; hud.low = null; hud.dark = null; hud.hint = '';
+    hud.goal = -1; hud.goalText = ''; hud.bar = -1; hud.text = ''; hud.frozen = null; hud.low = null; hud.dark = null; hud.hint = ''; hud.mis = null;
     el.score.textContent = '0';
     el.goal.classList.remove('hit');
     el.popup.className = 'popup';
@@ -2946,8 +3477,19 @@
 
   function stageLabel(lv, stage) { return levelLabel(lv) + ' · 레벨 ' + stage; }
 
+  /** 레벨 카드의 미션 요약(spec §32.5.4 계약, 초보 카드에는 쓰지 않는다): 부분 1개 = 보석 그림+개수 / 연쇄·큰 매치 횟수, 2개 이상 = "N가지 미션" */
+  function missionCardHtml(def) {
+    if (def.parts.length > 1) return '<i class="mc n">' + def.parts.length + '가지 미션</i>';
+    const p = def.parts[0];
+    if (p.k === 'collect') return '<i class="mc g">' + gemIcon(p.color) + '<b>' + p.need + '</b></i>';
+    if (p.k === 'collectEach') return '<i class="mc g each">' + p.colors.map(function (col) { return gemIcon(col); }).join('') + '<b>' + p.need + '</b></i>';
+    return '<i class="mc k"><u>' + (p.k === 'chain' ? '연쇄' : '큰 매치') + '</u><b>' + p.need + '</b></i>';
+  }
+
   /** 레벨 선택 화면: 난이도 표시·진행도·레벨 카드 10개(잠금/별/목표) */
   function renderStages() {
+    syncEduMode();          // [EDU] spec §27.7: 카드·설명판의 숫자는 지금의 문제 양(보통/많이) 표를 따른다
+    stageDetail.key = '';   // [EDU] 문제 양이 바뀌었을 수 있으니 설명판을 다시 그리게 한다
     const lv = save.level;
     const prog = save.progress[lv];
     el['stages-chip'].textContent = levelLabel(lv);
@@ -2967,12 +3509,47 @@
       b.setAttribute('aria-disabled', open ? 'false' : 'true');
       let stars = '';
       for (let k = 1; k <= 3; k++) stars += k <= rec.stars ? '★' : '☆';
-      b.setAttribute('aria-label', '레벨 ' + i + ', 목표 ' + fmt(stageTarget(lv, i)) + '점, ' + (open ? ('별 ' + rec.stars + '개') : '잠김'));
+      const mdef = missionDef(lv, i);     // 미션형 레벨이면 점수 대신 미션 요약(.sc-mis)을 보인다. 초보·점수형은 null 이라 이전과 같은 마크업
+      const goalHtml = mdef ? '<span class="sc-mis">' + missionCardHtml(mdef) + '</span>' : '<span class="sc-target">' + fmt(stageTarget(lv, i)) + '</span>';
+      const kind = stageKind(lv, i);      // 5·10 'special'(모든 난이도) / 3·6·9 'rest'(중수·고수) — 스킨용 속성일 뿐 화면에 글자로 나오지 않는다(spec §34)
+      if (kind) b.dataset.kind = kind;
+      b.setAttribute('aria-label', stageCardLabel(lv, i, open, rec.stars));
       b.innerHTML = '<span class="sc-num">' + i + '</span>' +
-        (open ? '<span class="sc-target">' + fmt(stageTarget(lv, i)) + '</span><span class="sc-stars" aria-hidden="true">' + stars + '</span>'
-          : '<span class="sc-target">' + fmt(stageTarget(lv, i)) + '</span><span class="sc-lock">잠김</span>');
+        (open ? goalHtml + '<span class="sc-stars" aria-hidden="true">' + stars + '</span>'
+          : goalHtml + '<span class="sc-lock">잠김</span>') +
+        (isSpecialMission(lv, i) ? '<span class="sc-tag" aria-hidden="true">특별</span>' : '');      // "특별 레벨"은 aria-label 이 이미 읽어 주므로 태그는 낭독에서 뺀다
       grid.appendChild(b);
     }
+    showStageDetail(currentStage(lv));    // 레벨 선택 화면을 열면 설명판은 현재 레벨부터 보인다
+  }
+
+  /* ---------- 선택 레벨 설명판 (.stage-detail, spec §32.5.4) ----------
+   * 보이는 레벨 = 기본은 현재 레벨(진행 + 1, 모두 깼으면 10), 카드에 포커스(키보드)·마우스 올림이 있으면 그 카드의 레벨(마지막으로 가리킨 레벨이 남는다 — [도전!]으로 가는 동안 바뀌지 않게).
+   * 터치는 카드를 누르면 바로 시작하므로(입력 흐름 불변) 설명판은 정보용이다. [도전!]은 보이는 레벨을 카드와 같은 동작(startStage)으로 시작한다(잠긴 레벨이면 비활성).
+   * aria-live 는 쓰지 않는다(포커스가 옮겨질 때 카드 aria-label 이 읽힌다). 보이는 레벨이 바뀔 때만 DOM 을 쓴다. */
+  const stageDetail = { stage: 0, key: '' };
+
+  function currentStage(lv) { return Math.min(CONFIG.stages.count, save.progress[lv] + 1); }
+
+  function showStageDetail(stage) {
+    const lv = save.level;
+    const open = stageUnlocked(save.progress[lv], stage);
+    stageDetail.stage = stage;
+    const key = lv + ':' + stage + ':' + (open ? 1 : 0) + ':' + (missionDef(lv, stage) ? 1 : 0);
+    if (key === stageDetail.key) return;
+    stageDetail.key = key;
+    const d = stageDetailInfo(lv, stage, open);
+    el['sd-title'].textContent = d.title;
+    el['sd-tag'].textContent = d.tag;
+    el['sd-tag'].hidden = !d.tag;
+    el['sd-goal'].textContent = d.goal;
+    el['sd-hint'].textContent = d.hint;
+    el['sd-hint'].hidden = !d.hint;
+    el['sd-time'].textContent = d.time;
+    el['sd-time'].hidden = !d.time;
+    eduDetailLearn(lv, stage, open);     // [EDU] 많이 모드: "선물상자 문제 N개도 풀어요"
+    el['btn-stage-go'].disabled = !open;
+    el['btn-stage-go'].setAttribute('aria-disabled', open ? 'false' : 'true');
   }
 
   function goStages() {
@@ -3017,15 +3594,20 @@
     applyDifficulty(save.level);     // 선택 난이도 값을 활성 위치에 적용(재시작도 같은 난이도)
     resetState();
     const lv = CONFIG.level;
+    startEduMode(lv, stage);     // [EDU] spec §27.7: 이 판의 문제 양·학습 조건을 시작 때 한 번 정한다(목표 표 stageTarget·missionDef 보다 먼저)
     state.stage = stage;
     state.board = boardParams(lv, stage);     // spec §26: 난이도·레벨의 구조 등급(null = 균등 무작위). 입력은 (난이도, 레벨)뿐
     state.target = stageTarget(lv, stage);
+    // spec §27: 이 레벨이 미션형이면 미션 상태를 만든다(점수형·정의 없음·형식 오류는 null = 점수 목표 그대로). 난수·점수·시간은 건드리지 않는다
+    const mdef = missionDef(lv, stage);
+    state.mission = mdef ? missionInit(mdef) : null;
+    const mtext = mdef ? missionDescribe(mdef).summary : '';
     state.startTime = CONFIG.time.start;
     el['level-chip'].textContent = levelLabel(lv) + ' · Lv' + stage;
     el['level-chip'].className = 'level-chip lv-' + lv;
-    el['pause-level'].textContent = stageLabel(lv, stage) + ' · 목표 ' + fmt(state.target);
+    el['pause-level'].textContent = stageLabel(lv, stage) + (mdef ? ' · 미션: ' + mtext : ' · 목표 ' + fmt(state.target));
     el['end-level'].textContent = stageLabel(lv, stage);
-    el['count-info'].textContent = '레벨 ' + stage + ' · 목표 ' + fmt(state.target) + '점';
+    el['count-info'].textContent = mdef ? '레벨 ' + stage + ' · 미션: ' + mtext : '레벨 ' + stage + ' · 목표 ' + fmt(state.target) + '점';
     // [EDU] 소단원 요약 문구(있는 요소에만)와 stageStart 이벤트(edu.js 가 문제 통계 초기화에 쓴다)
     const unitText = eduUnitLabel();
     ['pause-unit', 'count-unit'].forEach(function (uid) {
@@ -3038,6 +3620,8 @@
     await Promise.race([assetsReady, sleepRaw(CONFIG.assets.loadTimeoutMs)]);
     if (id !== state.gameId) return;
     buildBoard();
+    buildMissionHud();
+    buildLearnHud();     // [EDU]
     showScreen('game');
     renderGauges();
     if (!save.tutorialSeen) { save.tutorialSeen = true; writeSave(); }
@@ -3150,7 +3734,7 @@
     el.score.textContent = fmt(state.score);
     const lv = state.level;
     const stage = state.stage;
-    const cleared = isCleared(state.score, state.target);
+    const cleared = stageDone();     // [EDU] 목표 + 학습 조건(없으면 goalMet() 과 같다)
     const left = cleared ? leftFromTime(state.timeLeft) : 0;     // 정수 초(내림). 임계값이 정수라 별 결과는 기존과 같다
     const stars = cleared ? starsFor(left, state.startTime) : 0;
     const res = applyStageResult(save, lv, stage, state.score, cleared, stars, left);
@@ -3169,9 +3753,18 @@
     el['end-title'].textContent = cleared ? 'STAGE CLEAR!' : 'TIME UP';
     el['end-title'].className = cleared ? 'clear' : '';
     el['end-score'].textContent = fmt(state.score);
-    el['end-target'].textContent = cleared
-      ? '목표 ' + fmt(state.target) + ' 달성 · 남은 시간 ' + fmtTime(state.timeLeft)
-      : '목표 ' + fmt(state.target) + ' / 내 점수 ' + fmt(state.score);
+    if (state.mission) {
+      const mp = missionProgress(state.mission);
+      el['end-target'].textContent = cleared
+        ? '미션 모두 달성 · 남은 시간 ' + fmtTime(state.timeLeft)
+        : '미션 ' + mp.doneCount + '/' + mp.total + ' 완료 · 내 점수 ' + fmt(state.score);
+    } else {
+      el['end-target'].textContent = cleared
+        ? '목표 ' + fmt(state.target) + ' 달성 · 남은 시간 ' + fmtTime(state.timeLeft)
+        : '목표 ' + fmt(state.target) + ' / 내 점수 ' + fmt(state.score);
+    }
+    // [EDU] 시간이 끝났는데 선물상자 문제가 모자란 판(목표를 채웠더라도): 이유를 한 줄 더한다(spec §27.7)
+    if (!cleared && state.edu.learn && !learnMet()) el['end-target'].textContent += ' · 선물상자 문제 ' + state.edu.asked + '/' + state.edu.learn.need;
     el['end-stars'].hidden = !cleared;
     if (cleared) {
       let st = '';
@@ -3215,6 +3808,21 @@
       const b = e.target.closest && e.target.closest('.stage-card');
       if (!b || b.disabled || state.phase !== 'stages') return;
       startStage(Number(b.dataset.stage));
+    });
+    // 선택 레벨 설명판: 카드에 포커스·마우스가 오면 그 레벨을 보인다(터치는 건너뜀 — 누르면 바로 시작). 잠긴 카드는 포커스를 못 받으므로 마우스 올림으로만 닿는다
+    function cardOfEvent(e) { return e.target && e.target.closest ? e.target.closest('.stage-card') : null; }
+    el['stage-grid'].addEventListener('focusin', function (e) {
+      const b = cardOfEvent(e);
+      if (b && state.phase === 'stages') showStageDetail(Number(b.dataset.stage));
+    });
+    el['stage-grid'].addEventListener('pointerover', function (e) {
+      if (e.pointerType && e.pointerType !== 'mouse') return;
+      const b = cardOfEvent(e);
+      if (b && state.phase === 'stages') showStageDetail(Number(b.dataset.stage));
+    });
+    el['btn-stage-go'].addEventListener('click', function () {
+      if (state.phase !== 'stages' || el['btn-stage-go'].disabled) return;
+      startStage(stageDetail.stage);
     });
     el['stage-grid'].addEventListener('keydown', function (e) {
       const cards = Array.prototype.filter.call(el['stage-grid'].querySelectorAll('.stage-card'), function (c) { return !c.disabled; });
@@ -3350,7 +3958,13 @@
     bonusFor: bonusFor,
     state: function () {
       return { quizActive: !!state.quizActive, level: state.level, asked: state.edu.asked, right: state.edu.right, bonus: state.edu.bonus };
-    }
+    },
+    // spec §27.7(M3-B): 문제 양 선택(edu.js)이 바뀌었거나 단원 불러오기가 끝났을 때 레벨 선택 화면이 보이면 카드·설명판을 다시 그리게 한다
+    refreshStages: refreshStages,
+    eduMode: eduMode,
+    syncEduMode: syncEduMode,
+    learnMet: learnMet,
+    learn: function () { const L = state.edu.learn; return L ? { need: L.need, asked: state.edu.asked } : null; }
   };
 
   // 시험용: Node 시험 하네스가 globalThis.__EG_TEST__ 를 미리 만들어 둔 경우에만 내부를 노출한다(브라우저에서는 아무 일도 없다).
@@ -3358,7 +3972,9 @@
     globalThis.__EG_TEST__.internals = {
       state: state, save: save, el: el, CONFIG: CONFIG, startStage: startStage, handleTap: handleTap, trySwap: trySwap, onGauge: onGauge,
       onHint: onHint, pauseGame: pauseGame, resumeGame: resumeGame, goStages: goStages, goHome: goHome, typeGrid: typeGrid, setGemType: setGemType,
-      writeSave: writeSave, loadSave: loadSave, frame: frame, onKey: onKey, listMoves: listMoves, reshuffleBoard: reshuffleBoard
+      writeSave: writeSave, loadSave: loadSave, frame: frame, onKey: onKey, listMoves: listMoves, reshuffleBoard: reshuffleBoard,
+      renderStages: renderStages, finishStage: finishStage, updateHUD: updateHUD, syncEduMode: syncEduMode, eduMode: eduMode, learnMet: learnMet, stageDone: stageDone,
+      refreshStages: refreshStages, planRefill: planRefill, hudLearn: hudLearn
     };
   }
   // [/EDU]

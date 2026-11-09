@@ -105,7 +105,7 @@
       <div class="sc-menu">
       <!-- [EDU] 학습 단원 요약 칩(edu.js 가 채운다) -->
       <div id="eg-unit-card" class="eg-unit">
-        <p class="eg-unit-top"><span class="eg-ribbon">교육용</span><span class="eg-unit-cap">학습 단원</span></p>
+        <p class="eg-unit-top"><span class="eg-ribbon">교육용</span><span class="eg-unit-cap">학습 단원</span><span id="eg-unit-amount" class="eg-unit-amount" hidden>선물상자 문제: 많이</span></p>
         <p id="eg-unit-label" class="eg-unit-label">아직 단원을 고르지 않았어요</p>
         <p id="eg-unit-stat" class="eg-unit-stat" hidden></p>
         <p id="eg-unit-warn" class="eg-unit-warn" role="status" hidden></p>
@@ -125,7 +125,8 @@
       </div>
       <div class="sc-info">
       <ul class="rules">
-        <li id="rule-stage"><b>스테이지</b> 제한 시간(초보 2분 10초 / 중수 2분 / 고수 1분 40초) 안에 목표 점수를 넘기면 클리어! 레벨 1~10에 도전하세요.</li>
+        <li id="rule-stage"><b>스테이지</b> 제한 시간(초보 2분 10초 / 중수 2분 / 고수 1분 40초) 안에 목표를 이루면 클리어! 초보는 목표 점수, 중수·고수는 레벨마다 다른 미션이에요. 레벨 1~10에 도전하세요.</li>
+        <li id="rule-learn"><b>선물상자</b> 문제 양이 '많이'일 때는 레벨마다 정해진 개수의 선물상자 문제를 풀어야 클리어돼요.</li><!-- [EDU] spec §27.7(M3-B) -->
         <li><b>스왑</b> 인접한 보석 두 개를 바꿔 같은 모양 3개 이상, 또는 2×2 정사각형을 맞추세요.</li>
         <li><b>게이지</b> 색마다 게이지가 따로 차고, 가득 차면 버튼이 반짝여요.</li>
         <li><b>스킬</b> 게이지 버튼을 눌러 원소 스킬을 쓰세요.</li>
@@ -152,6 +153,17 @@
       </div>
       <p id="stages-summary" class="stages-sub">클리어 0/10 · 별 0</p>
       <div id="stage-grid" class="stage-grid" role="group" aria-label="레벨 선택"></div>
+      <!-- 선택 레벨 설명판(spec §32.5.4): 글은 game.js 가 채운다(카드에 포커스·마우스가 오면 그 레벨, 기본은 현재 레벨). aria-live 없음 -->
+      <div class="stage-detail" id="stage-detail">
+        <div class="sd-info">
+          <p class="sd-head"><b class="sd-title" id="sd-title"></b><i class="sd-tag" id="sd-tag" hidden></i></p>
+          <p class="sd-goal" id="sd-goal"></p>
+          <p class="sd-hint" id="sd-hint" hidden></p>
+          <p class="sd-time" id="sd-time" hidden></p>
+          <p class="sd-learn" id="sd-learn" hidden></p><!-- [EDU] 문제 양 "많이"일 때만: 선물상자 문제 N개도 풀어요 -->
+        </div>
+        <button class="btn primary sd-go" id="btn-stage-go" type="button">도전!</button>
+      </div>
       <p class="stages-hint">이전 레벨을 클리어하면 다음 레벨이 열려요.</p>
     </div>
   </section>
@@ -257,6 +269,16 @@
         <p id="eg-pick-msg" class="eg-pick-msg" role="status" aria-live="polite" hidden></p>
         <button id="eg-pick-ok" class="btn primary big" type="button" disabled>이 단원으로 정했어요</button>
         <button id="eg-pick-skip" class="btn ghost" type="button" hidden>문제 없이 퍼즐만 할래요</button>
+        <!-- 선물상자 문제 양 (spec §27.7.6): 라디오 두 개(보통/많이). 누르는 즉시 저장된다. 효과는 문제를 불러온 뒤에만 있다(안내 줄) -->
+        <div id="eg-amount" class="eg-amount" role="radiogroup" aria-labelledby="eg-amount-label" aria-describedby="eg-amount-desc">
+          <span id="eg-amount-label" class="eg-amount-label">선물상자 문제 양</span>
+          <div class="eg-amount-opts">
+            <button id="eg-amt-normal" class="eg-amt" type="button" role="radio" aria-checked="false" tabindex="-1" data-v="normal">보통</button>
+            <button id="eg-amt-many" class="eg-amt" type="button" role="radio" aria-checked="true" data-v="many">많이</button>
+          </div>
+          <p id="eg-amount-desc" class="eg-amount-desc">많이: 한 판에 선물상자 문제를 6~12개쯤 풀어요 · 보통: 3~4개쯤</p>
+          <p id="eg-amount-note" class="eg-amount-note" hidden></p>
+        </div>
       </div>
     </div>
   </section>
@@ -294,6 +316,22 @@
         <div class="goal-fill" id="goal-fill"></div>
         <span class="goal-text" id="goal-text">0 / 0</span>
       </div>
+
+      <!-- 미션 칩 (spec §27): 미션형 레벨에서만 보인다. 점수형(기본)에서는 숨겨져 있고 위의 목표 바가 보인다. 칩은 game.js 가 만든다 -->
+      <div class="mission" id="mission" role="group" aria-label="미션" hidden>
+        <div class="m-list" id="mission-list"></div>
+        <p class="m-live" id="mission-live" role="status" aria-live="polite"></p>
+      </div>
+
+      <!-- [EDU] 선물상자 문제 풀기 칩 (spec §27.7·§27.8, M3-B): 문제 양 "많이"인 판에서만 보인다(점수형은 목표 바 아래, 미션형은 미션 칩 아래). 글·값은 game.js 가 채운다. 완료 알림은 #learn-live -->
+      <div class="learn-chip" id="learn-chip" role="progressbar" aria-label="선물상자 문제 풀기" aria-describedby="learn-sub" aria-valuemin="0" aria-valuemax="0" aria-valuenow="0" hidden>
+        <span class="lc-fill" id="learn-fill"></span>
+        <svg class="lc-ico" viewBox="0 0 100 100" aria-hidden="true" focusable="false"><use href="#gem-gift"></use></svg>
+        <span class="lc-body"><b class="lc-name">선물상자 문제 풀기</b><small class="lc-sub" id="learn-sub">맞든 틀리든 푼 개수예요</small></span>
+        <span class="lc-num" id="learn-num">0 / 0</span>
+        <span class="lc-ok" aria-hidden="true">✓</span>
+      </div>
+      <p class="m-live" id="learn-live" role="status" aria-live="polite"></p>
 
       <div class="board-wrap" id="board-wrap">
         <div class="board" id="board" role="application" aria-label="보석 판. 방향키로 이동, 스페이스로 선택"></div>

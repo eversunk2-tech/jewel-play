@@ -686,6 +686,8 @@ function createEnv(which, seed, cfgPatch, envOpt) {
   env.I = sandbox.__EG_TEST__.internals;
   env.dispatchDoc = (type, evt) => (docLs[type] || []).slice().forEach((fn) => fn(Object.assign({ preventDefault() {}, target: { tagName: 'DIV', closest: () => null } }, evt || {})));
   env.fire = (el, type, evt) => (el._ls[type] || []).slice().forEach((fn) => fn(Object.assign({ preventDefault() {}, target: el }, evt || {})));
+  if (env.CONFIG.stages.goalType) { env.CONFIG.stages.goalType.normal = 'score'; env.CONFIG.stages.goalType.hard = 'score'; }   // 시험 도구(spec §27.9.3): 이 파일의 시험은 중수·고수도 점수 목표 판을 전제로 한다(§27 M3-A 이식으로 교육용도 기본이 미션형이 되었다. 미션 시험은 mission.test.js)
+  if (env.CONFIG.edu) env.CONFIG.edu.defaultIntensity = 'normal';   // 시험 도구(spec §27.7 M3-B): 이 파일의 시험은 문제 양 "보통"(= M3-A 직후의 공급·목표)을 전제로 한다. "많이"·학습 조건 시험은 modes.test.js
   if (cfgPatch) cfgPatch(env.CONFIG);
   process.on('unhandledRejection', env.unhandled = (e) => { env.errors.push(e); });
   env.dispose = () => process.removeListener('unhandledRejection', env.unhandled);
@@ -1345,7 +1347,7 @@ test('spawn=0 이면 한 판 전체(보드·점수·시간·게이지)가 같은
       shortGame(cfg, 30, (c) => { ['easy', 'normal', 'hard'].forEach((k) => { c.difficulty[k].max = [4, 4, 4, 4, 4, 4]; }); });
       cfg.stages.targets[lv][0] = 18000;         // §26 구조 규칙 뒤 3000점이면 3~5행동에 끝나는 시드가 있어 6000으로 올렸고, §28 점수 규칙(규모 약 ×3)에 맞춰 18000 으로 올림
       if (cfg.edu) { cfg.edu.wild.spawn = 0; cfg.edu.targetScale = 1; }
-      if (cfg.stages.goalType) { cfg.stages.goalType.normal = 'score'; cfg.stages.goalType.hard = 'score'; }   // §27 M2: 일반용 중수·고수는 미션형이 기본이라, 점수 목표 비교(교육용은 아직 점수형 — M3 전)를 위해 일반용 쪽을 점수형으로 고정(시험 setup 만)
+      if (cfg.stages.goalType) { cfg.stages.goalType.normal = 'score'; cfg.stages.goalType.hard = 'score'; }   // §27 M2·M3-A: 두 앱 모두 중수·고수는 미션형이 기본이라, 점수 목표 비교를 위해 점수형으로 고정(시험 setup 만; createEnv 에서도 같은 값을 둔다)
     };
     const edu = createEnv('edu', 1000 + seed, patch);
     edu.setQuiz(makeQuiz(edu));                  // ready=true 라도 spawn=0 이면 ? 없음
