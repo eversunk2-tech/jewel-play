@@ -165,7 +165,7 @@ apps/element-gems/
 
 ## 14. 현재 상태 요약 (세션 압축·재개용, 2026-11-08)
 ### 14.1 배포·git·시험 기준
-- **origin/main = `6c92a06`**(프로필 §23·목표 점수 §25.6 배포). 로컬은 문서 커밋만 앞섬. 태그 `base-general-v1`·`base-general-v2`(v3는 아직 없음). 서버(Cloudflare D1+Worker)는 변경 없음.
+- **origin/main = `f023c89`**(2026-11-09 사용자 "푸시해줘"로 푸시; §26 보드 구조·§27 M1·M2 중수·고수 미션·§28 점수 규칙 "강 R4"·§31.3 초보 목표·§36 재보정 표 배포. Pages 빌드 `built`, 두 앱 핵심 파일 HTTP 200, 배포 `game.js`·`style.css`가 로컬과 `cmp` 동일, 교육용 `game.js`는 변경 없음). 이전 배포는 `6c92a06`(프로필 §23·목표 점수 §25.6). 이 STATUS 갱신 커밋만 로컬에서 앞섬. 태그 `base-general-v1`·`base-general-v2`(v3는 아직 없음). 서버(Cloudflare D1+Worker)는 변경 없음.
 - **시험 기준값(2026-11-09 §27 M2 커밋 이후)**: 일반용 **222** / 교육용 **384**(원문 폴더가 없어 건너뜀 1, 383 통과) / 서버 65. 태그 `base-general-v1`·`v2`·**`v3`**(로컬, 푸시 안 함), 문제 검증기 오류 0. 명령은 글롭: `node --test apps/element-gems/test/*.test.js` 등(Node 24는 폴더만 주면 실패).
 ### 14.2 완료·배포된 기능
 | spec § | 내용 | 상태 |
