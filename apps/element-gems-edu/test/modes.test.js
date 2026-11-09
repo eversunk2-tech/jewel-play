@@ -874,7 +874,8 @@ test('⑤ 학습 칩: 많이 판에서만 보이고(점수형·미션형 모두)
       assert.strictEqual(chip.getAttribute('aria-valuemin'), '0');
       assert.strictEqual(chip.getAttribute('aria-valuemax'), String(need));
       assert.strictEqual(chip.getAttribute('aria-valuenow'), '0');
-      assert.strictEqual(chip.getAttribute('aria-label'), '선물상자 문제 풀기 0 / ' + need);
+      // M4-B(spec §27.6): 정령 특별 레벨(5·10단계, 여기서는 고수 5)만 칩 이름이 "정령에게 선물 드리기" — 그 밖의 레벨은 "선물상자 문제 풀기" 그대로
+      assert.strictEqual(chip.getAttribute('aria-label'), ([5, 10].indexOf(stage) !== -1 ? '정령에게 선물 드리기' : '선물상자 문제 풀기') + ' 0 / ' + need);
       assert.strictEqual(chip.classList.contains('done'), false);
       assert.strictEqual(I.el['screen-game'].dataset.learn, '1');
       assert.strictEqual(I.el['learn-fill'].style.transform, 'scaleX(0.0000)');
@@ -920,7 +921,7 @@ test('⑤ 학습 칩 진행: 문제를 풀 때마다 "k / N"·바·aria-valuenow
 
 test('⑤ 학습 칩 마크업(index.html): 숨김으로 시작·role=progressbar·aria-label·aria-valuemin/max/now·이름과 작은 글·✓ 는 aria-hidden·#learn-live(role=status, polite)·미션 칩 뒤 보드 앞', () => {
   assert.match(HTML, /<div class="learn-chip" id="learn-chip" role="progressbar" aria-label="선물상자 문제 풀기" aria-describedby="learn-sub" aria-valuemin="0" aria-valuemax="0" aria-valuenow="0" hidden>/);      // R-M3: 작은 글("맞든 틀리든 푼 개수예요")은 progressbar 의 자식이라 낭독되지 않으므로 aria-describedby 로 연결한다(CSS 주석이 이미 그렇게 적혀 있었다)
-  assert.ok(HTML.includes('<b class="lc-name">선물상자 문제 풀기</b><small class="lc-sub" id="learn-sub">맞든 틀리든 푼 개수예요</small>'));
+  assert.ok(HTML.includes('<b class="lc-name" id="learn-name">선물상자 문제 풀기</b><small class="lc-sub" id="learn-sub">맞든 틀리든 푼 개수예요</small>'));      // M4-B: 정령 특별 레벨에서 game.js 가 이름을 바꾸려고 id 만 더했다(기본 문구·구조는 그대로)
   assert.ok(HTML.includes('<span class="lc-ok" aria-hidden="true">✓</span>'));
   assert.ok(HTML.includes('<svg class="lc-ico" viewBox="0 0 100 100" aria-hidden="true" focusable="false"><use href="#gem-gift"></use></svg>'));
   assert.match(HTML, /<p class="m-live" id="learn-live" role="status" aria-live="polite"><\/p>/);
@@ -949,12 +950,12 @@ test('레벨 카드·설명판(많이): 초보 카드는 많이 표 점수, 중�
   assert.strictEqual(I.el['sd-learn'].textContent, '선물상자 문제 5개도 풀어요', '일반 레벨 4: 5개');
   I.save.progress.easy = 4;
   I.goStages();
-  assert.strictEqual(I.el['sd-learn'].textContent, '선물상자 문제 7개도 풀어요', '특별 레벨 5 = 5 + 2');
+  assert.strictEqual(I.el['sd-learn'].textContent, '정령에게 선물상자 문제 7개를 드려요', '특별 레벨 5 = 5 + 2 (M4-B: 정령 레벨은 문구가 "정령에게 … 드려요", 같은 N)');
   I.el['sd-learn'].hidden = true;
   I.save.progress.easy = 9;
   I.goStages();
   assert.strictEqual(I.el['sd-title'].textContent, '레벨 10');
-  assert.strictEqual(I.el['sd-learn'].textContent, '선물상자 문제 7개도 풀어요', '특별 레벨 10 = 5 + 2');
+  assert.strictEqual(I.el['sd-learn'].textContent, '정령에게 선물상자 문제 7개를 드려요', '특별 레벨 10 = 5 + 2 (M4-B)');
   I.save.level = 'normal'; I.save.progress.normal = 2;
   I.goStages();
   assert.ok(grid.children[0].innerHTML.indexOf('<b>77</b>') !== -1, '중수 1번 카드 = 많이 표 미션 숫자');

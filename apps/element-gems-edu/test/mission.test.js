@@ -764,7 +764,9 @@ test('레벨 카드(점수형 — 중수를 goalType score 로 되돌린 경우)
     const t = G.stageTarget('normal', i).toLocaleString('ko-KR');
     const html = '<span class="sc-num">' + i + '</span>' + (open ? '<span class="sc-target">' + t + '</span><span class="sc-stars" aria-hidden="true">' + stars + '</span>' : '<span class="sc-target">' + t + '</span><span class="sc-lock">잠김</span>');
     assert.strictEqual(b.innerHTML, html, '레벨 ' + i);
-    assert.strictEqual(b.getAttribute('aria-label'), '레벨 ' + i + ', 목표 ' + t + '점, ' + (open ? '별 ' + rec.stars + '개' : '잠김'));
+    // M4(spec §27.6): 5·10단계 카드의 aria-label 에만 정령 이름이 더해진다(보이는 마크업 innerHTML 은 그대로). 정령 이름은 spec §27.6.1 표(중수 5 풀 · 10 불)에서 따로 적었다
+    const who = i === 5 ? '잠든 풀 정령, ' : (i === 10 ? '잠든 불 정령, ' : '');
+    assert.strictEqual(b.getAttribute('aria-label'), '레벨 ' + i + ', ' + who + '목표 ' + t + '점, ' + (open ? '별 ' + rec.stars + '개' : '잠김'));
     assert.ok(b.innerHTML.indexOf('sc-mis') === -1);
   });
   env.dispose();
@@ -824,7 +826,7 @@ test('index.html: #mission 은 기본 hidden 이고 목표 바(#goal) 곁에 있
   assert.strictEqual(opens, closes, 'div 여닫음');
 });
 
-test('style.css: 미션 HUD 블록이 파일 맨 끝에 하나 있고, 점수형 레이아웃 규칙은 data-goal="mission" 으로만 걸린다', () => {
+test('style.css: 미션 HUD 블록이 하나 있고, 점수형 레이아웃 규칙은 data-goal="mission" 으로만 걸린다', () => {
   const css = fs.readFileSync(path.join(root, 'style.css'), 'utf8');
   const marker = '미션 HUD (spec §27)';
   const idx = css.indexOf(marker);
@@ -1082,12 +1084,13 @@ test('P3 카드 aria-label: 부분은 "그리고"로 이은 한 문장, 별 정�
     assert.strictEqual(G.stageCardLabel('normal', 2, true, 2), '레벨 2, 미션 번개 보석 30개 그리고 연쇄(CHAIN 2 이상) 9번, 별 2개');
     assert.strictEqual(G.stageCardLabel('normal', 3, true, 1), '레벨 3, 목표 ' + G.stageTarget('normal', 3).toLocaleString('ko-KR') + '점, 별 1개', '미션 정의가 없는 레벨은 점수 카드');
     assert.strictEqual(G.stageCardLabel('normal', 4, true, 0), '레벨 4, 미션 불·물·풀 보석 각각 21개, 별 0개');
-    assert.strictEqual(G.stageCardLabel('normal', 5, true, 0), '레벨 5, 특별 레벨, 미션 먼저 풀 보석 12개, 그다음 한 번에 4개 이상 3번, 그다음 연쇄(CHAIN 2 이상) 4번, 별 0개');
-    assert.strictEqual(G.stageCardLabel('normal', 10, false, 0), '레벨 10, 특별 레벨, 미션 먼저 불 보석 10개, 그다음 한 번에 4개 이상 3번, 그다음 연쇄(CHAIN 2 이상) 4번, 그다음 불·물·풀·번개 보석 각각 8개'.replace('불·물·풀·번개 보석 각각 8개', '물·풀·번개 보석 각각 8개') + ', 잠김');
+    assert.strictEqual(G.stageCardLabel('normal', 5, true, 0), '레벨 5, 특별 레벨, 잠든 풀 정령, 미션 먼저 풀 보석 12개, 그다음 한 번에 4개 이상 3번, 그다음 연쇄(CHAIN 2 이상) 4번, 별 0개');
+    assert.strictEqual(G.stageCardLabel('normal', 10, false, 0), '레벨 10, 특별 레벨, 잠든 불 정령, 미션 먼저 불 보석 10개, 그다음 한 번에 4개 이상 3번, 그다음 연쇄(CHAIN 2 이상) 4번, 그다음 불·물·풀·번개 보석 각각 8개'.replace('불·물·풀·번개 보석 각각 8개', '물·풀·번개 보석 각각 8개') + ', 잠김');
     assert.strictEqual(G.stageCardLabel('normal', 2, false, 0).slice(-4), ', 잠김');
     // 초보·점수형(goalType score)은 지금 그대로: 특별 번호여도 "특별 레벨"을 말하지 않는다(spec §33)
-    assert.strictEqual(G.stageCardLabel('easy', 5, true, 1), '레벨 5, 목표 ' + G.stageTarget('easy', 5).toLocaleString('ko-KR') + '점, 별 1개');
-    assert.strictEqual(G.stageCardLabel('hard', 5, false, 0), '레벨 5, 목표 ' + G.stageTarget('hard', 5).toLocaleString('ko-KR') + '점, 잠김');
+    // M4(spec §27.6): 정령이 있는 레벨(5·10)은 정령 이름만 더한다("특별 레벨"이라는 말은 여전히 없다)
+    assert.strictEqual(G.stageCardLabel('easy', 5, true, 1), '레벨 5, 잠든 번개 정령, 목표 ' + G.stageTarget('easy', 5).toLocaleString('ko-KR') + '점, 별 1개');
+    assert.strictEqual(G.stageCardLabel('hard', 5, false, 0), '레벨 5, 잠든 물 정령, 목표 ' + G.stageTarget('hard', 5).toLocaleString('ko-KR') + '점, 잠김');
     for (let n = 1; n <= 10; n++) DIFFS.forEach((lv) => [true, false].forEach((open) => {
       const t = G.stageCardLabel(lv, n, open, 3);
       assert.ok(t.indexOf('쉬어가') === -1, t);
@@ -1131,7 +1134,8 @@ test('M2 레벨 카드 마크업 계약: data-kind(5·10 모든 난이도 specia
         const t = fmtN(G.stageTarget('easy', n));     // [EDU] 교육용 초보 카드의 점수는 일반용 표 × 1.2
         const html = num + '<span class="sc-target">' + t + '</span>' + (open ? '<span class="sc-stars" aria-hidden="true">' + stars + '</span>' : '<span class="sc-lock">잠김</span>');
         assert.strictEqual(b.innerHTML, html, tag);
-        assert.strictEqual(b.getAttribute('aria-label'), '레벨 ' + n + ', 목표 ' + t + '점, ' + (open ? '별 ' + rec.stars + '개' : '잠김'), tag);
+        const whoEasy = n === 5 ? '잠든 번개 정령, ' : (n === 10 ? '잠든 빛 정령, ' : '');      // M4: 5·10단계 aria-label 에만 정령 이름(spec §27.6.1 표). "특별 레벨"이라는 말은 없다
+        assert.strictEqual(b.getAttribute('aria-label'), '레벨 ' + n + ', ' + whoEasy + '목표 ' + t + '점, ' + (open ? '별 ' + rec.stars + '개' : '잠김'), tag);
         assert.ok(!/sc-mis|sc-tag|sc-sp|sc-steps/.test(b.innerHTML), tag + ' 초보 카드에는 미션·태그가 없다');
         return;
       }
@@ -1157,7 +1161,8 @@ test('M2 레벨 카드 마크업 계약: data-kind(5·10 모든 난이도 specia
         assert.ok(b.getAttribute('aria-label').indexOf('특별 레벨') !== -1, tag + ' aria-label 에 특별 레벨');
       } else assert.ok(b.getAttribute('aria-label').indexOf('특별') === -1, tag);
       assert.ok(open ? b.innerHTML.indexOf('sc-stars') !== -1 : b.innerHTML.indexOf('sc-lock') !== -1, tag);
-      assert.ok(b.getAttribute('aria-label').startsWith('레벨 ' + n + ', ' + (special ? '특별 레벨, ' : '') + '미션 '), tag);
+      const whoMis = special ? '잠든 ' + { normal: { 5: '풀', 10: '불' }, hard: { 5: '물', 10: '어둠' } }[lv][n] + ' 정령, ' : '';      // M4: spec §27.6.1 표(중수 풀·불 / 고수 물·어둠)
+      assert.ok(b.getAttribute('aria-label').startsWith('레벨 ' + n + ', ' + (special ? '특별 레벨, ' : '') + whoMis + '미션 '), tag);
     });
   });
   env.dispose();
@@ -1172,7 +1177,9 @@ test('M2 goalType 을 score 로 되돌리면(롤백) 중수·고수 카드도 �
   const cards = I.el['stage-grid'].children;
   cards.forEach((b, k) => {
     assert.ok(b.innerHTML.indexOf('sc-target') !== -1 && !/sc-mis|sc-tag/.test(b.innerHTML), '레벨 ' + (k + 1));
-    assert.ok(/^레벨 \d+, 목표 [\d,]+점, 별 0개$/.test(b.getAttribute('aria-label')), b.getAttribute('aria-label'));
+    // M4(spec §27.6): 롤백해도 정령은 동작한다 — 5·10단계 카드는 정령 이름만 더해지고 "특별"·"미션" 말은 없다
+    const re = (k === 4 || k === 9) ? /^레벨 \d+, 잠든 (물|어둠) 정령, 목표 [\d,]+점, 별 0개$/ : /^레벨 \d+, 목표 [\d,]+점, 별 0개$/;
+    assert.ok(re.test(b.getAttribute('aria-label')), b.getAttribute('aria-label'));
   });
   assert.strictEqual(cards[4].dataset.kind, 'special');
   assert.strictEqual(cards[2].dataset.kind, 'rest');
@@ -1208,7 +1215,7 @@ test('M2 설명판: 기본은 현재 레벨, 포커스·마우스 올림이면 �
   // 현재 레벨이 특별 레벨(5): 태그 "특별 레벨"과 차례대로 전문
   I.save.progress.normal = 4;
   I.goStages();
-  assert.deepStrictEqual(detailText(env), { title: '레벨 5', tag: '특별 레벨', goal: '① 풀 보석 12개 → ② 한 번에 4개 이상 3번 → ③ 연쇄(CHAIN 2 이상) 4번', hint: '한 번 움직여서 이어서 터지게 해요', time: '제한 시간 2:00', go: true });
+  assert.deepStrictEqual(detailText(env), { title: '레벨 5', tag: '특별 레벨', goal: '① 풀 보석 12개 → ② 한 번에 4개 이상 3번 → ③ 연쇄(CHAIN 2 이상) 4번', hint: '잠든 풀 정령 친구가 기다려요 · 한 번 움직여서 이어서 터지게 해요', time: '제한 시간 2:00', go: true });
   // [도전!]은 설명판이 보이는 레벨을 시작한다(카드와 같은 startStage)
   fire(grid, 'focusin', onCard(cardOf(env, 4)));
   assert.strictEqual(detailText(env).title, '레벨 4');
@@ -1251,7 +1258,7 @@ test('M2 설명판: 보이는 레벨이 바뀔 때만 DOM 을 쓰고, aria-live 
   assert.strictEqual(writes, w0, '같은 레벨이면 DOM 을 다시 쓰지 않는다');
   fire(grid, 'focusin', onCard(cardOf(env, 5)));
   assert.strictEqual(writes, w0 + 1);
-  assert.deepStrictEqual(detailText(env), { title: '레벨 5', tag: '', goal: '목표 점수 ' + G.stageTarget('easy', 5).toLocaleString('ko-KR') + '점', hint: '', time: '제한 시간 2:10', go: true }, '초보 5단계도 점수만');
+  assert.deepStrictEqual(detailText(env), { title: '레벨 5', tag: '', goal: '목표 점수 ' + G.stageTarget('easy', 5).toLocaleString('ko-KR') + '점', hint: '잠든 번개 정령 친구가 기다려요', time: '제한 시간 2:10', go: true }, '초보 5단계도 점수만(M4: 정령 친구 한 줄만 더해진다 — 미션·특별 말 없음)');
   // 초보 설명판 어디에도 미션·특별·쉬어가기 말이 없다
   for (let n = 1; n <= 10; n++) {
     const t = G.stageDetailInfo('easy', n, true);
@@ -1364,13 +1371,13 @@ function relLum(hex) {
 }
 const contrast = (a, b) => { const x = relLum(a), y = relLum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
 
-test('M2 style.css: 미션 레벨 카드·설명판 블록이 파일 끝에 하나, 일반용 style.css 와 같고, 글자 11px 이상·[도전!] 터치 타깃 44px 이상·글자 대비 4.5:1 이상', () => {
+test('M2 style.css: 미션 레벨 카드·설명판 블록이 하나, 일반용 style.css 와 같고, 글자 11px 이상·[도전!] 터치 타깃 44px 이상·글자 대비 4.5:1 이상', () => {
   const css = fs.readFileSync(path.join(root, 'style.css'), 'utf8');
   const marker = '미션 레벨 카드·설명판 (spec §27 M2';
   const idx = css.indexOf(marker);
   assert.ok(idx > 0 && css.indexOf(marker, idx + 1) === -1, '블록 하나');
   const block = css.slice(css.lastIndexOf('/*', idx));
-  assert.ok(block.indexOf('미션 HUD (spec §27)') === -1 && block.indexOf('콤보 칩 (spec §28)') === -1, '파일 맨 끝의 새 블록');
+  assert.ok(block.indexOf('미션 HUD (spec §27)') === -1 && block.indexOf('콤보 칩 (spec §28)') === -1, '미션 HUD·콤보 블록과 따로 이어지는 새 블록');
   assert.ok(!/^\s*:root/m.test(block) && !/--board\s*:|--ui-h\s*:|--cell\s*:/.test(block.replace(/\/\*[\s\S]*?\*\//g, '')), ':root·보드 크기식을 건드리지 않는다');
   ['.sc-tag', '.stage-detail', '.sd-title', '.sd-goal', '.sd-hint', '.sd-time', '.sd-go'].forEach((sel) => assert.ok(block.includes(sel), sel));
   assert.ok(/prefers-reduced-motion: reduce/.test(block), '감소 모션을 존중한다');
@@ -1531,7 +1538,8 @@ test('[EDU] 미션 순수 함수(missionValid~stageDetailInfo)·CONFIG.stages �
     assert.strictEqual(edu, gen, name + ' 소스가 일반용과 다르다([EDU] 표식 줄·missionDef 제외)');
   });
   // 순수 함수는 이름으로도 확인한다(내보내기 목록이 두 앱에서 같다). missionDef 만 [EDU] 블록이라 본문이 다르다 — 교육용 쪽은 [EDU] 표식과 많이 모드 표 읽기가 있는지 확인한다
-  ['missionValid', 'missionInit', 'missionUpdate', 'missionDone', 'missionProgress', 'missionDescribe', 'stageKind', 'isSpecialMission', 'stageCardLabel', 'stageDetailInfo'].forEach((name) => {
+  // M4-B(spec §27.6): 정령 특별 레벨의 순수 함수 4개도 같은 목록에 넣는다 — 정령 규칙(몇 단계가 깨어났나·깨운 정령 수)은 두 앱이 하나여야 해서 본문이 글자 그대로 같아야 한다(블록 단위 동일성은 위 첫 블록이 이미 포함하고, 이 목록은 함수별 확인이다)
+  ['missionValid', 'missionInit', 'missionUpdate', 'missionDone', 'missionProgress', 'missionDescribe', 'stageKind', 'isSpecialMission', 'stageCardLabel', 'stageDetailInfo', 'spiritOf', 'spiritStep', 'spiritCells', 'awakenedCount'].forEach((name) => {
     assert.strictEqual(typeof G[name], 'function', name);
     assert.strictEqual(G[name].toString(), GEN[name].toString(), name + ' 본문');
   });

@@ -1603,6 +1603,11 @@ body::after {
   #screen-game[data-goal="mission"][data-chips="2"] { --mis-extra: 71px; }
   #screen-game[data-goal="mission"][data-chips="3"] { --mis-extra: 120px; }
   #screen-game[data-goal="mission"][data-chips="4"] { --mis-extra: 169px; }
+  /* 정령 특별 레벨(spec §27.6, M4): 패널 높이가 2칩 레벨과 같은 93px(= --mis-extra 71px)이다. 초보(점수형, data-goal="score")에도 걸리도록 data-spirit 로 같은 식을 다시 선언한다 */
+  #screen-game[data-spirit] {
+    --board: min(calc(100vw - 24px), calc(var(--vh100) - var(--ui-h) - 71px), var(--board-cap, 520px));
+    --cell: calc(var(--board) / 8);
+  }
 }
 /* 낮은 가로(휴대폰 가로): 칩이 오른쪽 열의 목표 자리에 들어간다. 세로 공간이 모자라 칩을 낮추고 연쇄의 보조 글을 숨긴다 */
 @media (orientation: landscape) and (max-height: 500px) {
@@ -1723,4 +1728,98 @@ body::after {
 /* 감소 모션. "screen and" 형식으로 쓴 이유: score.test.js 의 콤보 칩 블록 검사가 파일 끝까지의 블록에서 "screen and" 없는 감소 모션 미디어 쿼리를 막아 둔다 */
 @media screen and (prefers-reduced-motion: reduce) {
   .sd-go { transition: none; }
+}
+
+/* =====================================================================
+ * 정령 특별 레벨 (spec §27.6, M4) — 5·10단계 6곳의 "잠든 원소 정령 깨우기" 패널 · 결과 줄 · 레벨 선택의 "깨운 정령" 줄.
+ * 새 규칙은 모두 .sp-* / .spirit / .end-spirit 접두어와 #screen-game[data-spirit] 로만 걸린다: 특별 레벨이 아닌 판에서는 #sp-wrap 이 display: contents 라 아무 것도 달라지지 않는다.
+ * 패널 높이는 2칩 레벨과 같은 93px(= 머리 38 + 간격 3 + 요청 52). 보드 크기식은 미션 HUD 블록의 #screen-game[data-spirit] 규칙이 같은 71px 를 뺀다.
+ * 글자는 잉크(#2a2160) 계열 + 밝은 바탕이라 4.5:1 이상이고 11px 아래로 내려가지 않는다. 색에만 의존하지 않는다(그림 · 글자 "깨어남 k/n" · "zZ" · 칸 안의 ✓).
+ * 연출은 컬러 복귀(필터 전환 0.6초)와 부드러운 노란빛 번짐 한 번뿐이다: 흔들림 · 붉은 점멸 · 피해 숫자 없음. 무한 반복은 "zZ" 떠오름 하나이고 감소 모션에서는 멈춘다.
+ * ===================================================================== */
+.sp-wrap, .spirit { display: contents; }
+.sp-live, .sp-roster-sr { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; border: 0; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }
+.sp-wrap.on {
+  display: grid; flex: none;
+  width: max(var(--board), min(calc(100vw - 24px), 360px));
+  grid-template-columns: 72px minmax(0, 1fr); grid-template-rows: 38px 52px; gap: 3px 8px;
+}
+.sp-art {
+  position: relative; grid-column: 1; grid-row: 1 / 3; min-width: 0; display: flex; align-items: center; justify-content: center;
+  border: 3px solid #fff; border-radius: 16px; background: linear-gradient(180deg, #ffffff 0%, #e4dcff 100%); color: var(--ink);
+  box-shadow: inset 0 -3px 0 rgba(120, 90, 220, .14), 0 3px 0 rgba(90, 60, 200, .35), 0 6px 12px rgba(40, 30, 120, .22);
+}
+.sp-img { position: relative; z-index: 1; display: block; width: 58px; height: 58px; filter: grayscale(var(--sp-g, 1)) brightness(calc(1 - var(--sp-g, 1) * .22)); transition: filter .6s ease; }
+.sp-img .gi { display: block; width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 2px 2px rgba(40, 20, 100, .3)); user-select: none; -webkit-user-drag: none; }
+.sp-zz { position: absolute; z-index: 2; top: 3px; right: 5px; font-size: max(11px, .72rem); font-weight: 900; line-height: 1; color: var(--ink); animation: spZz 2.6s ease-in-out infinite; }
+.sp-art::after { content: ""; position: absolute; z-index: 0; inset: -8px; border-radius: 24px; opacity: 0; pointer-events: none; background: radial-gradient(circle, rgba(255, 244, 190, .95) 0, rgba(255, 244, 190, 0) 68%); }
+.sp-art.pulse::after { animation: spGlow 1s ease-out; }
+@keyframes spZz { 0%, 100% { transform: translateY(2px); opacity: .55; } 50% { transform: translateY(-3px); opacity: 1; } }
+@keyframes spGlow { 0% { opacity: 0; transform: scale(.7); } 35% { opacity: 1; } 100% { opacity: 0; transform: scale(1.25); } }
+.sp-info {
+  grid-column: 2; grid-row: 1; min-width: 0; display: flex; flex-direction: column; justify-content: center; gap: 1px; padding: 0 9px;
+  border: 2px solid #fff; border-radius: 14px; background: linear-gradient(180deg, #ffffff 0%, #ece6ff 100%); color: var(--ink);
+  box-shadow: inset 0 -2px 0 rgba(120, 90, 220, .14), 0 3px 0 rgba(90, 60, 200, .35);
+}
+.sp-title { flex: none; margin: 0; font-size: clamp(.72rem, 3.4vw, .9rem); font-weight: 900; line-height: 1.1; white-space: nowrap; overflow: hidden; }
+.sp-art.awake + .sp-info .sp-title { color: #0d3b24; }
+.sp-row { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.sp-gauge { display: flex; flex: none; gap: 3px; }
+.sp-cell { display: block; box-sizing: border-box; width: 22px; height: 15px; border: 2px dashed #6f64b8; border-radius: 8px; background: #ffffff; color: #4a2600; font-size: max(11px, .7rem); font-style: normal; font-weight: 900; line-height: 12px; text-align: center; }
+.sp-cell.on { border-style: solid; border-color: #b45309; background: #ffd24a; }
+.sp-count { font-size: max(11px, .72rem); font-weight: 800; line-height: 1.1; white-space: nowrap; color: var(--ink); }
+.sp-wrap.on .goal, .sp-wrap.on .mission { grid-column: 2; grid-row: 2; width: auto; min-width: 0; height: 52px; margin: 0; }
+.sp-wrap.on .m-list { height: 100%; }
+.sp-wrap.on .m-chip { height: 100%; min-height: 0; }
+/* 아주 좁은 세로 폰(320px대): 칩이 둘째·셋째 줄까지 쓰면 52px 칸을 넘으므로 연쇄 칩의 작은 안내 글만 접는다(레벨 선택 설명판에는 그대로 있다) */
+@media (max-width: 340px) and (orientation: portrait) {
+  .sp-wrap.on .k-chain .m-sub { display: none; }
+}
+.sp-wrap.on .goal { display: flex; flex-direction: column; justify-content: center; border-radius: 16px; }
+.sp-wrap.on .goal-text { font-size: .9rem; line-height: 1.25; }
+.sp-note { position: relative; display: block; padding: 0 6px; text-align: center; font-size: max(11px, .7rem); font-weight: 700; line-height: 1.2; color: var(--ink); }
+.sp-tick { position: absolute; z-index: 0; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: #ffffff; box-shadow: 0 0 0 1px rgba(90, 60, 200, .4); pointer-events: none; }
+.sp-wrap.on .goal-text, .sp-note { z-index: 1; }      /* 눈금은 글자 아래 */
+/* 결과 화면의 한 줄 */
+.end-spirit { margin: 4px 0; padding: 4px 12px; border: 2px solid #ffd23f; border-radius: 12px; background: #fff6cf; color: #4a2600; font-size: .92rem; font-weight: 800; line-height: 1.35; }
+/* 레벨 선택 화면의 "깨운 정령 n/6" 줄: 작은 정령 6개(깨운 것은 컬러, 아닌 것은 흑백) + 글자 */
+.sp-roster { display: flex; align-items: center; justify-content: center; gap: 8px; margin: -4px 0 10px; font-size: .86rem; font-weight: 800; color: var(--ink); }
+.sp-roster-art { display: inline-flex; gap: 3px; }
+.sp-mini { display: inline-block; width: 22px; height: 22px; filter: grayscale(1) brightness(.85); opacity: .75; }
+.sp-mini.on { filter: none; opacity: 1; }
+.sp-mini .gi { display: block; width: 100%; height: 100%; object-fit: contain; }
+/* 낮은 가로(휴대폰 가로): 정령 그림을 숨기고 글자 한 줄 + 작은 칩. 목표 자리(오른쪽 열)에 들어간다 */
+@media (orientation: landscape) and (max-height: 500px) {
+  .sp-wrap.on { grid-area: goal; width: 100%; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto; gap: 3px; }
+  .end-spirit { margin: 0; padding: 1px 10px; border-width: 1px; border-radius: 9px; font-size: max(11px, .78rem); line-height: 1.25; }
+  .sp-art { display: none; }
+  .sp-info { grid-column: 1; grid-row: 1; flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0 6px; padding: 1px 7px; border-width: 2px; border-radius: 10px; }
+  .sp-title { font-size: .72rem; }
+  .sp-cell { width: 14px; height: 14px; border-radius: 7px; line-height: 10px; }
+  .sp-wrap.on .goal, .sp-wrap.on .mission { grid-column: 1; grid-row: 2; height: auto; }
+  .sp-wrap.on .goal { min-height: 30px; border-radius: 12px; }
+  .sp-note { display: none; }      /* 세로가 모자라 작은 글은 접는다(머리 줄의 "깨어남 k/n"과 눈금이 단계를 말해 준다) */
+  .sp-wrap.on .m-chip { height: auto; min-height: 30px; }
+}
+/* 와이드(태블릿·PC 가로): 정령 패널이 오른쪽 패널의 목표 자리에 들어간다. 오른쪽 열은 폭이 280~360px 라 그림은 머리 줄 옆에 두고(요청 칸은 열 폭 전체를 쓴다) 크기는 보드에 비례(목표 바·미션 칩과 같은 방식) */
+@media (min-width: 800px) and (min-height: 501px) and (orientation: landscape) {
+  .sp-wrap.on { grid-area: goal; width: 100%; grid-template-columns: clamp(50px, calc(var(--board) * .085), 88px) minmax(0, 1fr); grid-template-rows: auto auto; gap: clamp(4px, calc(var(--board) * .006), 8px) clamp(8px, calc(var(--board) * .012), 12px); }
+  .sp-art { grid-row: 1; }
+  .sp-img { width: clamp(36px, calc(var(--board) * .06), 66px); height: clamp(36px, calc(var(--board) * .06), 66px); }
+  .sp-zz { top: 2px; right: 4px; }
+  .sp-info { min-height: clamp(46px, calc(var(--board) * .085), 80px); padding: 2px 12px; gap: 3px; }
+  .sp-title { font-size: clamp(.9rem, calc(var(--board) * .0155), 1.2rem); }
+  .sp-cell { width: clamp(20px, calc(var(--board) * .03), 32px); height: clamp(15px, calc(var(--board) * .02), 22px); border-radius: 11px; line-height: clamp(11px, calc(var(--board) * .015), 17px); }
+  .sp-count { font-size: clamp(.78rem, calc(var(--board) * .0135), 1rem); }
+  .sp-wrap.on .goal, .sp-wrap.on .mission { grid-column: 1 / -1; grid-row: 2; height: auto; }
+  .sp-wrap.on .goal { min-height: clamp(44px, calc(var(--board) * .06), 66px); }
+  .sp-wrap.on .goal-text { font-size: clamp(.9rem, calc(var(--board) * .0145), 1.2rem); }
+  .sp-note { font-size: clamp(.78rem, calc(var(--board) * .0125), .95rem); }
+  .sp-wrap.on .m-chip { height: auto; min-height: clamp(40px, calc(var(--board) * .055), 56px); }
+}
+/* 감소 모션. "screen and" 형식으로 쓴 이유: 기존 시험이 파일 끝쪽 감소 모션 미디어 쿼리를 형식으로 읽는다 */
+@media screen and (prefers-reduced-motion: reduce) {
+  .sp-zz { animation: none; }
+  .sp-art.pulse::after { animation: none; }
+  .sp-img { transition: none; }
 }

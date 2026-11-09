@@ -1093,13 +1093,13 @@ test('index.html: 콤보 칩(aria-hidden, 기본 hidden)·보이지 않는 낭�
   assert.strictEqual(opens, closes, 'div 여닫음');
 });
 
-test('style.css: 콤보 칩 블록이 맨 끝에 하나 있고(:root·--board 를 건드리지 않음), 감소 모션을 존중하며, 두 앱 style.css 가 같다', () => {
+test('style.css: 콤보 칩 블록이 미션 HUD 블록 뒤에 하나 있고(:root·--board 를 건드리지 않음), 감소 모션을 존중하며, 두 앱 style.css 가 같다', () => {
   const css = fs.readFileSync(path.join(root, 'style.css'), 'utf8');
   const marker = ' * 콤보 칩 (spec §28)';
   const idx = css.lastIndexOf('/*', css.indexOf(marker));
   assert.ok(css.indexOf(marker) > 0 && css.indexOf(marker, css.indexOf(marker) + 1) === -1, '블록 하나');
   const block = css.slice(idx);
-  assert.ok(block.length > 1500 && block.indexOf('미션 HUD (spec §27)') === -1, '콤보 블록이 파일 맨 끝에 있다');
+  assert.ok(block.length > 1500 && block.indexOf('미션 HUD (spec §27)') === -1, '콤보 블록이 미션 HUD 블록 뒤에 있다');
   assert.ok(!/^\s*:root/m.test(block), ':root 를 건드리지 않는다');
   assert.ok(!/--board\s*:|--ui-h\s*:|--cell\s*:/.test(block.replace(/\/\*[\s\S]*?\*\//g, '')), '보드 크기식을 건드리지 않는다');
   assert.ok(/@media screen and \(prefers-reduced-motion: reduce\)/.test(block), '감소 모션(기존 와이드 시험이 마지막 감소 모션 쿼리를 읽으므로 "screen and" 형식)');

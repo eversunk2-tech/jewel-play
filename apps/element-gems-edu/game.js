@@ -124,6 +124,18 @@
       missionMaxChips: 2,
       special: [5, 10],
       rest: [3, 6, 9],
+      // spec §27.6(비폭력 프레임 F1 "잠든 원소 정령 깨우기", 사용자 승인 2026-11-08)·§33(초보는 점수제 표현만): 특별 레벨(5·10단계) 6곳의 정령. 색 번호: 불 0 · 물 1 · 풀 2 · 번개 3 · 어둠 4 · 빛 5.
+      //   types[난이도][레벨 번호] = 그 레벨에서 잠들어 있는 정령의 색 번호(이름은 "풀 정령"처럼 CONFIG.types[색].name + " 정령"). special 에 있는 번호만 쓴다.
+      //   easySteps = 초보(점수 목표)의 깨어남 단계 수: 목표 점수를 이 수로 똑같이 나눠 1/3·2/3·3/3 지점에서 한 단계씩(규칙 변화 없음). 중수·고수는 SEQ 미션의 부분 수(3~4)가 단계 수다.
+      //   게임 규칙·목표·점수·별에는 아무 영향이 없다 — 화면(정령 패널·낭독·효과음)만 더한다.
+      spirit: {
+        easySteps: 3,
+        types: {
+          easy: { 5: 3, 10: 5 },
+          normal: { 5: 2, 10: 0 },
+          hard: { 5: 1, 10: 4 }
+        }
+      },
       // 색 번호: 불 0 · 물 1 · 풀 2 · 번개 3 · 어둠 4 · 빛 5.
       // 아래 두 표 = spec §36(M2-CAL, 2026-11-09)에서 §26 보드 구조를 적용한 실제 게임으로 재보정한 값(유형·색은 §27.5 그대로, 개수·횟수만 바뀜).
       //   기준 플레이어 D(중수)·H(고수)의 클리어율이 §27.4 목표 곡선과 중수 ±5%p 안, 고수는 2·4단계만 ±5%p 밖(정수 횟수 한계, §36.5). 사람 체감은 확인하지 못했다 — 사람 플레이 뒤 이 표만 조정한다.
@@ -1179,6 +1191,90 @@
     return { parts: parts, summary: summary, spoken: spoken, count: parts.length };
   }
 
+  /* ---------- 정령 특별 레벨 (spec §27.6 F1 "잠든 원소 정령 깨우기", §33, M4) — 순수 함수·문구, DOM 없음 ----------
+   * 특별 레벨(5·10단계) 6곳에는 잠든 원소 정령이 있다. 정령 그림이 흑백(잠든 중)에서 단계마다 컬러로 돌아오고 "깨어남 게이지"가 차오른다.
+   * 게임 규칙·목표·점수·별·저장은 한 글자도 바꾸지 않는다 — 화면(패널·낭독·효과음)만 더한다.
+   * 단계 수 n: 초보(점수 목표) = CONFIG.stages.spirit.easySteps(목표 점수를 n 등분해 1/n·2/n·…·n/n 지점에서 한 단계씩), 중수·고수 = SEQ 미션의 부분 수.
+   *   (미션이 점수 목표로 폴백하는 중수·고수 특별 레벨도 점수 n 등분을 쓴다 — 롤백 스위치가 켜져도 정령은 그대로 동작한다.)
+   * 깨어남 단계 k = 끝난 단계 수(0..n). 한 판 안에서 줄어들지 않는다(호출하는 쪽에서 max 로 지킨다).
+   * 모든 사용자 노출 문구는 SPIRIT_TEXT 한 곳에 모은다. spec §27.6.2 문구 가이드: 싸움·피해·쓰러뜨림을 떠올리는 말은 쓰지 않고(시험이 이 객체의 모든 문구를 검사한다),
+   *   정령 이름이 모두 "정령"으로 끝나므로 조사는 "이"로 고정한다. 초보 레벨에는 "미션"·"특별 레벨" 같은 말을 쓰지 않고 점수 기준으로만 말한다(§33). */
+  const SPIRIT_TEXT = {
+    // 레벨 선택 설명판의 한 줄(초보도 같은 문구)
+    pending: function (sp) { return '잠든 ' + sp.name + ' 친구가 기다려요'; },
+    // 패널 제목·"깨어남 k/n" 글자
+    title: function (sp, k) { return k >= sp.steps ? sp.name + '이 깨어났어요!' : '잠든 ' + sp.name; },
+    count: function (sp, k) { return '깨어남 ' + k + '/' + sp.steps; },
+    // 패널의 읽히는 이름(special = 중수·고수 미션형 특별 레벨. 초보는 "특별 레벨"이라는 말을 쓰지 않는다)
+    panel: function (sp, k, special) { return (special ? '특별 레벨, ' : '') + (k >= sp.steps ? sp.name + '이 깨어났어요' : '잠든 ' + sp.name) + ', 깨어남 ' + k + '/' + sp.steps; },
+    // 낭독(role=status): 단계가 하나 이상 끝났을 때(한 행동에 여러 단계가 끝나도 한 번) / 마지막 단계
+    step: function (sp, k) { return sp.name + '이 한 걸음 더 깨어났어요 (' + k + '/' + sp.steps + ')'; },
+    done: function (sp) { return sp.name + '이 깨어났어요! 고마워요'; },
+    // 결과 화면의 한 줄
+    endClear: function (sp) { return sp.name + '이 깨어났어요! 고마워요'; },
+    endFail: function (sp, k) { return '아직 잠이 덜 깼어요. 다시 도전해요! (깨어남 ' + k + '/' + sp.steps + ')'; },
+    // 초보 점수 목표 바 안의 작은 글(점수 기준으로만 말한다)
+    scoreNote: function (sp, k) {
+      const n = sp.steps;
+      if (k >= n) return '목표 점수에 닿았어요! 고마워요';
+      if (k <= 0) return '목표 점수의 1/' + n + '까지 힘을 모아 줘요';
+      return '목표 점수의 ' + k + '/' + n + '에 왔어요! ' + (k + 1 >= n ? '거의 다 깨어났어요' : '다음은 ' + (k + 1) + '/' + n);
+    },
+    // 레벨 선택 화면의 "깨운 정령" 줄(보이는 글 / 낭독용 글)
+    roster: function (m, total) { return '깨운 정령 ' + m + '/' + total; },
+    rosterSpoken: function (m, total) { return '깨운 정령 ' + m + '마리 / ' + total + '마리'; }
+  };
+
+  /** 난이도 diff 의 레벨 stage 에 잠든 정령이 있으면 { type, name, steps }, 없으면 null(특별 레벨이 아니거나, 특별 레벨인데 동시 칩 미션이라 패널을 쓸 수 없는 경우) */
+  function spiritOf(diff, stage) {
+    const S = CONFIG.stages;
+    const sp = S.spirit;
+    if (!sp || !sp.types || S.special.indexOf(stage) === -1) return null;
+    const row = sp.types[diff];
+    const type = row ? row[stage] : undefined;
+    if (!intIn(type, 0, CONFIG.types.length - 1)) return null;
+    let steps = sp.easySteps;
+    const def = diff === 'easy' ? null : missionDef(diff, stage);
+    if (def) {
+      if (!def.seq) return null;        // 정령 패널은 SEQ 칩 1개만 품는다(동시 칩 2개 + 패널은 높이 예산 93px 를 넘는다)
+      steps = def.parts.length;
+    }
+    if (!intIn(steps, 1, 8)) return null;
+    return { type: type, name: CONFIG.types[type].name + ' 정령', steps: steps };
+  }
+
+  /** 깨어남 단계 k(0..n). mission 이 있으면(SEQ) 끝난 부분 수(missionProgress().doneCount 와 같다), 없으면 점수 목표를 n 등분한 지점을 넘은 수 */
+  function spiritStep(info, score, target, mission) {
+    if (!info) return 0;
+    const n = info.steps;
+    if (mission) return Math.max(0, Math.min(n, missionProgress(mission).doneCount));
+    if (!(target > 0) || !(score > 0)) return 0;
+    return Math.max(0, Math.min(n, Math.floor(score * n / target)));
+  }
+
+  /** 정령이 있는 칸(난이도 순서 × 특별 레벨 번호 순서) 목록 { diff, stage, type } — 레벨 선택 화면의 "깨운 정령" 줄이 쓴다 */
+  function spiritCells() {
+    const cells = [];
+    LEVELS.forEach(function (d) {
+      CONFIG.stages.special.forEach(function (s) {
+        const sp = spiritOf(d, s);
+        if (sp) cells.push({ diff: d, stage: s, type: sp.type });
+      });
+    });
+    return cells;
+  }
+
+  /** 깨운 정령 수: 정령이 있는 칸 중 한 번이라도 클리어(별 1개 이상)한 칸의 수. 저장(stages)에서 계산하며 새 저장 필드는 없다 */
+  function awakenedCount(sv) {
+    let n = 0;
+    spiritCells().forEach(function (c) {
+      const list = sv && sv.stages && sv.stages[c.diff];
+      const e = Array.isArray(list) ? list[c.stage - 1] : null;
+      if (e && e.stars > 0) n++;
+    });
+    return n;
+  }
+
   /* ---------- 레벨 카드·선택 레벨 설명판의 글 (spec §32.5.4, M2) — DOM 없음 ---------- */
   /** 레벨 카드 data-kind(스킨용 속성 — 화면에 글자로 나오지 않는다, spec §34): 특별 번호는 모든 난이도 'special', 쉬운 구간 번호는 중수·고수만 'rest', 그 밖은 '' */
   function stageKind(diff, stage) {
@@ -1199,7 +1295,9 @@
    *  특별은 "레벨 5, 특별 레벨, 미션 먼저 A, 그다음 B", 잠김은 맨 끝이 "잠김" (review.md §24-10 P3). 3·6·9단계에는 별도 말을 달지 않는다(spec §34) */
   function stageCardLabel(diff, stage, open, stars) {
     const mdef = missionDef(diff, stage);
-    const goal = mdef ? (isSpecialMission(diff, stage) ? '특별 레벨, ' : '') + '미션 ' + missionDescribe(mdef).spoken : '목표 ' + targetText(diff, stage) + '점';
+    const sp = spiritOf(diff, stage);
+    const who = sp ? '잠든 ' + sp.name + ', ' : '';     // spec §27.6(M4): 정령이 있는 레벨은 정령 이름만 더한다("레벨 5, 특별 레벨, 잠든 풀 정령, 미션 …" / 초보 "레벨 5, 잠든 번개 정령, 목표 … 점")
+    const goal = mdef ? (isSpecialMission(diff, stage) ? '특별 레벨, ' : '') + who + '미션 ' + missionDescribe(mdef).spoken : who + '목표 ' + targetText(diff, stage) + '점';
     return '레벨 ' + stage + ', ' + goal + ', ' + (open ? '별 ' + stars + '개' : '잠김');
   }
 
@@ -1216,6 +1314,8 @@
     } else {
       info.goal = '목표 점수 ' + targetText(diff, stage) + '점';
     }
+    const sp = spiritOf(diff, stage);      // spec §27.6(M4): 정령이 있는 레벨은 한 줄을 앞에 붙인다(초보도 같은 문구 — 미션 말 없음)
+    if (sp) info.hint = SPIRIT_TEXT.pending(sp) + (info.hint ? ' · ' + info.hint : '');
     info.time = '제한 시간 ' + fmtTime(CONFIG.difficulty[diff].time.start);
     return info;
   }
@@ -1370,6 +1470,7 @@
       missionValid: missionValid, missionDef: missionDef, missionInit: missionInit, missionUpdate: missionUpdate, missionDone: missionDone,
       missionProgress: missionProgress, missionDescribe: missionDescribe,
       stageKind: stageKind, isSpecialMission: isSpecialMission, stageCardLabel: stageCardLabel, stageDetailInfo: stageDetailInfo,
+      spiritOf: spiritOf, spiritStep: spiritStep, spiritCells: spiritCells, awakenedCount: awakenedCount, SPIRIT_TEXT: SPIRIT_TEXT,
       // [EDU] ? 선물상자 시험용 내보내기
       WILD: WILD, wouldMatch: wouldMatch, findMatchesPlain: findMatchesPlain, findMatchesWild: findMatchesWild, hasWild: hasWild,
       uniqueCells: uniqueCells, wildCellsOfGroups: wildCellsOfGroups, countWild: countWild, pickRefillTypes: pickRefillTypes, pickRefillTypesStructured: pickRefillTypesStructured,
@@ -1433,6 +1534,7 @@
     board: null,      // 이번 스테이지의 보드 구조 등급 손잡이(boardParams, spec §26). null = 균등 무작위(기존 경로)
     target: 0,        // 이번 스테이지 목표 점수(미션형 레벨에서는 점수 폴백·참고값)
     mission: null,    // 이번 스테이지의 미션 상태(missionInit). null = 점수 목표(기본). 미션형이면 goalMet 이 이것으로 판정한다(spec §27)
+    spirit: null,     // 특별 레벨(5·10단계)의 정령 화면 상태 { info: { type, name, steps }, k: 깨어남 단계, special: 미션형 특별 레벨인가 }. 특별 레벨이 아니면 null (spec §27.6, M4 — 규칙에는 쓰이지 않는다)
     startTime: 120,   // 별 계산 기준 시작 시간
     idle: 0,
     // [EDU] 문제 중(칭찬 팝업 대기 포함)에는 게임 시계·쿨다운이 모두 멈춘다(advance 가 즉시 반환). edu = 이번 스테이지 문제 통계
@@ -1459,9 +1561,10 @@
       'btn-restart', 'btn-sound-pause', 'btn-quit', 'overlay-confirm', 'btn-confirm-yes', 'btn-confirm-no',
       'overlay-end', 'end-title', 'level-select', 'level-desc', 'level-chip', 'pause-level', 'end-level', 'btn-cutin-start', 'btn-cutin-pause', 'cutin', 'cutin-img', 'cb-shout', 'cb-skill', 'cn-gem', 'cn-text', 'logo-img', 'title-fallback', 'end-score', 'end-best', 'end-combo', 'end-chain', 'end-skills',
       'end-matches', 'combo-chip', 'combo-run', 'combo-mult', 'combo-max', 'combo-bar', 'combo-live', 'btn-again', 'btn-home', 'mission', 'mission-list', 'mission-live',
-      'stage-detail', 'sd-title', 'sd-tag', 'sd-goal', 'sd-hint', 'sd-time', 'btn-stage-go'
+      'stage-detail', 'sd-title', 'sd-tag', 'sd-goal', 'sd-hint', 'sd-time', 'btn-stage-go',
+      'sp-wrap', 'spirit', 'sp-art', 'sp-img', 'sp-zz', 'sp-title', 'sp-gauge', 'sp-count', 'sp-live', 'sp-note', 'end-spirit', 'sp-roster', 'sp-roster-art', 'sp-roster-text', 'sp-roster-sr'
     ].forEach(function (id) { el[id] = $(id); });
-    ['learn-chip', 'learn-fill', 'learn-num', 'learn-live', 'sd-learn'].forEach(function (id) { el[id] = $(id); });     // [EDU] 학습 칩(spec §27.7)·설명판 학습 줄
+    ['learn-chip', 'learn-fill', 'learn-num', 'learn-live', 'learn-name', 'sd-learn'].forEach(function (id) { el[id] = $(id); });     // [EDU] 학습 칩(spec §27.7)·설명판 학습 줄
   }
 
   /* =====================================================================
@@ -2126,7 +2229,7 @@
     const e = el['sd-learn'];
     if (!e) return;
     const n = open && eduTableMode === 'many' ? learnNeed(diff, stage) : 0;
-    e.textContent = n > 0 ? '선물상자 문제 ' + n + '개도 풀어요' : '';
+    e.textContent = n > 0 ? (spiritOf(diff, stage) ? SPIRIT_EDU_TEXT.detailLearn(n) : '선물상자 문제 ' + n + '개도 풀어요') : '';      // 정령 특별 레벨(5·10단계)만 "정령에게 … 드려요"(M4-B)
     e.hidden = !(n > 0);
   }
 
@@ -2134,6 +2237,58 @@
    * role="progressbar" + aria-valuenow/max + aria-label, 완료 알림은 #learn-live(role=status, polite). 값이 바뀔 때만 DOM 을 쓴다. 미션 칩 함수(buildMissionHud 등)는 건드리지 않는다. */
   const LEARN_DONE_TEXT = '선물상자 문제 풀기를 끝냈어요';
   const hudLearn = { n: -1, met: false, liveN: 0 };
+
+  /* ---------- 정령 특별 레벨 × 학습 조건 (spec §27.6·§27.8, M4-B) — 교육용에만 있는 부분 ----------
+   * 일반용의 정령 패널(drawSpirit·updateSpirit)은 그대로 쓰고, 교육용이 더하는 것은 이 구간뿐이다:
+   *  ① 학습 조건이 있는 정령 특별 레벨(5·10단계, 문제 양 "많이")에서는 학습 칩 이름이 "선물상자 문제 풀기" 대신 "정령에게 선물 드리기"(정령이 있는 레벨 = state.spirit).
+   *     작은 글·진행·완료 ✓·progressbar·낭독은 이름만 바뀐다. 특별이 아닌 레벨의 칩과 문제 팝업 제목("선물상자 문제")은 그대로다.
+   *  ② 설명판의 학습 줄은 정령 레벨만 "정령에게 선물상자 문제 N개를 드려요"(같은 N).
+   *  ③ 목표(점수/미션)를 먼저 채웠는데 학습 조건이 모자란 때(stageDone() 가 아직 false): 정령 단계 k 는 n 이 되어 그림은 컬러로 돌아오지만 판은 이어진다.
+   *     제목 "○ 정령이 거의 깨어났어요", 낭독 "거의 다 깨어났어요! 선물상자 문제를 마저 풀어 줘요". "깨어났어요! 고마워요" + 마지막 빛 번짐(praise-great)은
+   *     판이 실제로 끝날 때(stageDone())만 낸다. 일반용은 목표를 채우면 곧 판이 끝나므로 이 상태가 없다.
+   * 규칙(점수·미션·학습 조건·문제 공급)은 건드리지 않는다 — 화면과 문구만이다. 문구는 모두 SPIRIT_EDU_TEXT 에 모은다(시험이 §27.6.2 피하는 말을 검사한다). */
+  const SPIRIT_EDU_TEXT = {
+    learnName: function (spirit) { return spirit ? '정령에게 선물 드리기' : '선물상자 문제 풀기'; },
+    learnDone: function (spirit) { return spirit ? '정령에게 선물 드리기를 끝냈어요' : LEARN_DONE_TEXT; },
+    detailLearn: function (n) { return '정령에게 선물상자 문제 ' + n + '개를 드려요'; },
+    almostTitle: function (sp) { return sp.name + '이 거의 깨어났어요'; },
+    almostPanel: function (sp, special) { return (special ? '특별 레벨, ' : '') + sp.name + '이 거의 깨어났어요, 깨어남 ' + sp.steps + '/' + sp.steps; },
+    almostLive: '거의 다 깨어났어요! 선물상자 문제를 마저 풀어 줘요',
+    almostNote: '목표 점수에 닿았어요! 선물상자 문제를 마저 풀어 줘요'      // 초보(점수 목표) 바 안의 작은 글: 일반용의 "목표 점수에 닿았어요! 고마워요"는 판이 끝날 때만
+  };
+
+  /** updateSpirit 의 교육용 분기. 정령 단계 k 가 n 이 된 뒤의 두 상태(거의 깨어남 / 깨어남)를 다룬다. true = 여기서 처리했다 */
+  function eduSpiritFlow(s, k) {
+    const almost = k >= s.info.steps && !stageDone();      // 목표는 채웠지만 학습 조건이 모자라 판이 이어지는 중
+    const was = !!s.almost;
+    s.almost = almost;
+    if (almost) {
+      if (was && k === s.k) return true;      // 이미 "거의 깨어났어요"를 그렸다
+      s.k = k;
+      drawSpirit(false);      // 칸·컬러·"깨어남 n/n"을 그린 다음 아래에서 "거의" 모양으로 덮는다(같은 순간이라 깜박이지 않는다)
+      el['sp-title'].textContent = SPIRIT_EDU_TEXT.almostTitle(s.info);
+      el['sp-art'].classList.remove('awake');
+      el['sp-wrap'].setAttribute('aria-label', SPIRIT_EDU_TEXT.almostPanel(s.info, s.special));
+      if (!state.mission) el['sp-note'].textContent = SPIRIT_EDU_TEXT.almostNote;
+      if (!reduceMotion) {      // 단계가 하나 끝난 것이니 다른 단계와 같은 빛 번짐 한 번 + praise-good. 마지막 연출(praise-great)은 판이 끝날 때만
+        const art = el['sp-art'];
+        art.classList.remove('pulse');
+        void art.offsetWidth;
+        art.classList.add('pulse');
+        setTimeout(function () { art.classList.remove('pulse'); }, 1100);
+      }
+      sfx('praise-good');
+      hudSp.liveN++;
+      el['sp-live'].textContent = SPIRIT_EDU_TEXT.almostLive + (hudSp.liveN % 2 ? '' : '.');
+      return true;
+    }
+    if (was) {      // 거의 깨어남 -> 판이 끝남: k 는 이미 n 이라 일반용 흐름은 "달라진 게 없다"며 돌아가 버리므로 여기서 마지막 연출(praise-great·"깨어났어요! 고마워요"·빛 번짐)을 한 번 낸다
+      s.k = k;
+      drawSpirit(true);
+      return true;
+    }
+    return false;
+  }
 
   function buildLearnHud() {
     const chip = el['learn-chip'];
@@ -2144,6 +2299,8 @@
     chip.hidden = !L;
     chip.classList.remove('done', 'pop');
     if (el['learn-live']) el['learn-live'].textContent = '';
+    if (el['learn-name']) el['learn-name'].textContent = SPIRIT_EDU_TEXT.learnName(state.spirit);      // 정령 특별 레벨이면 "정령에게 선물 드리기"(M4-B), 그 밖은 "선물상자 문제 풀기"
+    chip.setAttribute('aria-label', SPIRIT_EDU_TEXT.learnName(state.spirit));
     if (!L) { delete game.dataset.learn; return; }
     game.dataset.learn = '1';
     chip.setAttribute('aria-valuemin', '0');
@@ -2165,10 +2322,10 @@
     el['learn-fill'].style.transform = 'scaleX(' + (n / L.need).toFixed(4) + ')';
     chip.classList.toggle('done', met);
     chip.setAttribute('aria-valuenow', String(n));
-    chip.setAttribute('aria-label', '선물상자 문제 풀기 ' + n + ' / ' + L.need + (met ? ', 완료' : ''));
+    chip.setAttribute('aria-label', SPIRIT_EDU_TEXT.learnName(state.spirit) + ' ' + n + ' / ' + L.need + (met ? ', 완료' : ''));
     if (fresh) {
       hudLearn.liveN++;
-      if (el['learn-live']) el['learn-live'].textContent = LEARN_DONE_TEXT + (hudLearn.liveN % 2 ? '' : '.');     // 같은 문구가 이어서 나와도 다시 읽히게 마침표를 번갈아 붙인다
+      if (el['learn-live']) el['learn-live'].textContent = SPIRIT_EDU_TEXT.learnDone(state.spirit) + (hudLearn.liveN % 2 ? '' : '.');     // 같은 문구가 이어서 나와도 다시 읽히게 마침표를 번갈아 붙인다
       chip.classList.remove('pop');
       void chip.offsetWidth;
       chip.classList.add('pop');
@@ -2529,6 +2686,7 @@
           waited = false;
         }
         // [/EDU]
+        if (state.spirit && id === state.gameId) updateSpirit();      // [EDU] spec §27.6(M4-B): 정령 깨어남 단계는 행동이 끝날 때만 본다(한 행동에서 여러 단계가 끝나도 연출·낭독은 한 번). 일반용은 이 호출이 missionUpdate 바로 뒤에 있지만, 교육용은 정답 보너스가 점수를 더하는 문제 단계(runQuizzes) 뒤에 둔다 — 그래야 보너스로 넘은 단계도 같은 행동에서 한 번에 그려지고, 문제 팝업 뒤에 가려져 연출이 놓치지 않는다. 화면만 바꾼다
         // 목표 점수에 도달했다면 NO MOVES 재섞기는 생략하고 곧바로 클리어 처리한다
         if (!stageDone() && !hasValidMove(typeGrid())) {
           if (waited) await wait(CONFIG.noMovesPauseMs);
@@ -2538,6 +2696,7 @@
           await reshuffleBoard();
         }
       }
+      if (ctx.noPost && state.spirit && id === state.gameId) updateSpirit();      // [EDU] 보드가 안 바뀌는 행동(물·어둠·빛 스킬의 일시불 점수)도 점수를 더하므로 여기서 한 번 본다(위의 호출은 noPost 가 아닌 행동만)
       state.multHold = CONFIG.multReturn;
     } catch (e) {
       if (e === ABORT) return;
@@ -3140,8 +3299,10 @@
     let fresh = false;
     pr.parts.forEach(function (p, i) { if (p.done && !h.done[i]) { h.done[i] = true; fresh = true; } });
     if (fresh) {
-      h.liveN++;
-      el['mission-live'].textContent = MIS_DONE_TEXT + (h.liveN % 2 ? '' : '.');
+      if (!state.spirit) {          // 정령 판(특별 레벨)에서는 정령 낭독이 대신한다 — 이중 낭독 금지(spec §27.6)
+        h.liveN++;
+        el['mission-live'].textContent = MIS_DONE_TEXT + (h.liveN % 2 ? '' : '.');
+      }
       h.chips.forEach(function (c) {
         if (!c.el.classList.contains('done')) return;
         c.el.classList.remove('pop');
@@ -3149,6 +3310,107 @@
         c.el.classList.add('pop');
       });
     }
+  }
+
+  /* ---------- 정령 패널 (spec §27.6 F1, M4) ----------
+   * 특별 레벨(state.spirit 이 있는 판)에서만 보인다. #sp-wrap 은 평소 display: contents 라 레이아웃에 참여하지 않고(점수 목표 바 #goal·미션 칩 #mission 도 그대로),
+   * 정령 판에서만(.on, #screen-game[data-spirit]) 한 덩어리 패널이 된다: 왼쪽 정령 그림(#sp-art — 필터 grayscale((n−k)/n), 잠든 중 "zZ") /
+   * 오른쪽 위 제목 + 깨어남 게이지 n칸 + "깨어남 k/n" / 오른쪽 아래 지금의 요청(중수·고수 = SEQ 미션 칩 #mission, 초보 = 목표 점수 바 #goal + 단계 눈금).
+   * 깨어남 단계 k 는 행동이 끝날 때(runAction → updateSpirit)만 갱신한다 — 한 행동에서 여러 단계가 끝나도 연출·낭독·효과음은 한 번. 한 판 안에서 줄어들지 않는다.
+   * 연출은 컬러 복귀(필터 전환 0.6초) + 부드러운 빛 번짐 한 번뿐이다(흔들림·붉은 점멸·피해 숫자 없음, spec §27.6.2). 새 효과음은 없다(praise-good, 마지막 단계는 praise-great).
+   * 감소 모션(reduceMotion)이면 번짐·타이머 없이 상태만 바로 바뀐다. 낭독은 #sp-live(role=status). 그림·게이지 칸은 aria-hidden, 패널(#sp-wrap)에 읽히는 이름을 준다. */
+  const hudSp = { cells: [], ticks: [], liveN: 0 };
+
+  /** 정령 화면을 끈다(특별 레벨이 아닐 때·새 판을 시작할 때). #spirit 숨김, 패널 모양 해제, 눈금·칸 정리. 점수형/미션형 요소는 건드리지 않는다 */
+  function clearSpiritHud() {
+    if (!el['sp-wrap']) return;      // (캐시된 옛 index.html 과 새 game.js 가 잠깐 섞여도 판이 멈추지 않게)
+    delete el['screen-game'].dataset.spirit;
+    el['sp-wrap'].className = 'sp-wrap';
+    el['sp-wrap'].removeAttribute('role');
+    el['sp-wrap'].removeAttribute('aria-label');
+    el.spirit.hidden = true;
+    el['sp-gauge'].innerHTML = '';
+    el['sp-live'].textContent = '';
+    el['sp-note'].hidden = true;
+    el['sp-note'].textContent = '';
+    hudSp.ticks.forEach(function (t) { t.remove(); });
+    hudSp.ticks = [];
+    hudSp.cells = [];
+    hudSp.liveN = 0;
+  }
+
+  /** startStage 에서 부른다(미션 HUD 를 만든 뒤). 특별 레벨이면 패널을 켜고 처음 상태(k = 0)를 그린다 */
+  function buildSpiritHud() {
+    clearSpiritHud();
+    const s = state.spirit;
+    if (!s || !el['sp-wrap']) return;
+    const info = s.info;
+    el['screen-game'].dataset.spirit = '1';
+    el['sp-wrap'].className = 'sp-wrap on ' + (state.mission ? 'by-mission' : 'by-score');
+    el['sp-wrap'].setAttribute('role', 'group');
+    el.spirit.hidden = false;
+    el['sp-img'].innerHTML = gemMarkup(info.type);
+    for (let i = 0; i < info.steps; i++) {
+      const c = document.createElement('i');
+      c.className = 'sp-cell';
+      el['sp-gauge'].appendChild(c);
+      hudSp.cells.push(c);
+    }
+    if (!state.mission) {      // 초보(점수 목표): 목표 바 안에 단계 눈금(1/n·2/n …)과 작은 글
+      el['sp-note'].hidden = false;
+      for (let i = 1; i < info.steps; i++) {
+        const t = document.createElement('i');
+        t.className = 'sp-tick';
+        t.style.left = (i * 100 / info.steps).toFixed(3) + '%';
+        el.goal.appendChild(t);
+        hudSp.ticks.push(t);
+      }
+    }
+    drawSpirit(false);
+  }
+
+  /** 깨어남 단계 k 에 맞춰 패널을 그린다. fx = true 이면 단계가 늘어난 때의 연출(빛 번짐·효과음·낭독) */
+  function drawSpirit(fx) {
+    const s = state.spirit;
+    if (!s || !el['sp-wrap']) return;
+    const info = s.info;
+    const k = s.k;
+    const n = info.steps;
+    const done = k >= n;
+    el['sp-title'].textContent = SPIRIT_TEXT.title(info, k);
+    el['sp-count'].textContent = SPIRIT_TEXT.count(info, k);
+    hudSp.cells.forEach(function (c, i) {
+      const on = i < k;
+      c.classList.toggle('on', on);
+      c.textContent = on ? '✓' : '';
+    });
+    el['sp-art'].style.setProperty('--sp-g', ((n - k) / n).toFixed(3));      // 흑백 정도: 1(잠든 중) → 0(컬러)
+    el['sp-art'].classList.toggle('awake', done);
+    el['sp-zz'].hidden = done;
+    el['sp-wrap'].setAttribute('aria-label', SPIRIT_TEXT.panel(info, k, s.special));
+    if (!state.mission) el['sp-note'].textContent = SPIRIT_TEXT.scoreNote(info, k);
+    if (!fx) return;
+    if (!reduceMotion) {
+      const art = el['sp-art'];
+      art.classList.remove('pulse');
+      void art.offsetWidth;
+      art.classList.add('pulse');
+      setTimeout(function () { art.classList.remove('pulse'); }, 1100);
+    }
+    sfx(done ? 'praise-great' : 'praise-good');
+    hudSp.liveN++;
+    el['sp-live'].textContent = (done ? SPIRIT_TEXT.done(info) : SPIRIT_TEXT.step(info, k)) + (hudSp.liveN % 2 ? '' : '.');
+  }
+
+  /** 행동이 끝난 때 부른다. 깨어남 단계가 늘었으면(줄어들지 않는다) 한 번 그린다 */
+  function updateSpirit() {
+    const s = state.spirit;
+    if (!s) return;
+    const k = Math.max(s.k, spiritStep(s.info, state.score, state.target, state.mission));
+    if (eduSpiritFlow(s, k)) return;      // [EDU] 학습 조건이 모자란 "거의 깨어났어요" 상태를 따로 다룬다(아래 [EDU] 구간)
+    if (k === s.k) return;
+    s.k = k;
+    drawSpirit(true);
   }
 
   /* ---------- 콤보 칩 (spec §28.5.7, B1) ----------
@@ -3452,6 +3714,7 @@
     state.board = null;
     state.confirmFrom = null;
     state.mission = null;
+    state.spirit = null;
     state.cutinActive = false;
     state.quizActive = false;                                              // [EDU]
     state.edu = { asked: 0, right: 0, bonus: 0, firstDone: false, skipped: 0, since: 0, mode: 'normal', learn: null };   // [EDU] 스테이지마다 문제 통계·첫 등장 보장·공급 규칙(pity/guard)·학습 조건 초기화
@@ -3520,7 +3783,22 @@
         (isSpecialMission(lv, i) ? '<span class="sc-tag" aria-hidden="true">특별</span>' : '');      // "특별 레벨"은 aria-label 이 이미 읽어 주므로 태그는 낭독에서 뺀다
       grid.appendChild(b);
     }
+    renderSpiritRoster();
     showStageDetail(currentStage(lv));    // 레벨 선택 화면을 열면 설명판은 현재 레벨부터 보인다
+  }
+
+  /** "깨운 정령 n/6" 한 줄 + 작은 정령 6개(깨운 것은 컬러, 아닌 것은 흑백). n 은 저장된 별 기록에서 계산한다(세 난이도 합, 지금 고른 난이도와 무관, 새 저장 필드 없음) */
+  function renderSpiritRoster() {
+    if (!el['sp-roster']) return;
+    const cells = spiritCells();
+    const m = awakenedCount(save);
+    el['sp-roster'].hidden = cells.length === 0;
+    el['sp-roster-text'].textContent = SPIRIT_TEXT.roster(m, cells.length);
+    el['sp-roster-sr'].textContent = SPIRIT_TEXT.rosterSpoken(m, cells.length);
+    el['sp-roster-art'].innerHTML = cells.map(function (c) {
+      const rec = save.stages[c.diff][c.stage - 1];
+      return '<span class="sp-mini' + (rec && rec.stars > 0 ? ' on' : '') + '">' + gemMarkup(c.type) + '</span>';
+    }).join('');
   }
 
   /* ---------- 선택 레벨 설명판 (.stage-detail, spec §32.5.4) ----------
@@ -3601,6 +3879,8 @@
     // spec §27: 이 레벨이 미션형이면 미션 상태를 만든다(점수형·정의 없음·형식 오류는 null = 점수 목표 그대로). 난수·점수·시간은 건드리지 않는다
     const mdef = missionDef(lv, stage);
     state.mission = mdef ? missionInit(mdef) : null;
+    const sinfo = spiritOf(lv, stage);      // spec §27.6(M4): 특별 레벨이면 정령 화면 상태. 화면용이라 점수·난수·시간·판정에는 닿지 않는다
+    state.spirit = sinfo ? { info: sinfo, k: 0, special: isSpecialMission(lv, stage) } : null;
     const mtext = mdef ? missionDescribe(mdef).summary : '';
     state.startTime = CONFIG.time.start;
     el['level-chip'].textContent = levelLabel(lv) + ' · Lv' + stage;
@@ -3621,6 +3901,7 @@
     if (id !== state.gameId) return;
     buildBoard();
     buildMissionHud();
+    buildSpiritHud();
     buildLearnHud();     // [EDU]
     showScreen('game');
     renderGauges();
@@ -3779,6 +4060,11 @@
     } else if (res.unlocked) {
       el['end-unlock'].textContent = '레벨 ' + res.unlocked + ' 해제!';
       el['end-unlock'].hidden = false;
+    }
+    if (el['end-spirit']) {      // spec §27.6(M4): 특별 레벨에서만 한 줄(클리어 "…깨어났어요! 고마워요", 실패 "아직 잠이 덜 깼어요…"). 그 밖의 판에서는 숨긴다
+      const sp = state.spirit;
+      el['end-spirit'].hidden = !sp;
+      el['end-spirit'].textContent = !sp ? '' : (cleared ? SPIRIT_TEXT.endClear(sp.info) : SPIRIT_TEXT.endFail(sp.info, Math.max(sp.k, spiritStep(sp.info, state.score, state.target, state.mission))));
     }
     el['end-best'].textContent = fmt(save.stages[lv][stage - 1].best);
     if (el['end-combo']) el['end-combo'].textContent = '최고 콤보 ' + fmt(state.stats.maxCombo) + ' · 스킬 점수 +' + fmt(state.stats.skillPts);

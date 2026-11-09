@@ -152,6 +152,12 @@
         <span id="stages-time" class="stages-time">제한 시간 2:00</span>
       </div>
       <p id="stages-summary" class="stages-sub">클리어 0/10 · 별 0</p>
+      <!-- 깨운 정령 (spec §27.6, M4): 글은 game.js 가 저장 기록에서 계산해 채운다(새 저장 필드 없음). 그림은 장식이라 aria-hidden -->
+      <p id="sp-roster" class="sp-roster">
+        <span class="sp-roster-art" id="sp-roster-art" aria-hidden="true"></span>
+        <span class="sp-roster-text" id="sp-roster-text" aria-hidden="true">깨운 정령 0/6</span>
+        <span class="sp-roster-sr" id="sp-roster-sr">깨운 정령 0마리 / 6마리</span>
+      </p>
       <div id="stage-grid" class="stage-grid" role="group" aria-label="레벨 선택"></div>
       <!-- 선택 레벨 설명판(spec §32.5.4): 글은 game.js 가 채운다(카드에 포커스·마우스가 오면 그 레벨, 기본은 현재 레벨). aria-live 없음 -->
       <div class="stage-detail" id="stage-detail">
@@ -312,22 +318,39 @@
         </div>
       </div>
 
-      <div class="goal" id="goal" role="progressbar" aria-label="목표 점수 진행" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
-        <div class="goal-fill" id="goal-fill"></div>
-        <span class="goal-text" id="goal-text">0 / 0</span>
-      </div>
+      <!-- 정령 패널 (spec §27.6, M4): 특별 레벨(5·10단계)에서만 한 덩어리 패널이 된다. 평소에는 #sp-wrap 이 레이아웃에 참여하지 않아(display: contents) 안의 목표 바·미션 칩이 지금처럼 보인다. 글·그림은 game.js 가 채운다 -->
+      <div class="sp-wrap" id="sp-wrap">
+        <div class="spirit" id="spirit" hidden>
+          <div class="sp-art" id="sp-art" aria-hidden="true">
+            <span class="sp-img" id="sp-img"></span>
+            <span class="sp-zz" id="sp-zz">zZ</span>
+          </div>
+          <div class="sp-info" aria-hidden="true">
+            <p class="sp-title" id="sp-title"></p>
+            <div class="sp-row"><span class="sp-gauge" id="sp-gauge"></span><span class="sp-count" id="sp-count"></span></div>
+          </div>
+        </div>
 
-      <!-- 미션 칩 (spec §27): 미션형 레벨에서만 보인다. 점수형(기본)에서는 숨겨져 있고 위의 목표 바가 보인다. 칩은 game.js 가 만든다 -->
-      <div class="mission" id="mission" role="group" aria-label="미션" hidden>
-        <div class="m-list" id="mission-list"></div>
-        <p class="m-live" id="mission-live" role="status" aria-live="polite"></p>
+        <div class="goal" id="goal" role="progressbar" aria-label="목표 점수 진행" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+          <div class="goal-fill" id="goal-fill"></div>
+          <span class="goal-text" id="goal-text">0 / 0</span>
+          <small class="sp-note" id="sp-note" hidden></small>
+        </div>
+
+        <!-- 미션 칩 (spec §27): 미션형 레벨에서만 보인다. 점수형(기본)에서는 숨겨져 있고 위의 목표 바가 보인다. 칩은 game.js 가 만든다 -->
+        <div class="mission" id="mission" role="group" aria-label="미션" hidden>
+          <div class="m-list" id="mission-list"></div>
+          <p class="m-live" id="mission-live" role="status" aria-live="polite"></p>
+        </div>
+
+        <p class="sp-live" id="sp-live" role="status" aria-live="polite"></p>
       </div>
 
       <!-- [EDU] 선물상자 문제 풀기 칩 (spec §27.7·§27.8, M3-B): 문제 양 "많이"인 판에서만 보인다(점수형은 목표 바 아래, 미션형은 미션 칩 아래). 글·값은 game.js 가 채운다. 완료 알림은 #learn-live -->
       <div class="learn-chip" id="learn-chip" role="progressbar" aria-label="선물상자 문제 풀기" aria-describedby="learn-sub" aria-valuemin="0" aria-valuemax="0" aria-valuenow="0" hidden>
         <span class="lc-fill" id="learn-fill"></span>
         <svg class="lc-ico" viewBox="0 0 100 100" aria-hidden="true" focusable="false"><use href="#gem-gift"></use></svg>
-        <span class="lc-body"><b class="lc-name">선물상자 문제 풀기</b><small class="lc-sub" id="learn-sub">맞든 틀리든 푼 개수예요</small></span>
+        <span class="lc-body"><b class="lc-name" id="learn-name">선물상자 문제 풀기</b><small class="lc-sub" id="learn-sub">맞든 틀리든 푼 개수예요</small></span>
         <span class="lc-num" id="learn-num">0 / 0</span>
         <span class="lc-ok" aria-hidden="true">✓</span>
       </div>
@@ -393,6 +416,7 @@
       <div class="end-stars" id="end-stars" aria-label="별" hidden>★★★</div>
       <div class="end-score" id="end-score">0</div>
       <p class="muted" id="end-target">목표 0 / 내 점수 0</p>
+      <p class="end-spirit" id="end-spirit" hidden></p>
       <p class="end-unlock" id="end-unlock" hidden></p>
       <p class="muted end-rank" id="end-rank" role="status" hidden></p>
       <p class="muted end-quiz" id="end-quiz" role="status" hidden></p><!-- [EDU] 선물상자 문제 요약(edu.js) -->

@@ -353,3 +353,19 @@
   .lc-fill { transition: none; }
   .eg-amt:active { transform: none; }
 }
+
+/* =====================================================================
+ * 정령 특별 레벨 × 학습 칩 (spec §27.6·§27.8, M4-B)
+ * 특별 레벨(5·10단계)에서 정령 패널(일반용 style.css 의 .sp-*, 높이 93px = 미션 칩 2개와 같다)과 학습 칩(.learn-chip)이 함께 놓일 때의 세로 폰 보드 크기식만 맞춘다.
+ * 위 M3-B 블록의 #screen-game[data-learn="1"][data-goal] 규칙은 일반용 style.css 의 #screen-game[data-spirit] 규칙(보드 식에서 71px 를 빼는 것)보다 우선하므로,
+ * 정령 판에서는 그 식이 쓰는 --mis-extra 만 71px 로 다시 선언한다(= "미션 칩 2개 + 학습 칩" 때와 같은 합). 정령 패널은 SEQ 칩 하나(중수·고수) 또는 점수 바(초보)를 품으므로 칩 개수 규칙(data-chips)은 걸리지 않는다.
+ * 휴대폰 가로·와이드는 정령 패널이 목표 칸(goal), 학습 칩이 그 아래 칸(learn)에 들어가는 기존 격자를 그대로 쓴다.
+ * 휴대폰 가로(740×360)는 정령 패널이 "미션 칩 2개"(63px)보다 최대 7px 높을 수 있어(중수 10단계 마지막 칩이 3줄로 접힐 때 70px) 칸 사이 간격만 5px → 3px 로 줄여 합이 기존 "미션 칩 2개 + 학습 칩"보다 높지 않게 한다.
+ * 새 규칙은 이 두 개뿐이다.
+ * ===================================================================== */
+@media (orientation: portrait), (orientation: landscape) and (min-height: 501px) and (max-width: 799px) {
+  #screen-game[data-spirit][data-learn="1"] { --mis-extra: 71px; }
+}
+@media (orientation: landscape) and (max-height: 500px) {
+  #screen-game[data-spirit][data-learn="1"] .game { row-gap: 3px; }
+}
