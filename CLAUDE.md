@@ -43,7 +43,7 @@
 - 진행 중인 서브에이전트에게 요구가 바뀌면 새 지침 파일(또는 추가 지침 `.md`)을 만들고 메시지로 알린다. 충돌하는 이전 지침은 "대체됨"으로 명시한다.
 - 서브에이전트는 **커밋·푸시를 하지 않고**, 서버 배포·인증 명령(`wrangler login/deploy/secret` 등)을 실행하지 않는다.
 - **모델**: 메인 세션·Build·Review 모두 **Sonnet**(사용자 결정, Opus로 올리지 않음). 대신 Review는 Build와 별도 에이전트로 분리하고 표본 대조·전수 자동 검사·독립 시뮬레이션을 촘촘히 한다. Review는 구현자의 보고를 믿지 않고 **직접 확인한 것만 "확인함"** 으로 쓴다.
-- **시험 실행**: Node 24에서는 폴더가 아니라 **글롭**으로 돌린다 — `node --test apps/element-gems/test/*.test.js`, `node --test apps/element-gems-edu/test/*.test.js`, `node --test apps/element-gems/server/test/*.test.js`(현재 기준값: 일반용 205, 교육용 384(원문 폴더가 없어 건너뜀 1), 서버 65). 시험의 단언은 지우거나 약화하지 않고, 값이 바뀌면 기대값·이름·주석만 사실대로 고친다.
+- **시험 실행**: Node 24에서는 폴더가 아니라 **글롭**으로 돌린다 — `node --test apps/element-gems/test/*.test.js`, `node --test apps/element-gems-edu/test/*.test.js`, `node --test apps/element-gems/server/test/*.test.js`(현재 기준값: 일반용 222, 교육용 384(원문 폴더가 없어 건너뜀 1), 서버 65). 시험의 단언은 지우거나 약화하지 않고, 값이 바뀌면 기대값·이름·주석만 사실대로 고친다.
 - **Review 기록**: `review.md`에는 새 섹션을 **끝에 이어 붙이기만** 한다(동시에 여러 Review가 붙이므로 한 번에 `cat >>`, 기존 내용 수정·덮어쓰기 금지). 명백한 결함은 최소 수정하되 **두 앱에 같게** 반영하고 시험을 다시 돌린다. 설계·수치·문구 방향 변경은 제안으로만 남긴다.
 - **취소·번복**: 진행 중인 Build를 취소하면(사용자가 결정을 뒤집을 때) 에이전트를 멈추고 **작업 트리의 그 변경을 `git checkout`으로 되돌린 뒤** 시험으로 원상태를 확인하고, spec의 해당 §에 "철회됨"과 이유를 남긴다(분석은 기록으로 둔다).
 - **임시 서버·브라우저**: 시험용 헤드리스 Chrome은 별도 사용자 폴더(scratchpad)에서 띄우고 끝나면 서버·탭·프로세스를 정리한다. 시험용 `CONFIG.ranking.apiBase`(로컬 목 서버 주소)는 **scratchpad 사본에서만** 바꾼다(비우면 프로필·명예의 전당 UI가 통째로 꺼지니 화면 촬영 때는 목 서버를 붙인다).

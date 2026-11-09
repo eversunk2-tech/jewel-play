@@ -1228,6 +1228,7 @@ test('[EDU] 같은 시드 스크립트 플레이(스왑·무효 스왑·스킬 6
     const patch = (cfg) => {
       cfg.stages.targets[lv] = cfg.stages.targets[lv].map((v) => v * 1000);          // 판이 중간에 끝나지 않게
       if (cfg.edu) cfg.edu.targetScale = 1;
+      if (cfg.stages.goalType) { cfg.stages.goalType.normal = 'score'; cfg.stages.goalType.hard = 'score'; }   // §27 M2: 일반용 중수·고수는 미션형이 기본이라, 점수 목표 비교(교육용은 아직 점수형 — M3 전)를 위해 일반용 쪽을 점수형으로 고정(시험 setup 만)
     };
     const edu = createEnv(900 + seed, patch);
     const gen = createEnv(900 + seed, patch, { which: 'gen' });

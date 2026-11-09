@@ -112,15 +112,48 @@
         normal: [14900, 16200, 17500, 17800, 19500, 20800, 22400, 23400, 25100, 27100],
         hard: [17600, 19200, 20200, 21400, 22400, 23700, 25600, 27200, 29100, 31700]
       },
-      // spec §27.3·§27.9 M1(사용자 승인 2026-11-08): 목표 유형 계단. goalType[난이도] = 'score'(점수 목표 = 위 targets) | 'mission'(레벨별 미션 = 아래 missions).
-      //   초보는 항상 'score'(spec §33 — 값이 'mission'이어도 무시한다). M1의 기본값은 전 난이도 'score'라 화면·동작이 이전과 같다(미션 표 값은 M2가 채운다).
+      // spec §27.3·§27.9 M1·M2(사용자 승인 2026-11-08): 목표 유형 계단. goalType[난이도] = 'score'(점수 목표 = 위 targets) | 'mission'(레벨별 미션 = 아래 missions).
+      //   초보는 항상 'score'(spec §33 — 값이 'mission'이어도 무시한다). M2 부터 중수·고수는 'mission'이다. 'score'로 되돌리면 이전(점수 목표)과 같은 판이 된다(롤백 스위치).
       //   미션 정의가 없거나 형식이 맞지 않는 레벨은 항상 점수 목표로 폴백한다(막히는 판이 생기지 않게). targets 는 점수 폴백·롤백 스위치로 그대로 둔다.
       //   missions[난이도][레벨 - 1] = { parts: [ {k:'collect', color:0, need:20} | {k:'collectEach', colors:[0,1,2], need:21} | {k:'big', min:4, need:3} | {k:'chain', min:2, need:4} ], seq: false|true }
       //     collect 지정한 색 보석 need 개 / collectEach 지정한 색 각각 need 개 / big 한 번에 min(4~5)개 이상 매치 need 번 / chain 내가 움직여 시작한 행동에서 연쇄 min(2~4) 이상 need 번.
-      //     seq false = 부분 미션을 순서 없이 모두 끝내기(COMBO), true = 앞에서부터 차례로(특별 레벨 SEQ). 부분 미션은 레벨당 최대 missionMaxParts 개.
-      goalType: { easy: 'score', normal: 'score', hard: 'score' },
+      //     seq false = 부분 미션을 순서 없이 모두 끝내기(COMBO, 동시에 보이는 칩은 최대 missionMaxChips 개), true = 앞에서부터 차례로(특별 레벨 SEQ, 최대 missionMaxParts 단계).
+      //   special = 특별 레벨 번호(카드 data-kind·"특별" 태그, 중수·고수 표에서는 seq:true), rest = 점수가 앞 레벨보다 쉬운 구간의 번호(카드 data-kind 속성용 — 화면에는 글자로 쓰지 않는다, spec §34).
+      goalType: { easy: 'score', normal: 'mission', hard: 'mission' },
       missionMaxParts: 4,
-      missions: { normal: [], hard: [] }
+      missionMaxChips: 2,
+      special: [5, 10],
+      rest: [3, 6, 9],
+      // 색 번호: 불 0 · 물 1 · 풀 2 · 번개 3 · 어둠 4 · 빛 5.
+      // 아래 두 표 = spec §36(M2-CAL, 2026-11-09)에서 §26 보드 구조를 적용한 실제 게임으로 재보정한 값(유형·색은 §27.5 그대로, 개수·횟수만 바뀜).
+      //   기준 플레이어 D(중수)·H(고수)의 클리어율이 §27.4 목표 곡선과 중수 ±5%p 안, 고수는 2·4단계만 ±5%p 밖(정수 횟수 한계, §36.5). 사람 체감은 확인하지 못했다 — 사람 플레이 뒤 이 표만 조정한다.
+      //   고수 9단계는 원안 구성(5개 이상 3번 + 빛 11)이 지금 게임에서 25%로 떨어져 "5개 이상 1번 + 빛 22"로 바꿨다(§36.5).
+      missions: {
+        normal: [
+          { parts: [{ k: 'collect', color: 0, need: 21 }], seq: false },
+          { parts: [{ k: 'collect', color: 1, need: 23 }], seq: false },
+          { parts: [{ k: 'chain', min: 2, need: 10 }], seq: false },
+          { parts: [{ k: 'collectEach', colors: [0, 1, 2], need: 21 }], seq: false },
+          { parts: [{ k: 'collect', color: 2, need: 12 }, { k: 'big', min: 4, need: 3 }, { k: 'chain', min: 2, need: 4 }], seq: true },
+          { parts: [{ k: 'collect', color: 2, need: 25 }], seq: false },
+          { parts: [{ k: 'collect', color: 3, need: 29 }, { k: 'chain', min: 2, need: 9 }], seq: false },
+          { parts: [{ k: 'collectEach', colors: [0, 1, 2, 3], need: 23 }], seq: false },
+          { parts: [{ k: 'collect', color: 4, need: 28 }, { k: 'collect', color: 5, need: 16 }], seq: false },
+          { parts: [{ k: 'collect', color: 0, need: 8 }, { k: 'big', min: 4, need: 3 }, { k: 'chain', min: 2, need: 4 }, { k: 'collectEach', colors: [1, 2, 3], need: 6 }], seq: true }
+        ],
+        hard: [
+          { parts: [{ k: 'big', min: 4, need: 7 }], seq: false },
+          { parts: [{ k: 'chain', min: 2, need: 12 }], seq: false },
+          { parts: [{ k: 'collectEach', colors: [3, 4, 5], need: 16 }], seq: false },
+          { parts: [{ k: 'chain', min: 3, need: 4 }], seq: false },
+          { parts: [{ k: 'collect', color: 1, need: 4 }, { k: 'big', min: 4, need: 2 }, { k: 'chain', min: 3, need: 1 }, { k: 'big', min: 5, need: 1 }], seq: true },
+          { parts: [{ k: 'collect', color: 0, need: 23 }, { k: 'collect', color: 2, need: 15 }], seq: false },
+          { parts: [{ k: 'big', min: 4, need: 7 }, { k: 'chain', min: 3, need: 4 }], seq: false },
+          { parts: [{ k: 'collectEach', colors: [0, 1, 2, 3, 4], need: 19 }], seq: false },
+          { parts: [{ k: 'big', min: 5, need: 1 }, { k: 'collect', color: 5, need: 22 }], seq: false },
+          { parts: [{ k: 'chain', min: 3, need: 1 }, { k: 'big', min: 5, need: 1 }, { k: 'collectEach', colors: [0, 1, 2], need: 5 }, { k: 'chain', min: 4, need: 1 }], seq: true }
+        ]
+      }
     },
     // spec §26.4(사용자 승인 2026-11-08, 강도 1.0 · 사다리 R): 난이도·레벨별 보드 구조 "구조 등급 s"(−2~+2, 0.5 단위).
     // 클수록 쉬운 보드(같은 색이 모여 나옴), 0 = 지금까지와 같은 균등 무작위, 작을수록 까다로운 보드(흩어져 나옴). 목표 점수(§25.6)는 그대로다(점수 중립 보정).
@@ -663,6 +696,8 @@
     if (!def || typeof def !== 'object' || !Array.isArray(def.parts)) return false;
     if (def.parts.length < 1 || def.parts.length > CONFIG.stages.missionMaxParts) return false;
     if (def.seq !== undefined && typeof def.seq !== 'boolean') return false;
+    // 동시에 세는(seq 아님) 부분은 칩이 한꺼번에 보이므로 missionMaxChips 개까지만(폰 세로·가로에서 칩 3~4개면 게이지 줄·리셋 단추가 잘린다, review.md §24-7). seq 는 칩 1개라 missionMaxParts 만 본다
+    if (!def.seq && def.parts.length > CONFIG.stages.missionMaxChips) return false;
     const nColors = CONFIG.types.length;
     return def.parts.every(function (p) {
       if (!p || typeof p !== 'object' || MISSION_KINDS.indexOf(p.k) === -1 || !intIn(p.need, 1, 9999)) return false;
@@ -712,7 +747,9 @@
     return false;
   }
 
-  /** 이벤트를 미션에 반영한다(m 을 바꾸고 돌려준다). COMBO(seq 아님) = 모든 부분이 동시에 센다. SEQ = 지금 차례의 부분만 센다(앞 단계가 끝나야 다음 단계가 센다) */
+  /** 이벤트를 미션에 반영한다(m 을 바꾸고 돌려준다). COMBO(seq 아님) = 모든 부분이 동시에 센다. SEQ = 지금 차례의 부분만 센다(앞 단계가 끝나야 다음 단계가 센다).
+   *  SEQ 해석(spec §27.3.1 "기준선", review.md §24-10 P5): 이벤트 하나는 지금 차례의 단계에만 세어진다. 그 이벤트로 단계가 끝나면 넘친 값(초과분)은 다음 단계로 넘기지 않고 버리며,
+   *  다음 단계는 그 이벤트 **뒤의** 이벤트부터 센다(같은 행동 안이라도 이미 지나간 그룹은 세지 않는다). 그래서 다음 단계의 카운터는 항상 0에서 시작한다 */
   function missionUpdate(m, ev) {
     const lo = m.seq ? m.cur : 0;
     const hi = m.seq ? Math.min(m.cur, m.parts.length - 1) : m.parts.length - 1;
@@ -742,7 +779,7 @@
     return { parts: parts, doneCount: n, total: parts.length, seq: m.seq, cur: m.seq ? Math.min(m.cur, parts.length - 1) : -1, done: n === parts.length };
   }
 
-  /** 미션 정의를 쉬운 말로 풀어 쓴다(spec §27.8). parts[i] = { name: 칩 이름, hint: 작은 글, total: 한 줄 설명 }, summary = 부분을 이은 한 줄 */
+  /** 미션 정의를 쉬운 말로 풀어 쓴다(spec §27.8). parts[i] = { name: 칩 이름, hint: 작은 글, total: 한 줄 설명 }, summary = 부분을 이은 화면용 한 줄, spoken = 낭독용 한 문장 */
   function missionDescribe(def) {
     const T = CONFIG.types;
     const parts = def.parts.map(function (p) {
@@ -757,7 +794,52 @@
     const summary = def.seq
       ? parts.map(function (t, i) { return '①②③④⑤⑥'.charAt(i) + ' ' + t.total; }).join(' → ')
       : parts.map(function (t) { return t.total; }).join(', ');
-    return { parts: parts, summary: summary, count: parts.length };
+    // spoken = 화면 낭독용 한 문장(카드 aria-label): 동시 미션은 "A 그리고 B", 차례대로는 "먼저 A, 그다음 B, 그다음 C". summary 는 화면용이라 그대로 둔다
+    const spoken = def.seq
+      ? parts.map(function (t, i) { return (i === 0 ? '먼저 ' : '그다음 ') + t.total; }).join(', ')
+      : parts.map(function (t) { return t.total; }).join(' 그리고 ');
+    return { parts: parts, summary: summary, spoken: spoken, count: parts.length };
+  }
+
+  /* ---------- 레벨 카드·선택 레벨 설명판의 글 (spec §32.5.4, M2) — DOM 없음 ---------- */
+  /** 레벨 카드 data-kind(스킨용 속성 — 화면에 글자로 나오지 않는다, spec §34): 특별 번호는 모든 난이도 'special', 쉬운 구간 번호는 중수·고수만 'rest', 그 밖은 '' */
+  function stageKind(diff, stage) {
+    const S = CONFIG.stages;
+    if (S.special.indexOf(stage) !== -1) return 'special';
+    if (diff !== 'easy' && S.rest.indexOf(stage) !== -1) return 'rest';
+    return '';
+  }
+
+  /** "특별" 태그·"특별 레벨" 낭독을 쓰는 레벨인가: 미션형으로 켜진(정의가 있는) 중수·고수의 특별 번호. 초보는 점수제 표현만이라 쓰지 않는다(spec §33) */
+  function isSpecialMission(diff, stage) {
+    return CONFIG.stages.special.indexOf(stage) !== -1 && !!missionDef(diff, stage);
+  }
+
+  function targetText(diff, stage) { return stageTarget(diff, stage).toLocaleString('ko-KR'); }
+
+  /** 레벨 카드 aria-label. 점수 카드는 "레벨 3, 목표 N점, 별 0개", 미션 카드는 부분을 "그리고"로 이은 한 문장 뒤에 별 정보를 따로("레벨 7, 미션 A 그리고 B, 별 0개"),
+   *  특별은 "레벨 5, 특별 레벨, 미션 먼저 A, 그다음 B", 잠김은 맨 끝이 "잠김" (review.md §24-10 P3). 3·6·9단계에는 별도 말을 달지 않는다(spec §34) */
+  function stageCardLabel(diff, stage, open, stars) {
+    const mdef = missionDef(diff, stage);
+    const goal = mdef ? (isSpecialMission(diff, stage) ? '특별 레벨, ' : '') + '미션 ' + missionDescribe(mdef).spoken : '목표 ' + targetText(diff, stage) + '점';
+    return '레벨 ' + stage + ', ' + goal + ', ' + (open ? '별 ' + stars + '개' : '잠김');
+  }
+
+  /** 선택 레벨 설명판의 글: { title, tag, goal, hint, time } (빈 문자열 = 그 줄을 숨긴다). 잠긴 레벨은 잠김 안내만, 초보·점수 폴백은 "목표 점수 N점"만(spec §33) */
+  function stageDetailInfo(diff, stage, open) {
+    const info = { title: '레벨 ' + stage, tag: '', goal: '', hint: '', time: '' };
+    if (!open) { info.goal = '아직 잠겨 있어요 — 앞 레벨을 먼저 클리어하세요'; return info; }
+    const mdef = missionDef(diff, stage);
+    if (mdef) {
+      const d = missionDescribe(mdef);
+      info.goal = d.summary;
+      info.hint = d.parts.map(function (p) { return p.hint; }).filter(Boolean)[0] || '';
+      if (isSpecialMission(diff, stage)) info.tag = '특별 레벨';
+    } else {
+      info.goal = '목표 점수 ' + targetText(diff, stage) + '점';
+    }
+    info.time = '제한 시간 ' + fmtTime(CONFIG.difficulty[diff].time.start);
+    return info;
   }
 
   /** 레벨 N 선택 가능 = 1 <= N <= progress + 1 (N <= count) */
@@ -906,7 +988,8 @@
       boardGrade: boardGrade, boardParams: boardParams, completes: completes, fillStructured: fillStructured,
       refillStructured: refillStructured, generateBoardStructured: generateBoardStructured,
       missionValid: missionValid, missionDef: missionDef, missionInit: missionInit, missionUpdate: missionUpdate, missionDone: missionDone,
-      missionProgress: missionProgress, missionDescribe: missionDescribe
+      missionProgress: missionProgress, missionDescribe: missionDescribe,
+      stageKind: stageKind, isSpecialMission: isSpecialMission, stageCardLabel: stageCardLabel, stageDetailInfo: stageDetailInfo
     };
   }
   if (typeof document === 'undefined') return;
@@ -983,7 +1066,8 @@
       'btn-hint', 'btn-menu', 'btn-reset', 'overlay-count', 'count-num', 'overlay-pause', 'btn-resume',
       'btn-restart', 'btn-sound-pause', 'btn-quit', 'overlay-confirm', 'btn-confirm-yes', 'btn-confirm-no',
       'overlay-end', 'end-title', 'level-select', 'level-desc', 'level-chip', 'pause-level', 'end-level', 'btn-cutin-start', 'btn-cutin-pause', 'cutin', 'cutin-img', 'cb-shout', 'cb-skill', 'cn-gem', 'cn-text', 'logo-img', 'title-fallback', 'end-score', 'end-best', 'end-combo', 'end-chain', 'end-skills',
-      'end-matches', 'combo-chip', 'combo-run', 'combo-mult', 'combo-max', 'combo-bar', 'combo-live', 'btn-again', 'btn-home', 'mission', 'mission-list', 'mission-live'
+      'end-matches', 'combo-chip', 'combo-run', 'combo-mult', 'combo-max', 'combo-bar', 'combo-live', 'btn-again', 'btn-home', 'mission', 'mission-list', 'mission-live',
+      'stage-detail', 'sd-title', 'sd-tag', 'sd-goal', 'sd-hint', 'sd-time', 'btn-stage-go'
     ].forEach(function (id) { el[id] = $(id); });
   }
 
@@ -2641,8 +2725,11 @@
     el['start-clear'].textContent = clearedCount(lv) + '/' + CONFIG.stages.count;
     el['start-stars'].textContent = String(starTotal(lv));
     const d = CONFIG.difficulty;
+    // 초보는 점수 목표, 중수·고수가 미션형이면 "목표를 이루면 클리어"(index.html 의 자리표시자와 같은 문장). 중수·고수를 점수형으로 되돌리면 옛 문장이 된다
+    const missionRule = CONFIG.stages.goalType.normal === 'mission' && CONFIG.stages.goalType.hard === 'mission';
     el['rule-stage'].innerHTML = '<b>스테이지</b> 제한 시간(초보 ' + fmtDur(d.easy.time.start) + ' / 중수 ' + fmtDur(d.normal.time.start) +
-      ' / 고수 ' + fmtDur(d.hard.time.start) + ') 안에 목표 점수를 넘기면 클리어! 레벨 1~' + CONFIG.stages.count + '에 도전하세요.';
+      ' / 고수 ' + fmtDur(d.hard.time.start) + ') 안에 ' + (missionRule ? '목표를 이루면 클리어! 초보는 목표 점수, 중수·고수는 레벨마다 다른 미션이에요.' : '목표 점수를 넘기면 클리어!') +
+      ' 레벨 1~' + CONFIG.stages.count + '에 도전하세요.';
   }
 
   function selectLevel(lv, focus) {
@@ -2743,14 +2830,46 @@
       b.setAttribute('aria-disabled', open ? 'false' : 'true');
       let stars = '';
       for (let k = 1; k <= 3; k++) stars += k <= rec.stars ? '★' : '☆';
-      const mdef = missionDef(lv, i);     // 미션형 레벨이면 점수 대신 미션 요약(.sc-mis)을 보인다. 점수형 기본에서는 null 이라 이전과 같은 마크업
+      const mdef = missionDef(lv, i);     // 미션형 레벨이면 점수 대신 미션 요약(.sc-mis)을 보인다. 초보·점수형은 null 이라 이전과 같은 마크업
       const goalHtml = mdef ? '<span class="sc-mis">' + missionCardHtml(mdef) + '</span>' : '<span class="sc-target">' + fmt(stageTarget(lv, i)) + '</span>';
-      b.setAttribute('aria-label', '레벨 ' + i + ', ' + (mdef ? '미션 ' + missionDescribe(mdef).summary : '목표 ' + fmt(stageTarget(lv, i)) + '점') + ', ' + (open ? ('별 ' + rec.stars + '개') : '잠김'));
+      const kind = stageKind(lv, i);      // 5·10 'special'(모든 난이도) / 3·6·9 'rest'(중수·고수) — 스킨용 속성일 뿐 화면에 글자로 나오지 않는다(spec §34)
+      if (kind) b.dataset.kind = kind;
+      b.setAttribute('aria-label', stageCardLabel(lv, i, open, rec.stars));
       b.innerHTML = '<span class="sc-num">' + i + '</span>' +
         (open ? goalHtml + '<span class="sc-stars" aria-hidden="true">' + stars + '</span>'
-          : goalHtml + '<span class="sc-lock">잠김</span>');
+          : goalHtml + '<span class="sc-lock">잠김</span>') +
+        (isSpecialMission(lv, i) ? '<span class="sc-tag" aria-hidden="true">특별</span>' : '');      // "특별 레벨"은 aria-label 이 이미 읽어 주므로 태그는 낭독에서 뺀다
       grid.appendChild(b);
     }
+    showStageDetail(currentStage(lv));    // 레벨 선택 화면을 열면 설명판은 현재 레벨부터 보인다
+  }
+
+  /* ---------- 선택 레벨 설명판 (.stage-detail, spec §32.5.4) ----------
+   * 보이는 레벨 = 기본은 현재 레벨(진행 + 1, 모두 깼으면 10), 카드에 포커스(키보드)·마우스 올림이 있으면 그 카드의 레벨(마지막으로 가리킨 레벨이 남는다 — [도전!]으로 가는 동안 바뀌지 않게).
+   * 터치는 카드를 누르면 바로 시작하므로(입력 흐름 불변) 설명판은 정보용이다. [도전!]은 보이는 레벨을 카드와 같은 동작(startStage)으로 시작한다(잠긴 레벨이면 비활성).
+   * aria-live 는 쓰지 않는다(포커스가 옮겨질 때 카드 aria-label 이 읽힌다). 보이는 레벨이 바뀔 때만 DOM 을 쓴다. */
+  const stageDetail = { stage: 0, key: '' };
+
+  function currentStage(lv) { return Math.min(CONFIG.stages.count, save.progress[lv] + 1); }
+
+  function showStageDetail(stage) {
+    const lv = save.level;
+    const open = stageUnlocked(save.progress[lv], stage);
+    stageDetail.stage = stage;
+    const key = lv + ':' + stage + ':' + (open ? 1 : 0) + ':' + (missionDef(lv, stage) ? 1 : 0);
+    if (key === stageDetail.key) return;
+    stageDetail.key = key;
+    const d = stageDetailInfo(lv, stage, open);
+    el['sd-title'].textContent = d.title;
+    el['sd-tag'].textContent = d.tag;
+    el['sd-tag'].hidden = !d.tag;
+    el['sd-goal'].textContent = d.goal;
+    el['sd-hint'].textContent = d.hint;
+    el['sd-hint'].hidden = !d.hint;
+    el['sd-time'].textContent = d.time;
+    el['sd-time'].hidden = !d.time;
+    el['btn-stage-go'].disabled = !open;
+    el['btn-stage-go'].setAttribute('aria-disabled', open ? 'false' : 'true');
   }
 
   function goStages() {
@@ -2986,6 +3105,21 @@
       const b = e.target.closest && e.target.closest('.stage-card');
       if (!b || b.disabled || state.phase !== 'stages') return;
       startStage(Number(b.dataset.stage));
+    });
+    // 선택 레벨 설명판: 카드에 포커스·마우스가 오면 그 레벨을 보인다(터치는 건너뜀 — 누르면 바로 시작). 잠긴 카드는 포커스를 못 받으므로 마우스 올림으로만 닿는다
+    function cardOfEvent(e) { return e.target && e.target.closest ? e.target.closest('.stage-card') : null; }
+    el['stage-grid'].addEventListener('focusin', function (e) {
+      const b = cardOfEvent(e);
+      if (b && state.phase === 'stages') showStageDetail(Number(b.dataset.stage));
+    });
+    el['stage-grid'].addEventListener('pointerover', function (e) {
+      if (e.pointerType && e.pointerType !== 'mouse') return;
+      const b = cardOfEvent(e);
+      if (b && state.phase === 'stages') showStageDetail(Number(b.dataset.stage));
+    });
+    el['btn-stage-go'].addEventListener('click', function () {
+      if (state.phase !== 'stages' || el['btn-stage-go'].disabled) return;
+      startStage(stageDetail.stage);
     });
     el['stage-grid'].addEventListener('keydown', function (e) {
       const cards = Array.prototype.filter.call(el['stage-grid'].querySelectorAll('.stage-card'), function (c) { return !c.disabled; });

@@ -98,7 +98,12 @@ test('style.css: 와이드 블록 핵심 규칙과 휴대폰 보호 규칙', () 
   assert.ok(css.includes('--ui-h: 302px;'));
   // 게이지 막대 애니메이션은 transform, reduced-motion 존중
   assert.ok(wide.includes('transform: scaleX(var(--fill, 0))'));
-  const rm = wide.slice(wide.lastIndexOf('@media (prefers-reduced-motion: reduce)'));
+  // 감소 모션 블록은 파일 끝쪽 마지막 @media 가 아니라 내용으로 앵커한다(뒤에 다른 단계가 감소 모션 블록을 붙여도 오탐이 없게, review.md §24-9)
+  const anchor = wide.indexOf('.gauge.full { animation: none; }');
+  assert.ok(anchor > 0, '앵커 규칙이 와이드 블록 뒤에 있다');
+  const rmStart = wide.lastIndexOf('@media', anchor);
+  assert.match(wide.slice(rmStart, wide.indexOf('{', rmStart)), /prefers-reduced-motion:\s*reduce/, '앵커가 감소 모션 미디어 쿼리 안에 있다');
+  const rm = wide.slice(rmStart, wide.indexOf('\n}', anchor));
   assert.ok(rm.includes('.gauge.full { animation: none; }') && rm.includes('.gauge .fill { transition: none; }'));
   // 세로 태블릿 보드 상한
   assert.ok(css.includes('--board-cap: 680px;') && css.includes('--board-cap: 840px;'));

@@ -185,7 +185,7 @@ test('⑧ 목표 점수 표: 초보 = §31.3, 중수·고수 = §28.7.5 근사(�
   const old = { normal: [4500, 4900, 5300, 5400, 5900, 6300, 6800, 7100, 7600, 8200], hard: [5500, 6000, 6300, 6700, 7000, 7400, 8000, 8500, 9100, 9900] };
   old.normal.forEach((v, i) => assert.ok(Math.abs(T.normal[i] / (v * 3.3) - 1) < 0.01, '중수 ' + (i + 1)));
   old.hard.forEach((v, i) => assert.ok(Math.abs(T.hard[i] / (v * 3.2) - 1) < 0.01, '고수 ' + (i + 1)));
-  assert.deepStrictEqual(G.CONFIG.stages.goalType, { easy: 'score', normal: 'score', hard: 'score' });
+  assert.deepStrictEqual(G.CONFIG.stages.goalType, { easy: 'score', normal: 'mission', hard: 'mission' }, '§27 M2: 중수·고수는 미션형(위 점수 표는 goalType 을 score 로 되돌릴 때 쓰는 폴백)');
 });
 
 /* ===================================================================
@@ -379,6 +379,7 @@ function createEnv(seed, cfgPatch, opts) {
   env.I = sandbox.__EG_TEST__.internals;
   env.CONFIG = env.I.CONFIG;
   env.CONFIG.board.enabled = false;                          // 새 칸 종류를 시험이 정한다(§26 구조 규칙은 끈다)
+  env.CONFIG.stages.goalType.normal = 'score'; env.CONFIG.stages.goalType.hard = 'score';   // 시험 도구(spec §27.9.3): 점수 규칙 시험은 미션 표 값과 무관하게 점수 목표 판에서 돈다(미션이 필요한 시험은 cfgPatch 에서 켠다)
   if (cfgPatch) cfgPatch(env.CONFIG);
   env.unhandled = (e) => { env.errors.push(e); };
   process.on('unhandledRejection', env.unhandled);
@@ -824,6 +825,7 @@ test('⑥ 콤보는 step·ctx.maxStep·미션 카운트를 바꾸지 않는다(�
   async function runWith(prime) {
     const env = createEnv(100, (cfg) => {
       cfg.stages.goalType.normal = 'mission';
+      cfg.stages.missionMaxChips = 3;          // 시험 도구: 동시 칩 3개짜리 정의를 쓰려고 상한을 푼다(M2 의 P1 상한은 기본 2)
       cfg.stages.missions.normal = [{ parts: [{ k: 'collect', color: 2, need: 9999 }, { k: 'big', min: 4, need: 99 }, { k: 'chain', min: 2, need: 99 }] }];
     });
     await startAndWait(env, 'normal', 1);

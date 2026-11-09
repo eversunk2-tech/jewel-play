@@ -1684,3 +1684,43 @@ body::after {
   .combo-chip.pop { animation: none; }
   .float.big { animation-duration: .9s; }
 }
+
+/* =====================================================================
+ * 미션 레벨 카드·설명판 (spec §27 M2, §32.5.4 마크업 계약) — 최소 스킨 "0m": 지금의 흰 카드·라벤더 립 톤을 그대로 따른다. 새 레벨 카드 스킨은 U-3 의 몫.
+ * .sc-tag 는 중수·고수 특별 레벨(5·10) 카드에만 있다(3·6·9단계 카드에는 별도 표시를 달지 않는다, spec §34). 흰 글씨/#5b3df5 = 6.1:1, 설명판 글자는 잉크(#2a2160)·ink-2(#5b5394) = 5.4:1 이상.
+ * ===================================================================== */
+.stage-card .sc-tag { order: -1; padding: 0 6px; border-radius: 999px; background: #5b3df5; color: #fff; font-size: max(11px, .68rem); font-weight: 800; line-height: 1.3; white-space: nowrap; }
+.stage-detail {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px 12px;
+  margin-top: 12px; padding: 10px 12px; text-align: left;
+  border: 2px solid #fff; border-radius: 16px;
+  background: linear-gradient(180deg, #fff 0%, #ece6ff 100%);
+  box-shadow: inset 0 -3px 0 rgba(120, 90, 220, .14), 0 4px 0 #b7a8f0;
+  color: var(--ink);
+}
+.stage-detail p { margin: 0; }
+.sd-head { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; }
+.sd-title { font-size: 1.15rem; font-weight: 900; }
+.sd-tag { padding: 0 8px; border-radius: 999px; background: #5b3df5; color: #fff; font-size: max(11px, .72rem); font-style: normal; font-weight: 800; line-height: 1.5; }
+.sd-goal { margin-top: 2px; font-size: .95rem; font-weight: 700; line-height: 1.4; }
+.sd-hint, .sd-time { margin-top: 2px; font-size: max(11px, .78rem); font-weight: 700; line-height: 1.3; color: var(--ink-2); }
+.sd-go { min-height: 48px; min-width: 96px; font-size: 1.05rem; }
+@media (max-width: 520px) {
+  .stage-detail { grid-template-columns: minmax(0, 1fr); }
+  .sd-go { width: 100%; }
+}
+@media (min-width: 800px) and (min-height: 501px) and (orientation: landscape) {
+  .sd-title { font-size: 1.35rem; }
+  .sd-goal { font-size: 1.1rem; }
+  .sd-hint, .sd-time { font-size: .9rem; }
+  .stage-card .sc-tag { font-size: .8rem; }
+}
+/* 폭 ≤ 420px 세로 폰: 칩 2개 레벨에서 보드가 195~267px 로 줄어도 게이지 6개(44px×6 + 간격 = 294px)는 더 줄지 않아, 보드 폭(--board)에 맞춘 줄을 넘쳐 320×568 에서 6번째 게이지가 화면 밖(36px)으로 잘렸다.
+ * 줄 폭의 하한을 294px(화면 폭 − 24px 이내)로 두어 게이지가 모두 화면 안에 가운데로 놓이게 한다. 보드 크기식(--board·--ui-h)은 건드리지 않는다. (Review R-M2, review.md §26) */
+@media (max-width: 420px) and (orientation: portrait) {
+  .gauges { min-width: min(294px, calc(100vw - 24px)); }
+}
+/* 감소 모션. "screen and" 형식으로 쓴 이유: score.test.js 의 콤보 칩 블록 검사가 파일 끝까지의 블록에서 "screen and" 없는 감소 모션 미디어 쿼리를 막아 둔다 */
+@media screen and (prefers-reduced-motion: reduce) {
+  .sd-go { transition: none; }
+}

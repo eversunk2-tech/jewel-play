@@ -1345,6 +1345,7 @@ test('spawn=0 이면 한 판 전체(보드·점수·시간·게이지)가 같은
       shortGame(cfg, 30, (c) => { ['easy', 'normal', 'hard'].forEach((k) => { c.difficulty[k].max = [4, 4, 4, 4, 4, 4]; }); });
       cfg.stages.targets[lv][0] = 18000;         // §26 구조 규칙 뒤 3000점이면 3~5행동에 끝나는 시드가 있어 6000으로 올렸고, §28 점수 규칙(규모 약 ×3)에 맞춰 18000 으로 올림
       if (cfg.edu) { cfg.edu.wild.spawn = 0; cfg.edu.targetScale = 1; }
+      if (cfg.stages.goalType) { cfg.stages.goalType.normal = 'score'; cfg.stages.goalType.hard = 'score'; }   // §27 M2: 일반용 중수·고수는 미션형이 기본이라, 점수 목표 비교(교육용은 아직 점수형 — M3 전)를 위해 일반용 쪽을 점수형으로 고정(시험 setup 만)
     };
     const edu = createEnv('edu', 1000 + seed, patch);
     edu.setQuiz(makeQuiz(edu));                  // ready=true 라도 spawn=0 이면 ? 없음

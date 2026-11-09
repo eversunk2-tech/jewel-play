@@ -96,7 +96,7 @@
       </div>
       <div class="sc-info">
       <ul class="rules">
-        <li id="rule-stage"><b>스테이지</b> 제한 시간(초보 2분 10초 / 중수 2분 / 고수 1분 40초) 안에 목표 점수를 넘기면 클리어! 레벨 1~10에 도전하세요.</li>
+        <li id="rule-stage"><b>스테이지</b> 제한 시간(초보 2분 10초 / 중수 2분 / 고수 1분 40초) 안에 목표를 이루면 클리어! 초보는 목표 점수, 중수·고수는 레벨마다 다른 미션이에요. 레벨 1~10에 도전하세요.</li>
         <li><b>스왑</b> 인접한 보석 두 개를 바꿔 같은 모양 3개 이상, 또는 2×2 정사각형을 맞추세요.</li>
         <li><b>게이지</b> 색마다 게이지가 따로 차고, 가득 차면 버튼이 반짝여요.</li>
         <li><b>스킬</b> 게이지 버튼을 눌러 원소 스킬을 쓰세요.</li>
@@ -121,6 +121,16 @@
       </div>
       <p id="stages-summary" class="stages-sub">클리어 0/10 · 별 0</p>
       <div id="stage-grid" class="stage-grid" role="group" aria-label="레벨 선택"></div>
+      <!-- 선택 레벨 설명판(spec §32.5.4): 글은 game.js 가 채운다(카드에 포커스·마우스가 오면 그 레벨, 기본은 현재 레벨). aria-live 없음 -->
+      <div class="stage-detail" id="stage-detail">
+        <div class="sd-info">
+          <p class="sd-head"><b class="sd-title" id="sd-title"></b><i class="sd-tag" id="sd-tag" hidden></i></p>
+          <p class="sd-goal" id="sd-goal"></p>
+          <p class="sd-hint" id="sd-hint" hidden></p>
+          <p class="sd-time" id="sd-time" hidden></p>
+        </div>
+        <button class="btn primary sd-go" id="btn-stage-go" type="button">도전!</button>
+      </div>
       <p class="stages-hint">이전 레벨을 클리어하면 다음 레벨이 열려요.</p>
     </div>
   </section>
