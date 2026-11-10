@@ -855,13 +855,16 @@ function easyCfg(cfg) {
   cfg.stages.missions.hard = cfg.stages.missions.hard.map((def) => ({ seq: def.seq, parts: def.parts.map((p) => Object.assign({}, p, { need: p.k === 'chain' || p.k === 'big' ? Math.max(1, Math.ceil(p.need / 3)) : Math.max(2, Math.ceil(p.need / 3)) })) }));
 }
 const SEEDS = 10;
+/* spec §43(2026-11-11): 중수·고수 미션 표가 M4 시작 시점(§36 표)에서 §43 표로 교체됐다. 이 시험은 "같은 표 위에서 규칙이 같다"를 증명하므로,
+ *  기준 소스(옛 표)의 CONFIG.stages.missions 에도 지금 일반용 표를 그대로 덮어씌워 나란히 돌린다(규칙 함수·단언은 그대로, 표만 같게 맞춘다) */
+const withCurrentTables = (cfg) => (C) => { C.stages.missions = JSON.parse(JSON.stringify(G.CONFIG.stages.missions)); if (cfg) cfg(C); };
 for (const variant of [{ name: '기본 표', cfg: null, stages: [5, 10, 3], reduce: true }, { name: '쉬운 표(클리어·단계 이동 포함)', cfg: easyCfg, stages: [5, 10, 4], reduce: true }, { name: '쉬운 표 + 감소 모션 아님(번짐 타이머)', cfg: easyCfg, stages: [5, 10], reduce: false }]) {
   test('④ 규칙 불변(' + variant.name + '): 난이도 3 × 레벨 ' + variant.stages.join('·') + ' × 시드 ' + SEEDS + ' — M4 시작 시점의 game.js 와 점수·미션 카운터·시간·goalMet·종료 시점·결과 문구·저장이 모두 같다', { skip: skipBase }, async () => {
     let games = 0, actions = 0, cleared = 0, stepsSeen = 0;
     for (const lv of DIFFS) {
       for (const stage of variant.stages) {
         for (let seed = 1; seed <= SEEDS; seed++) {
-          const a = createEnv(seed * 31 + stage, variant.cfg, { script: BASE_SCRIPT, reduce: variant.reduce });
+          const a = createEnv(seed * 31 + stage, withCurrentTables(variant.cfg), { script: BASE_SCRIPT, reduce: variant.reduce });
           const b = createEnv(seed * 31 + stage, variant.cfg, { script: SCRIPT, reduce: variant.reduce });
           const ra = await playBot(a, lv, stage, seed, 140);
           const rb = await playBot(b, lv, stage, seed, 140);

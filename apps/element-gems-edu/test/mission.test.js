@@ -26,6 +26,42 @@ const HAS_GEN = fs.existsSync(path.join(GEN_DIR, 'game.js'));
 const GEN = HAS_GEN ? require(path.join(GEN_DIR, 'game.js')) : null;
 const GEN_SRC = HAS_GEN ? fs.readFileSync(path.join(GEN_DIR, 'game.js'), 'utf8') : '';
 const skipGen = HAS_GEN ? false : '일반용 폴더 없음';
+/* spec §43.12: 교육용 사본은 일반용 §43 표를 아직 반영하지 않았다(일반용만 먼저). "많이" 재보정·동기화가 끝나면 이 고정을 걷어내고 일반용 표를 직접 읽는 원래 단언으로 되돌린다.
+ *  GEN_V36_MISSIONS = 옛 일반용 CONFIG.stages.missions(§36 M2-CAL) 값 그대로 — 지금 교육용 CONFIG.stages.missions 와 같은 값이다. 일반용 표를 직접 읽던 아래 고정 3곳
+ *  ([EDU] 미션 …글자 그대로 같다 / [EDU] 미션 표 … 값·키 순서까지 같다 / [EDU] spawn=0 …똑같이 흐른다)이 이 리터럴을 쓴다. */
+const GEN_V36_MISSIONS = {
+  normal: [
+    { parts: [{ k: 'collect', color: 0, need: 21 }], seq: false },
+    { parts: [{ k: 'collect', color: 1, need: 23 }], seq: false },
+    { parts: [{ k: 'chain', min: 2, need: 10 }], seq: false },
+    { parts: [{ k: 'collectEach', colors: [0, 1, 2], need: 21 }], seq: false },
+    { parts: [{ k: 'collect', color: 2, need: 12 }, { k: 'big', min: 4, need: 3 }, { k: 'chain', min: 2, need: 4 }], seq: true },
+    { parts: [{ k: 'collect', color: 2, need: 25 }], seq: false },
+    { parts: [{ k: 'collect', color: 3, need: 29 }, { k: 'chain', min: 2, need: 9 }], seq: false },
+    { parts: [{ k: 'collectEach', colors: [0, 1, 2, 3], need: 23 }], seq: false },
+    { parts: [{ k: 'collect', color: 4, need: 28 }, { k: 'collect', color: 5, need: 16 }], seq: false },
+    { parts: [{ k: 'collect', color: 0, need: 8 }, { k: 'big', min: 4, need: 3 }, { k: 'chain', min: 2, need: 4 }, { k: 'collectEach', colors: [1, 2, 3], need: 6 }], seq: true }
+  ],
+  hard: [
+    { parts: [{ k: 'big', min: 4, need: 7 }], seq: false },
+    { parts: [{ k: 'chain', min: 2, need: 12 }], seq: false },
+    { parts: [{ k: 'collectEach', colors: [3, 4, 5], need: 16 }], seq: false },
+    { parts: [{ k: 'chain', min: 3, need: 4 }], seq: false },
+    { parts: [{ k: 'collect', color: 1, need: 4 }, { k: 'big', min: 4, need: 2 }, { k: 'chain', min: 3, need: 1 }, { k: 'big', min: 5, need: 1 }], seq: true },
+    { parts: [{ k: 'collect', color: 0, need: 23 }, { k: 'collect', color: 2, need: 15 }], seq: false },
+    { parts: [{ k: 'big', min: 4, need: 7 }, { k: 'chain', min: 3, need: 4 }], seq: false },
+    { parts: [{ k: 'collectEach', colors: [0, 1, 2, 3, 4], need: 19 }], seq: false },
+    { parts: [{ k: 'big', min: 5, need: 1 }, { k: 'collect', color: 5, need: 22 }], seq: false },
+    { parts: [{ k: 'chain', min: 3, need: 1 }, { k: 'big', min: 5, need: 1 }, { k: 'collectEach', colors: [0, 1, 2], need: 5 }, { k: 'chain', min: 4, need: 1 }], seq: true }
+  ]
+};
+/** spec §43.12 고정(소스 글자 비교용): 일반용·교육용 소스에서 §43 설명 주석 2줄과 중수·고수 표 본문(normal/hard 배열)을 같은 자리표시 한 줄로 바꾼다. 표 본문은 위 리터럴로 따로 단언한다 */
+const PIN_TABLE_NOTE = '        // (표 본문: spec §43.12 고정 — 값은 GEN_V36_MISSIONS 시험이 따로 단언)\n';
+function pinMissionTables(src) {
+  return src
+    .replace(/ *\/\/   2026-11-11 spec §43으로 다시 교체[^\n]*\n *\/\/   사람 체감은 확인하지 못했다\. 유형·색은 §27\.5 그대로, 개수·횟수만 바뀜\.\n/, '')
+    .replace(/        normal: \[\n[\s\S]*?\n        \],\n        hard: \[\n[\s\S]*?\n        \]\n/, PIN_TABLE_NOTE);
+}
 const SAVE_KEY = { edu: 'element-gems-edu:v1', gen: 'element-gems:v1' };      // 저장 키(교육용 CONFIG.edu.storageKey / 일반용)
 
 function mulberry(a) {
@@ -1520,7 +1556,7 @@ function blockOf(src, a, b) {
   return src.slice(i, j);
 }
 
-test('[EDU] 미션 순수 함수(missionValid~stageDetailInfo)·CONFIG.stages 미션 키·HUD·카드·설명판 소스가 일반용과 글자 그대로 같다(주석 포함)', { skip: skipGen }, () => {
+test('[EDU] 미션 순수 함수(missionValid~stageDetailInfo)·CONFIG.stages 미션 키·HUD·카드·설명판 소스가 일반용과 글자 그대로 같다(주석 포함; 중수·고수 표 본문과 §43 주석만 spec §43.12 고정으로 제외 — 일반용만 먼저, 동기화가 끝나면 되돌린다)', { skip: skipGen }, () => {
   const blocks = [
     ['순수 함수 블록(미션 엔진·카드/설명판 글 도우미)', '/* ---------- 미션(목표) 엔진 (spec §27.3.1, M1)', '/** 레벨 N 선택 가능', 6000],
     ['CONFIG.stages 미션 키(goalType·missionMaxParts·missionMaxChips·special·rest·missions)', '// spec §27.3·§27.9 M1·M2(사용자 승인', '    // spec §26.4(사용자 승인', 3000],
@@ -1539,7 +1575,13 @@ test('[EDU] 미션 순수 함수(missionValid~stageDetailInfo)·CONFIG.stages �
     assert.ok(edu.length > minLen, name + ' 블록이 너무 짧다(표지가 어긋남): ' + edu.length);
     if (name.indexOf('순수 함수 블록') === 0) { edu = cut(edu, MD_EDU); gen = cut(gen, MD_GEN); }      // missionDef 는 아래에서 따로 확인
     edu = dropEduLines(edu);
-    assert.strictEqual(edu, gen, name + ' 소스가 일반용과 다르다([EDU] 표식 줄·missionDef 제외)');
+    // spec §43.12 고정: 일반용 표 본문·§43 설명 주석을 뺀 나머지(키·주석·정령 설정 등)가 글자 그대로 같은지 본다. 원래 단언은 pin 없이 edu === gen
+    edu = pinMissionTables(edu); gen = pinMissionTables(gen);
+    if (name.indexOf('CONFIG.stages 미션 키') === 0) {
+      assert.ok(edu.indexOf(PIN_TABLE_NOTE) !== -1 && gen.indexOf(PIN_TABLE_NOTE) !== -1, '표 본문 자리표시가 두 소스에 모두 있다(고정이 헛돌지 않는다)');
+      assert.ok(gen.indexOf('§43으로 다시 교체') === -1 && edu.indexOf('§43으로 다시 교체') === -1, '§43 설명 주석을 뺐다');
+    }
+    assert.strictEqual(edu, gen, name + ' 소스가 일반용과 다르다([EDU] 표식 줄·missionDef·표 본문 제외)');
   });
   // 순수 함수는 이름으로도 확인한다(내보내기 목록이 두 앱에서 같다). missionDef 만 [EDU] 블록이라 본문이 다르다 — 교육용 쪽은 [EDU] 표식과 많이 모드 표 읽기가 있는지 확인한다
   // M4-B(spec §27.6): 정령 특별 레벨의 순수 함수 4개도 같은 목록에 넣는다 — 정령 규칙(몇 단계가 깨어났나·깨운 정령 수)은 두 앱이 하나여야 해서 본문이 글자 그대로 같아야 한다(블록 단위 동일성은 위 첫 블록이 이미 포함하고, 이 목록은 함수별 확인이다)
@@ -1582,12 +1624,14 @@ test('[EDU] 미션 순수 함수(missionValid~stageDetailInfo)·CONFIG.stages �
   assert.ok(ra.indexOf("missionUpdate(state.mission, { t: 'action'") < ra.indexOf('await runQuizzes('), '행동 이벤트는 문제 팝업 전에 센다');
 });
 
-test('[EDU] 미션 표·특별/쉬운 구간 번호·상한이 일반용과 값·키 순서까지 같다(교육용 전용 표는 아직 없다 — M3-B 이후)', { skip: skipGen }, () => {
+test('[EDU] 미션 표·특별/쉬운 구간 번호·상한이 일반용과 값·키 순서까지 같다(교육용 전용 표는 아직 없다 — M3-B 이후; missions 만 일반용 §36 표로 고정 — spec §43.12: 일반용만 먼저, 동기화가 끝나면 이 고정을 걷어내고 일반용 표를 직접 읽는 원래 단언으로 되돌린다)', { skip: skipGen }, () => {
   const a = G.CONFIG.stages;
   const b = GEN.CONFIG.stages;
   ['goalType', 'missions', 'missionMaxParts', 'missionMaxChips', 'special', 'rest', 'count', 'star'].forEach((k) => {
-    assert.deepStrictEqual(a[k], b[k], k);
-    assert.strictEqual(JSON.stringify(a[k]), JSON.stringify(b[k]), k + ' 키 순서까지');
+    // spec §43.12 고정: missions 만 일반용 §43 표가 아니라 옛 일반용 §36 표(GEN_V36_MISSIONS 리터럴)와 비교한다. 동기화가 끝나면 b[k] 로 되돌린다
+    const want = k === 'missions' ? GEN_V36_MISSIONS : b[k];
+    assert.deepStrictEqual(a[k], want, k);
+    assert.strictEqual(JSON.stringify(a[k]), JSON.stringify(want), k + ' 키 순서까지');
   });
   assert.deepStrictEqual(a.targets, b.targets, '점수 폴백 원본 표도 같다(교육용 ×1.2 는 stageTarget 에서 파생)');
   assert.deepStrictEqual(Object.keys(a), Object.keys(b), 'CONFIG.stages 키 순서');
@@ -1681,7 +1725,7 @@ async function playTrace(env, lv, stage, seed, nActions) {
   return out;
 }
 
-test('[EDU] spawn=0 이면 교육용 중수·고수 미션 판(레벨 1~10)이 같은 시드·같은 행동의 일반용과 똑같이 흐른다(보드·점수·시간·게이지·미션 카운터·칩 글자·난수 호출 수·클리어 시점·결과·저장 기록)', { skip: skipGen }, async () => {
+test('[EDU] spawn=0 이면 교육용 중수·고수 미션 판(레벨 1~10)이 같은 시드·같은 행동의 일반용과 똑같이 흐른다(보드·점수·시간·게이지·미션 카운터·칩 글자·난수 호출 수·클리어 시점·결과·저장 기록; 일반용 쪽 표는 §36 으로 고정 — spec §43.12: 일반용만 먼저, 동기화가 끝나면 이 고정을 걷어낸다)', { skip: skipGen }, async () => {
   let actions = 0;
   let games = 0;
   let cleared = 0;
@@ -1690,7 +1734,8 @@ test('[EDU] spawn=0 이면 교육용 중수·고수 미션 판(레벨 1~10)이 �
       for (let k = 0; k < 3; k++) {
         const seed = (lv === 'normal' ? 11 : 41) + stage + 100 * k;
         const edu = createEnv(seed * 13, null, { which: 'edu' });
-        const gen = createEnv(seed * 13, null, { which: 'gen' });
+        // spec §43.12 고정: 일반용 쪽 판에도 옛 §36 표를 덮어씌워 같은 표 위에서 흐름을 비교한다(원래는 patch 없이 일반용 표 그대로, null)
+        const gen = createEnv(seed * 13, (cfg) => { cfg.stages.missions = JSON.parse(JSON.stringify(GEN_V36_MISSIONS)); }, { which: 'gen' });
         const t1 = await playTrace(edu, lv, stage, seed, 30);
         const t2 = await playTrace(gen, lv, stage, seed, 30);
         assert.ok(t1.trace.length >= 6, lv + ' ' + stage + ': 행동 수 ' + t1.trace.length);

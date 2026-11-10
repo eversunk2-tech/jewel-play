@@ -26,6 +26,34 @@ const HAS_GEN = fs.existsSync(path.join(GEN_DIR, 'game.js'));
 const GEN = HAS_GEN ? require(path.join(GEN_DIR, 'game.js')) : null;
 const GEN_SRC = HAS_GEN ? fs.readFileSync(path.join(GEN_DIR, 'game.js'), 'utf8') : '';
 const skipGen = HAS_GEN ? false : '일반용 폴더 없음';
+/* spec §43.12: 교육용 사본은 일반용 §43 표를 아직 반영하지 않았다(일반용만 먼저). "많이" 재보정·동기화가 끝나면 이 고정을 걷어내고 일반용 표를 직접 읽는 원래 단언으로 되돌린다.
+ *  GEN_V36_MISSIONS = 옛 일반용 CONFIG.stages.missions(§36 M2-CAL) 값 그대로 — 지금 교육용 CONFIG.stages.missions 와 같은 값이다. 아래 고정 3곳이 일반용 표 대신 이 리터럴을 읽는다. */
+const GEN_V36_MISSIONS = {
+  normal: [
+    { parts: [{ k: 'collect', color: 0, need: 21 }], seq: false },
+    { parts: [{ k: 'collect', color: 1, need: 23 }], seq: false },
+    { parts: [{ k: 'chain', min: 2, need: 10 }], seq: false },
+    { parts: [{ k: 'collectEach', colors: [0, 1, 2], need: 21 }], seq: false },
+    { parts: [{ k: 'collect', color: 2, need: 12 }, { k: 'big', min: 4, need: 3 }, { k: 'chain', min: 2, need: 4 }], seq: true },
+    { parts: [{ k: 'collect', color: 2, need: 25 }], seq: false },
+    { parts: [{ k: 'collect', color: 3, need: 29 }, { k: 'chain', min: 2, need: 9 }], seq: false },
+    { parts: [{ k: 'collectEach', colors: [0, 1, 2, 3], need: 23 }], seq: false },
+    { parts: [{ k: 'collect', color: 4, need: 28 }, { k: 'collect', color: 5, need: 16 }], seq: false },
+    { parts: [{ k: 'collect', color: 0, need: 8 }, { k: 'big', min: 4, need: 3 }, { k: 'chain', min: 2, need: 4 }, { k: 'collectEach', colors: [1, 2, 3], need: 6 }], seq: true }
+  ],
+  hard: [
+    { parts: [{ k: 'big', min: 4, need: 7 }], seq: false },
+    { parts: [{ k: 'chain', min: 2, need: 12 }], seq: false },
+    { parts: [{ k: 'collectEach', colors: [3, 4, 5], need: 16 }], seq: false },
+    { parts: [{ k: 'chain', min: 3, need: 4 }], seq: false },
+    { parts: [{ k: 'collect', color: 1, need: 4 }, { k: 'big', min: 4, need: 2 }, { k: 'chain', min: 3, need: 1 }, { k: 'big', min: 5, need: 1 }], seq: true },
+    { parts: [{ k: 'collect', color: 0, need: 23 }, { k: 'collect', color: 2, need: 15 }], seq: false },
+    { parts: [{ k: 'big', min: 4, need: 7 }, { k: 'chain', min: 3, need: 4 }], seq: false },
+    { parts: [{ k: 'collectEach', colors: [0, 1, 2, 3, 4], need: 19 }], seq: false },
+    { parts: [{ k: 'big', min: 5, need: 1 }, { k: 'collect', color: 5, need: 22 }], seq: false },
+    { parts: [{ k: 'chain', min: 3, need: 1 }, { k: 'big', min: 5, need: 1 }, { k: 'collectEach', colors: [0, 1, 2], need: 5 }, { k: 'chain', min: 4, need: 1 }], seq: true }
+  ]
+};
 const W = G.WILD;
 
 function mulberry(a) {
@@ -444,12 +472,12 @@ test('③ eduMode: intensity() 가 없으면 CONFIG.edu.defaultIntensity, 이상
   noFn.dispose(); none.dispose();
 });
 
-test('③ 보통 모드의 표 = 일반용과 같은 수: 초보 점수 = 일반용 × 1.2(100점 반올림), 중수·고수 미션 = 일반용 §36 표 (순수 함수 기본 모드)', { skip: skipGen }, () => {
+test('③ 보통 모드의 표 = 일반용과 같은 수: 초보 점수 = 일반용 × 1.2(100점 반올림), 중수·고수 미션 = 일반용 §36 표(고정 — spec §43.12: 교육용 사본은 일반용 §43 표를 아직 반영하지 않았다(일반용만 먼저). "많이" 재보정·동기화가 끝나면 이 고정을 걷어내고 일반용 표를 직접 읽는 원래 단언으로 되돌린다) (순수 함수 기본 모드)', { skip: skipGen }, () => {
   assert.strictEqual(G.getEduTableMode(), 'normal', '순수 함수의 기본 모드');
   for (let s = 1; s <= 10; s++) {
     assert.strictEqual(G.stageTarget('easy', s), Math.round(GEN.CONFIG.stages.targets.easy[s - 1] * 1.2 / 100) * 100, '초보 ' + s);
-    assert.deepStrictEqual(G.missionDef('normal', s), GEN.CONFIG.stages.missions.normal[s - 1], '중수 ' + s);
-    assert.deepStrictEqual(G.missionDef('hard', s), GEN.CONFIG.stages.missions.hard[s - 1], '고수 ' + s);
+    assert.deepStrictEqual(G.missionDef('normal', s), GEN_V36_MISSIONS.normal[s - 1], '중수 ' + s);        // spec §43.12 고정: 원래는 GEN.CONFIG.stages.missions.normal
+    assert.deepStrictEqual(G.missionDef('hard', s), GEN_V36_MISSIONS.hard[s - 1], '고수 ' + s);            // spec §43.12 고정: 원래는 GEN.CONFIG.stages.missions.hard
   }
   assert.deepStrictEqual(G.CONFIG.edu.wild, { spawn: 0.016, max: 2, guaranteeFirst: true }, '보통의 공급은 M3-A 직후와 같다');
 });
@@ -471,7 +499,7 @@ test('③ 많이 모드 표 구조: 초보 점수 10칸(양의 정수)·중수/�
   assert.deepStrictEqual(Object.keys(m.missions), ['normal', 'hard']);
 });
 
-test('③ [표 값] 많이 모드(M3-CAL, spec §38·§39): 초보 점수 표 새 값, 중수·고수 미션 새 개수(유형·색은 일반용 §36과 같음), 공급 3%·최대 4·pity 6·guard 간격 3(고수만 2), 학습 N 5·6·7 + 특별 2 — 재보정하면 이 시험의 기대값만 바꾼다', () => {
+test('③ [표 값] 많이 모드(M3-CAL, spec §38·§39): 초보 점수 표 새 값, 중수·고수 미션 새 개수(유형·색은 일반용 §36과 같음), 공급 3%·최대 4·pity 6·guard 간격 3(고수만 2), 학습 N 5·6·7 + 특별 2 — 재보정하면 이 시험의 기대값만 바꾼다 (끝의 "많이 표 ≥ 일반용" 단언은 §36 표로 고정, spec §43.12)', () => {
   const m = G.CONFIG.edu.many;
   assert.deepStrictEqual(m.wild, { spawn: 0.03, max: 4, pity: 6, guardGap: 3, guardGapBy: { hard: 2 } });
   assert.deepStrictEqual(m.learn, { easy: 5, normal: 6, hard: 7, specialPlus: 2 });
@@ -510,7 +538,8 @@ test('③ [표 값] 많이 모드(M3-CAL, spec §38·§39): 초보 점수 표 �
   }));
   assert.strictEqual(G.CONFIG.edu.defaultIntensity, 'many', '기본 많이(사용자 승인)');
   assert.strictEqual(G.CONFIG.edu.wildCap, 6);
-  if (HAS_GEN) ['normal', 'hard'].forEach((d) => m.missions[d].forEach((def, i) => def.parts.forEach((p, j) => assert.ok(p.need >= GEN.CONFIG.stages.missions[d][i].parts[j].need, '많이 표는 일반용 이상 ' + d + ' ' + (i + 1)))));
+  // spec §43.12: 교육용 사본은 일반용 §43 표를 아직 반영하지 않았다(일반용만 먼저). "많이" 재보정·동기화가 끝나면 이 고정을 걷어내고 일반용 표를 직접 읽는 원래 단언(GEN.CONFIG.stages.missions)으로 되돌린다
+  if (HAS_GEN) ['normal', 'hard'].forEach((d) => m.missions[d].forEach((def, i) => def.parts.forEach((p, j) => assert.ok(p.need >= GEN_V36_MISSIONS[d][i].parts[j].need, '많이 표는 일반용(§36 고정, spec §43.12) 이상 ' + d + ' ' + (i + 1)))));
 });
 
 test('③ guardGapOf: 난이도별 덮어쓰기(guardGapBy)가 있으면 그 값, 없거나 잘못되면 guardGap — 고수 2, 초보·중수 3', () => {

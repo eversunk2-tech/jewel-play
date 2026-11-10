@@ -140,30 +140,32 @@
       // 아래 두 표 = spec §36(M2-CAL, 2026-11-09)에서 §26 보드 구조를 적용한 실제 게임으로 재보정한 값(유형·색은 §27.5 그대로, 개수·횟수만 바뀜).
       //   기준 플레이어 D(중수)·H(고수)의 클리어율이 §27.4 목표 곡선과 중수 ±5%p 안, 고수는 2·4단계만 ±5%p 밖(정수 횟수 한계, §36.5). 사람 체감은 확인하지 못했다 — 사람 플레이 뒤 이 표만 조정한다.
       //   고수 9단계는 원안 구성(5개 이상 3번 + 빛 11)이 지금 게임에서 25%로 떨어져 "5개 이상 1번 + 빛 22"로 바꿨다(§36.5).
+      //   2026-11-11 spec §43으로 다시 교체 — 중수는 평균·숙련(D·B) 기준으로 약하게(+10% 안팎), 고수는 빠른 숙련자 X1(수당 1.5초) 기준으로 크게(숙련 B 바닥 30%, 평균 플레이어 H는 벽 허용).
+      //   사람 체감은 확인하지 못했다. 유형·색은 §27.5 그대로, 개수·횟수만 바뀜.
       missions: {
         normal: [
-          { parts: [{ k: 'collect', color: 0, need: 21 }], seq: false },
-          { parts: [{ k: 'collect', color: 1, need: 23 }], seq: false },
-          { parts: [{ k: 'chain', min: 2, need: 10 }], seq: false },
-          { parts: [{ k: 'collectEach', colors: [0, 1, 2], need: 21 }], seq: false },
-          { parts: [{ k: 'collect', color: 2, need: 12 }, { k: 'big', min: 4, need: 3 }, { k: 'chain', min: 2, need: 4 }], seq: true },
-          { parts: [{ k: 'collect', color: 2, need: 25 }], seq: false },
-          { parts: [{ k: 'collect', color: 3, need: 29 }, { k: 'chain', min: 2, need: 9 }], seq: false },
-          { parts: [{ k: 'collectEach', colors: [0, 1, 2, 3], need: 23 }], seq: false },
-          { parts: [{ k: 'collect', color: 4, need: 28 }, { k: 'collect', color: 5, need: 16 }], seq: false },
-          { parts: [{ k: 'collect', color: 0, need: 8 }, { k: 'big', min: 4, need: 3 }, { k: 'chain', min: 2, need: 4 }, { k: 'collectEach', colors: [1, 2, 3], need: 6 }], seq: true }
+          { parts: [{ k: 'collect', color: 0, need: 25 }], seq: false },
+          { parts: [{ k: 'collect', color: 1, need: 26 }], seq: false },
+          { parts: [{ k: 'chain', min: 2, need: 11 }], seq: false },
+          { parts: [{ k: 'collectEach', colors: [0, 1, 2], need: 23 }], seq: false },
+          { parts: [{ k: 'collect', color: 2, need: 12 }, { k: 'big', min: 4, need: 3 }, { k: 'chain', min: 2, need: 5 }], seq: true },
+          { parts: [{ k: 'collect', color: 2, need: 28 }], seq: false },
+          { parts: [{ k: 'collect', color: 3, need: 31 }, { k: 'chain', min: 2, need: 9 }], seq: false },
+          { parts: [{ k: 'collectEach', colors: [0, 1, 2, 3], need: 24 }], seq: false },
+          { parts: [{ k: 'collect', color: 4, need: 30 }, { k: 'collect', color: 5, need: 16 }], seq: false },
+          { parts: [{ k: 'collect', color: 0, need: 8 }, { k: 'big', min: 4, need: 3 }, { k: 'chain', min: 2, need: 4 }, { k: 'collectEach', colors: [1, 2, 3], need: 7 }], seq: true }
         ],
         hard: [
-          { parts: [{ k: 'big', min: 4, need: 7 }], seq: false },
-          { parts: [{ k: 'chain', min: 2, need: 12 }], seq: false },
-          { parts: [{ k: 'collectEach', colors: [3, 4, 5], need: 16 }], seq: false },
-          { parts: [{ k: 'chain', min: 3, need: 4 }], seq: false },
-          { parts: [{ k: 'collect', color: 1, need: 4 }, { k: 'big', min: 4, need: 2 }, { k: 'chain', min: 3, need: 1 }, { k: 'big', min: 5, need: 1 }], seq: true },
-          { parts: [{ k: 'collect', color: 0, need: 23 }, { k: 'collect', color: 2, need: 15 }], seq: false },
-          { parts: [{ k: 'big', min: 4, need: 7 }, { k: 'chain', min: 3, need: 4 }], seq: false },
-          { parts: [{ k: 'collectEach', colors: [0, 1, 2, 3, 4], need: 19 }], seq: false },
-          { parts: [{ k: 'big', min: 5, need: 1 }, { k: 'collect', color: 5, need: 22 }], seq: false },
-          { parts: [{ k: 'chain', min: 3, need: 1 }, { k: 'big', min: 5, need: 1 }, { k: 'collectEach', colors: [0, 1, 2], need: 5 }, { k: 'chain', min: 4, need: 1 }], seq: true }
+          { parts: [{ k: 'big', min: 4, need: 15 }], seq: false },
+          { parts: [{ k: 'chain', min: 2, need: 19 }], seq: false },
+          { parts: [{ k: 'collectEach', colors: [3, 4, 5], need: 27 }], seq: false },
+          { parts: [{ k: 'chain', min: 3, need: 8 }], seq: false },
+          { parts: [{ k: 'collect', color: 1, need: 5 }, { k: 'big', min: 4, need: 2 }, { k: 'chain', min: 3, need: 2 }, { k: 'big', min: 5, need: 2 }], seq: true },
+          { parts: [{ k: 'collect', color: 0, need: 35 }, { k: 'collect', color: 2, need: 21 }], seq: false },
+          { parts: [{ k: 'big', min: 4, need: 9 }, { k: 'chain', min: 3, need: 7 }], seq: false },
+          { parts: [{ k: 'collectEach', colors: [0, 1, 2, 3, 4], need: 25 }], seq: false },
+          { parts: [{ k: 'big', min: 5, need: 2 }, { k: 'collect', color: 5, need: 24 }], seq: false },
+          { parts: [{ k: 'chain', min: 3, need: 1 }, { k: 'big', min: 5, need: 1 }, { k: 'collectEach', colors: [0, 1, 2], need: 10 }, { k: 'chain', min: 4, need: 2 }], seq: true }
         ]
       }
     },
