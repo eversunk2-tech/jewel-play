@@ -71,10 +71,19 @@
 
 <main id="app">
 
-  <!-- 시작 화면 -->
-  <section id="screen-start" class="screen start">
+  <!-- 시작 화면 (메뉴 V1 "풍경 속 타이틀", spec §32.4.1) -->
+  <section id="screen-start" class="screen start menu-screen" data-cam="top">
     <div class="start-card">
       <div class="sc-brand">
+      <!-- 보석 친구들: 장식(스크린리더·탭 순서에서 제외). 기존 gems 그림을 다시 쓴다 -->
+      <div class="ms-friends" aria-hidden="true">
+        <img class="mf mf-water" src="assets/gems/water.webp" alt="" width="256" height="256" draggable="false">
+        <img class="mf mf-fire" src="assets/gems/fire.webp" alt="" width="256" height="256" draggable="false">
+        <img class="mf mf-grass" src="assets/gems/grass.webp" alt="" width="256" height="256" draggable="false">
+        <img class="mf mf-lightning" src="assets/gems/lightning.webp" alt="" width="256" height="256" draggable="false">
+        <img class="mf mf-light" src="assets/gems/light.webp" alt="" width="256" height="256" draggable="false">
+        <img class="mf mf-dark" src="assets/gems/dark.webp" alt="" width="256" height="256" draggable="false">
+      </div>
       <img id="logo-img" class="logo" src="assets/title-logo.webp" width="900" height="605" alt="원소 보석 ELEMENT GEMS" draggable="false">
       <div id="title-fallback" hidden>
         <h1 class="title">원소 보석</h1>
@@ -82,9 +91,12 @@
       </div>
       </div>
       <div class="sc-menu">
+      <div class="sc-top">
       <button id="btn-profile-chip" class="me-chip" type="button" hidden></button>
       <p id="me-note" class="me-note" role="status" hidden></p>
       <p class="best-line">클리어 <strong id="start-clear">0/10</strong> · 별 <strong id="start-stars">0</strong></p>
+      </div>
+      <div class="sc-cta">
       <div id="level-select" class="level-select" role="radiogroup" aria-label="난이도">
         <button class="level-btn lv-easy" type="button" role="radio" aria-checked="false" data-level="easy" tabindex="-1">초보</button>
         <button class="level-btn lv-normal on" type="button" role="radio" aria-checked="true" data-level="normal">중수</button>
@@ -92,9 +104,14 @@
       </div>
       <p id="level-desc" class="level-desc">기본 규칙. 균형 잡힌 2분 승부!</p>
       <button id="btn-start" class="btn primary big" type="button">시작</button>
+      </div>
       <button id="btn-hall" class="btn hall" type="button" hidden><span class="st" aria-hidden="true">&#9733;</span>명예의 전당<span class="hall-sub">별 챔피언 순위 보기</span></button>
       </div>
       <div class="sc-info">
+      <!-- ? 게임 방법: 규칙 4항목을 접는다. 첫 방문에는 펼쳐 둔다(아래 작은 스크립트, 못 쓰면 펼친 채로) -->
+      <div class="howto" id="howto">
+      <button id="btn-howto" class="howto-btn" type="button" aria-expanded="true" aria-controls="howto-panel"><i aria-hidden="true">?</i>게임 방법</button>
+      <div id="howto-panel" class="howto-panel">
       <ul class="rules">
         <li id="rule-stage"><b>스테이지</b> 제한 시간(초보 2분 10초 / 중수 2분 / 고수 1분 40초) 안에 목표를 이루면 클리어! 초보는 목표 점수, 중수·고수는 레벨마다 다른 미션이에요. 레벨 1~10에 도전하세요.</li>
         <li><b>스왑</b> 인접한 보석 두 개를 바꿔 같은 모양 3개 이상, 또는 2×2 정사각형을 맞추세요.</li>
@@ -103,6 +120,8 @@
         <li><b>콤보</b> 쉬지 않고 계속 맞추면 콤보! 점수 배수가 올라가요(최대 ×3).</li>
       </ul>
       <p id="tutorial" class="tutorial" hidden>처음이시군요! 불과 풀 스킬은 버튼을 누른 뒤 보드의 칸을 한 번 더 눌러 조준해요.</p>
+      </div>
+      </div>
       <div class="toggles">
         <button id="btn-sound-start" class="btn ghost" type="button" aria-pressed="true">소리 켜짐</button>
         <button id="btn-cutin-start" class="btn ghost" type="button" aria-pressed="true">컷인 연출 켜짐</button>
@@ -112,11 +131,11 @@
   </section>
 
   <!-- 레벨 선택 화면 -->
-  <section id="screen-stages" class="screen stages" hidden>
+  <section id="screen-stages" class="screen stages menu-screen" data-cam="low" hidden>
     <div class="stages-card">
       <div class="stages-head">
         <button id="btn-stages-back" class="btn small" type="button">뒤로</button>
-        <div class="stages-title"><i id="stages-chip" class="level-chip lv-normal">중수</i> 레벨 선택</div>
+        <div class="stages-title mn-ribbon"><i id="stages-chip" class="level-chip lv-normal">중수</i> 레벨 선택</div>
         <span id="stages-time" class="stages-time">제한 시간 2:00</span>
       </div>
       <p id="stages-summary" class="stages-sub">클리어 0/10 · 별 0</p>
@@ -142,9 +161,9 @@
   </section>
 
   <!-- 프로필 만들기/수정 화면 (명예의 전당, spec §19). CONFIG.ranking.apiBase 가 비어 있으면 열리지 않는다 -->
-  <section id="screen-profile" class="screen hf-screen" hidden aria-labelledby="pf-title">
+  <section id="screen-profile" class="screen hf-screen menu-screen" data-cam="mid" hidden aria-labelledby="pf-title">
     <div class="hf-card panel stages-card">
-      <div class="hf-head"><span></span><h2 id="pf-title" class="hf-title" tabindex="-1">내 프로필 만들기</h2><span></span></div>
+      <div class="hf-head"><span></span><h2 id="pf-title" class="hf-title mn-ribbon" tabindex="-1">내 프로필 만들기</h2><span></span></div>
       <p id="pf-sub" class="hf-sub">명예의 전당에서 나를 보여 줄 그림과 이름을 골라요.</p>
       <p id="pf-rename" class="pf-msg err" role="status" hidden><i aria-hidden="true">!</i><span>이 이름은 순위표에서 잠시 숨겨졌어요. 새 이름을 정해 주세요.</span></p>
       <div class="pf-col-a">
@@ -198,11 +217,11 @@
   </section>
 
   <!-- 명예의 전당(별 챔피언 순위표) 화면 -->
-  <section id="screen-hall" class="screen hf-screen" hidden aria-labelledby="hall-title">
+  <section id="screen-hall" class="screen hf-screen menu-screen" data-cam="mid" hidden aria-labelledby="hall-title">
     <div class="hf-card is-hall panel stages-card">
       <div class="hf-head">
         <button id="hall-back" class="btn small" type="button">뒤로</button>
-        <h2 id="hall-title" class="hf-title" tabindex="-1">명예의 전당</h2>
+        <h2 id="hall-title" class="hf-title mn-ribbon" tabindex="-1">명예의 전당</h2>
         <button id="hall-refresh" class="btn small icon-refresh" type="button" aria-label="순위표 새로고침">&#8635;</button>
       </div>
       <p id="hall-banner" class="hf-banner" role="status" hidden></p>
@@ -385,6 +404,25 @@
   <div class="cutin-flash"></div>
 </div>
 
+<!-- 시작 화면 "? 게임 방법" 칩: 첫 방문에는 펼치고 그 뒤로는 접어 둔다. 저장은 별도 키 하나(게임 기록 save 와 무관)이고, 저장소를 못 쓰면 펼친 채로 둔다 -->
+<script>
+(function () {
+  'use strict';
+  var KEY = 'eg-howto-seen';
+  var btn = document.getElementById('btn-howto');
+  var panel = document.getElementById('howto-panel');
+  if (!btn || !panel) return;
+  function setOpen(on) {
+    panel.hidden = !on;
+    btn.setAttribute('aria-expanded', on ? 'true' : 'false');
+  }
+  btn.addEventListener('click', function () { setOpen(panel.hidden); });
+  var seen = null;
+  try { seen = window.localStorage.getItem(KEY); } catch (e) { seen = null; }
+  if (seen === '1') { setOpen(false); return; }
+  try { window.localStorage.setItem(KEY, '1'); } catch (e) { /* 못 써도 펼친 채로 둔다 */ }
+})();
+</script>
 <script src="nick-words.js"></script>
 <script src="nickname.js"></script>
 <script src="game.js"></script>

@@ -5,6 +5,10 @@
  * ⑤ 새 문구의 "피하는 말" 점검 ⑥ 점수형 기본 상태가 이전과 같다는 증거(미션 엔진을 건드리지 않는 폴백 경로도 같은 판을 만든다)
  * 시험은 CONFIG 를 시험용 복사본(샌드박스)에서만 바꾼다. 파일·저장소 상태는 건드리지 않는다. */
 'use strict';
+
+/* 메뉴 V1 블록(spec §32, U-A)은 style.css 맨 끝에 붙는다. 앞 단계 블록 검사는 "파일 끝까지"가 아니라 이 표식 앞까지를 본다(단언은 그대로, 앵커만 내용으로 옮김) */
+const MENU_MARK = '/* 메뉴 V1 (spec §32, U-A) */';
+const beforeMenu = (text) => { const i = text.indexOf(MENU_MARK); return i === -1 ? text : text.slice(0, i); };
 const test = require('node:test');
 const assert = require('node:assert');
 const fs = require('node:fs');
@@ -1357,7 +1361,7 @@ test('M2 style.css: 미션 레벨 카드·설명판 블록이 하나, 교육용 
   const marker = '미션 레벨 카드·설명판 (spec §27 M2';
   const idx = css.indexOf(marker);
   assert.ok(idx > 0 && css.indexOf(marker, idx + 1) === -1, '블록 하나');
-  const block = css.slice(css.lastIndexOf('/*', idx));
+  const block = beforeMenu(css).slice(css.lastIndexOf('/*', idx));
   assert.ok(block.indexOf('미션 HUD (spec §27)') === -1 && block.indexOf('콤보 칩 (spec §28)') === -1, '미션 HUD·콤보 블록과 따로 이어지는 새 블록');
   assert.ok(!/^\s*:root/m.test(block) && !/--board\s*:|--ui-h\s*:|--cell\s*:/.test(block.replace(/\/\*[\s\S]*?\*\//g, '')), ':root·보드 크기식을 건드리지 않는다');
   ['.sc-tag', '.stage-detail', '.sd-title', '.sd-goal', '.sd-hint', '.sd-time', '.sd-go'].forEach((sel) => assert.ok(block.includes(sel), sel));

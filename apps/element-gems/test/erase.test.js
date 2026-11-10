@@ -207,8 +207,12 @@ test('코드 속 저장 키를 모두 RECORD_KEYS 가 알고 있다(정적 검�
   });
   // 저장 키가 아닌 같은 접두 문자열(파일 이름·클래스 등)은 제외 목록으로 명시한다
   const notKeys = new Set(['element-gems']);
-  const unknown = Array.from(found).filter((k) => !known.has(k) && !notKeys.has(k));
+  // 화면 표시 힌트 키(게임 기록이 아니다): 메뉴 V1 시작 화면의 "? 게임 방법" 칩을 첫 방문에만 펼치기 위한 표식 하나(index.html 의 작은 스크립트, spec §32 U-A).
+  // 프로필·진행·점수가 아니라서 프로필 지우기가 정리하지 않는다(RECORD_KEYS 에 넣지 않음). 코드에 실제로 나오는지도 아래에서 확인한다.
+  const uiHintKeys = new Set(['eg-howto-seen']);
+  const unknown = Array.from(found).filter((k) => !known.has(k) && !notKeys.has(k) && !uiHintKeys.has(k));
   assert.deepStrictEqual(unknown, [], '저장 키가 RECORD_KEYS 에 없다: ' + unknown.join(', '));
+  uiHintKeys.forEach((k) => assert.ok(found.has(k), '화면 표시 힌트 키가 코드에 있다: ' + k));
   // 반대로 RECORD_KEYS 의 localStorage 키는 실제 코드에 나온다
   [GEN, SYNC_GEN, PROF, HALL, 'element-gems:mode'].forEach((k) => assert.ok(found.has(k), k));
 });

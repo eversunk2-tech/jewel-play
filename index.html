@@ -173,6 +173,78 @@ body::after {
   .mode-btn { transition: none; }
   .mode-btn:hover, .mode-btn:active { transform: none; }
 }
+/* 메뉴 V1 (spec §32, U-A): 루트 선택 화면 "풍경 속 타이틀" — 로고를 크게, 햇살, 질문은 리본, 입구 카드 2장(±1.2° 기울임, 높이 276px 기준).
+ * 새 규칙은 모두 이 화면의 고유 클래스(.mode) 접두어이거나 html:has(.mode) 이다. 새 이미지·글꼴·외부 주소 없음(기존 그림 재사용).
+ * border-radius 는 12 · 20 · 32 · 999px · 50% 만 쓴다. backdrop-filter · blur 없음. 움직임 없음(정적 햇살·기울임뿐). */
+html:has(.mode)::before { background-position: 50% 12%, 0 0; }
+.mode { position: relative; }
+.mode::before {
+  content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+  background: conic-gradient(from 0deg at 76% -8%, rgba(255, 246, 196, 0) 0deg 183deg, rgba(255, 246, 196, .36) 189deg, rgba(255, 246, 196, 0) 197deg 203deg, rgba(255, 246, 196, .28) 209deg, rgba(255, 246, 196, 0) 217deg 224deg, rgba(255, 246, 196, .32) 231deg, rgba(255, 246, 196, 0) 240deg 360deg);
+  -webkit-mask-image: linear-gradient(180deg, #000 0%, rgba(0, 0, 0, .6) 48%, transparent 88%);
+  mask-image: linear-gradient(180deg, #000 0%, rgba(0, 0, 0, .6) 48%, transparent 88%);
+}
+.mode::after {
+  content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+  background: url("apps/element-gems/assets/bg-jungle.webp") 50% 80% / 120vw auto no-repeat;
+  -webkit-mask-image: radial-gradient(ellipse 21% 78% at 0% 78%, #000 52%, transparent 100%), radial-gradient(ellipse 21% 78% at 100% 78%, #000 52%, transparent 100%);
+  mask-image: radial-gradient(ellipse 21% 78% at 0% 78%, #000 52%, transparent 100%), radial-gradient(ellipse 21% 78% at 100% 78%, #000 52%, transparent 100%);
+}
+.mode .mode-card { background: none; border: 0; box-shadow: none; padding: 8px 4px 12px; }
+.mode .logo-h { margin: 0; }
+.mode .logo { width: min(64vw, 520px, calc(var(--vh100) * .34 * 1.4876)); filter: drop-shadow(0 8px 10px rgba(50, 30, 140, .38)); }
+.mode .mode-q {
+  position: relative; isolation: isolate; width: fit-content; max-width: 100%; margin: 4px auto 20px; padding: 8px 40px 10px; border-radius: 12px;
+  background: linear-gradient(180deg, #6f57f7 0%, #5b3df5 100%); color: #fff; font-size: 1.35rem; font-weight: 900; line-height: 1.25; letter-spacing: .02em;
+  paint-order: stroke fill; -webkit-text-stroke: 5px #3b2a8f; text-shadow: 0 3px 0 #3b2a8f; box-shadow: 0 5px 0 #3a22b8, 0 12px 16px rgba(50, 30, 140, .28);
+}
+.mode .mode-q::before, .mode .mode-q::after { content: ""; position: absolute; z-index: -1; top: 12px; bottom: -10px; width: 44px; background: #4328c7; }
+.mode .mode-q::before { left: -28px; clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%, 16px 50%); }
+.mode .mode-q::after { right: -28px; clip-path: polygon(0 0, 100% 0, calc(100% - 16px) 50%, 100% 100%, 0 100%); }
+.mode .mode-btn { border-radius: 32px; }
+.mode .mode-btn.edu { transform: rotate(-1.2deg); }
+.mode .mode-btn.gen { transform: rotate(1.2deg); }
+.mode .mode-btn.edu:hover { transform: rotate(-1.2deg) translateY(-3px); }
+.mode .mode-btn.gen:hover { transform: rotate(1.2deg) translateY(-3px); }
+.mode .mode-btn.edu:active { transform: rotate(-1.2deg) translateY(3px); }
+.mode .mode-btn.gen:active { transform: rotate(1.2deg) translateY(3px); }
+.mode .mode-note { width: fit-content; max-width: 100%; margin: 18px auto 0; padding: 6px 18px; border: 2px solid #fff; border-radius: 999px; background: rgba(255, 255, 255, .94); color: var(--ink); font-weight: 700; }
+@media (min-width: 1100px) and (min-height: 700px) {
+  .mode .mode-card { width: min(100%, 940px); padding: 8px 4px 12px; }
+  .mode .mode-btn { min-height: 276px; }
+  .mode .mode-q { font-size: 1.6rem; margin-bottom: 26px; }
+}
+@media (min-width: 1600px) and (min-height: 900px) {
+  .mode .mode-card { width: min(100%, 1040px); }
+  .mode .logo { width: min(540px, calc(var(--vh100) * .36 * 1.4876)); }
+}
+@media (max-width: 560px) {
+  .mode .mode-btn.edu, .mode .mode-btn.gen { transform: rotate(0); }
+  .mode .mode-btn.edu:hover, .mode .mode-btn.gen:hover, .mode .mode-btn.edu:active, .mode .mode-btn.gen:active { transform: none; }
+  .mode .logo { width: min(80vw, 320px, calc(var(--vh100) * .3 * 1.4876)); }
+  .mode .mode-q { margin-bottom: 18px; font-size: 1.15rem; padding: 6px 30px 8px; }
+}
+@media (max-width: 560px) and (max-height: 700px) {
+  .mode .logo { width: min(64vw, 240px, calc(var(--vh100) * .26 * 1.4876)); }
+  .mode .mode-q { margin: 4px auto 12px; font-size: 1.05rem; }
+  .mode .mode-note { margin-top: 12px; padding: 4px 14px; font-size: .86rem; }
+}
+@media (min-width: 561px) and (max-height: 520px) {
+  .mode .mode-btn.edu, .mode .mode-btn.gen { transform: rotate(0); }
+  .mode .logo { width: min(210px, calc(var(--vh100) * .34 * 1.4876)); }
+  .mode .mode-q { margin: 2px auto 14px; font-size: 1.05rem; padding: 4px 30px 6px; }
+  .mode .mode-note { margin-top: 12px; padding: 4px 14px; font-size: .85rem; }
+}
+@media (min-width: 561px) and (max-width: 1099px) and (min-height: 521px) and (max-height: 700px) {
+  .mode .logo { width: min(64vw, 520px, calc(var(--vh100) * .26 * 1.4876)); }
+  .mode .mode-q { margin: 2px auto 12px; font-size: 1.2rem; padding: 6px 34px 8px; }
+  .mode .mode-btn { min-height: 190px; padding: 14px 14px; gap: 6px; }
+  .mode .mode-btn .ic { width: 60px; height: 60px; }
+  .mode .mode-note { margin-top: 10px; padding: 4px 14px; font-size: .86rem; }
+}
+@media screen and (prefers-reduced-motion: reduce) {
+  .mode .mode-btn.edu:hover, .mode .mode-btn.gen:hover, .mode .mode-btn.edu:active, .mode .mode-btn.gen:active { transform: none; }
+}
 </style>
 </head>
 <body>

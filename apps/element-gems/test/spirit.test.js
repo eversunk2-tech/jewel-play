@@ -14,6 +14,9 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 const cp = require('node:child_process');
+/* 메뉴 V1 블록(spec §32, U-A)은 style.css 맨 끝에 붙는다. 앞 단계 블록 검사는 "파일 끝까지"가 아니라 이 표식 앞까지를 본다(단언은 그대로, 앵커만 내용으로 옮김) */
+const MENU_MARK = '/* 메뉴 V1 (spec §32, U-A) */';
+const beforeMenu = (text) => { const i = text.indexOf(MENU_MARK); return i === -1 ? text : text.slice(0, i); };
 
 const root = path.join(__dirname, '..');
 const GAME_PATH = path.join(root, 'game.js');
@@ -1001,7 +1004,7 @@ test('⑨ style.css: 정령 블록이 파일 맨 끝에 하나, 모든 규칙이
   const marker = '정령 특별 레벨 (spec §27.6, M4)';
   const idx = CSS.indexOf(marker);
   assert.ok(idx > 0 && CSS.indexOf(marker, idx + 1) === -1, '블록 하나');
-  const block = CSS.slice(CSS.lastIndexOf('/*', idx));
+  const block = beforeMenu(CSS).slice(CSS.lastIndexOf('/*', idx));
   assert.ok(block.length > 3000 && block.indexOf('콤보 칩 (spec §28)') === -1 && block.indexOf('미션 레벨 카드·설명판 (spec §27 M2') === -1, '파일 맨 끝의 새 블록');
   assert.ok(!/^\s*:root/m.test(block) && !/--board\s*:|--ui-h\s*:|--cell\s*:/.test(block.replace(/\/\*[\s\S]*?\*\//g, '')), ':root·보드 크기식을 건드리지 않는다');
   const rules = rulesOf(block);
@@ -1018,7 +1021,7 @@ test('⑨ style.css: 정령 블록이 파일 맨 끝에 하나, 모든 규칙이
 
 test('⑨ style.css: 감소 모션이면 zZ 떠오름·빛 번짐·필터 전환이 없고, 무한 반복 애니메이션은 zZ 하나뿐이며, 붉은 점멸·흔들림이 없고, 글자는 11px 이상이다', () => {
   const marker = '정령 특별 레벨 (spec §27.6, M4)';
-  const block = CSS.slice(CSS.lastIndexOf('/*', CSS.indexOf(marker)));
+  const block = beforeMenu(CSS).slice(CSS.lastIndexOf('/*', CSS.indexOf(marker)));
   const rules = rulesOf(block);
   const rm = rules.filter((r) => /prefers-reduced-motion:\s*reduce/.test(r.at));
   assert.ok(/^@media screen and \(prefers-reduced-motion: reduce\)$/.test(rm[0].at), '"screen and" 형식(기존 시험이 파일 끝쪽 감소 모션 쿼리를 형식으로 읽는다)');
@@ -1055,7 +1058,7 @@ test('⑨ style.css: 글자 대비 4.5:1 이상(머리 카드·요청 칸·결�
   const lum = (hex) => { const v = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).map((c) => (c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4))); return 0.2126 * v[0] + 0.7152 * v[1] + 0.0722 * v[2]; };
   const cr = (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
   const marker = '정령 특별 레벨 (spec §27.6, M4)';
-  const block = CSS.slice(CSS.lastIndexOf('/*', CSS.indexOf(marker))).replace(/\/\*[\s\S]*?\*\//g, '');
+  const block = beforeMenu(CSS).slice(CSS.lastIndexOf('/*', CSS.indexOf(marker))).replace(/\/\*[\s\S]*?\*\//g, '');
   const ink = CSS.match(/--ink:\s*(#[0-9a-f]{6})/g).pop().slice(-7);
   // [글자색, 바탕색] — 블록의 실제 값과 같은 것만 검사한다(아래 includes 로 값이 그대로 있는지 확인)
   const pairs = [
@@ -1087,6 +1090,6 @@ test('⑩ 새 에셋 파일 0개: assets/ 의 파일 목록이 M4 시작 시점�
   if (!before.length) return;
   assert.deepStrictEqual(now, before, 'assets 파일 목록이 변경 전과 같다');
   // 소스·마크업·CSS 에 새 외부 주소·글꼴 파일이 없다
-  assert.ok(!/@font-face|https?:\/\//.test(CSS.slice(CSS.indexOf('정령 특별 레벨 (spec §27.6, M4)'))), '새 CSS 에 글꼴·외부 주소 없음');
-  assert.ok(!/\.(png|jpe?g|webp|svg|mp3|wav|woff2?)/i.test(CSS.slice(CSS.indexOf('정령 특별 레벨 (spec §27.6, M4)'))), '새 CSS 가 새 파일을 가리키지 않는다');
+  assert.ok(!/@font-face|https?:\/\//.test(beforeMenu(CSS).slice(CSS.indexOf('정령 특별 레벨 (spec §27.6, M4)'))), '새 CSS 에 글꼴·외부 주소 없음');
+  assert.ok(!/\.(png|jpe?g|webp|svg|mp3|wav|woff2?)/i.test(beforeMenu(CSS).slice(CSS.indexOf('정령 특별 레벨 (spec §27.6, M4)'))), '새 CSS 가 새 파일을 가리키지 않는다');
 });
