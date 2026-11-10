@@ -288,6 +288,83 @@ test('정상: 가짜 60문제 파일이 3·4·5·6학년 모두 오류도 경고
   });
 });
 
+/* ================================================================
+ * 2-1. 지엽적 고유명사 문제 금지 규정 (CLAUDE.md, spec §42.5·§42.6)
+ *   - 검증기 경고 'proper-noun-choices': 객관식 보기 4개 중 3개 이상이 지명처럼 보이면 [경고](오류 아님)
+ *   - 실제 문제 파일 25개: 경고 0, 그리고 사용자가 OX로 바꾸기로 한 33문항이 객관식으로 되돌아오지 않는다(형식 고정)
+ * ================================================================ */
+function withChoices(id, choices) {
+  const d = makeUnit(id);
+  const it = d.items.find((x) => x.t === 'mc');
+  it.c = choices.slice();
+  it.a = 0;
+  return check(id, d);
+}
+const jieop = (r) => r.warnings.filter((w) => w.rule === '지엽' && w.code === 'proper-noun-choices');
+
+test('지엽: 보기가 나라·강·산·사막 이름으로 채워진 객관식은 경고(오류 아님)', () => {
+  [
+    ['미국', '인도', '캐나다', '리비아'],                    // 나라 4개
+    ['아마존강', '나일강', '콩고강', '황허강'],              // 강 4개
+    ['알프스산맥', '파미르고원', '히말라야산맥', '추키카마타'],  // 산맥·고원 이름 3개
+    ['사하라 사막 – 모래 언덕', '황허강 – 누런 강물', '알프스산맥 – 관광지', '마우나로아 – 화산']  // 짝짓기: ' – ' 앞부분만 본다(3개)
+  ].forEach((c) => {
+    const r = withChoices('soc-6-2-1-1', c);
+    assert.strictEqual(jieop(r).length, 1, JSON.stringify(c));
+    assert.deepStrictEqual(r.errors, [], '경고여야 하고 오류는 아니다: ' + JSON.stringify(r.errors.map((e) => e.msg)));
+  });
+});
+
+test('지엽: 대륙·대양·지형 일반 용어·제도·군대 이름은 지명으로 세지 않는다(오탐 방지)', () => {
+  [
+    ['아프리카', '아시아', '유럽', '오세아니아'],
+    ['화산', '고원', '계곡', '폭포'],
+    ['육아 휴직 제도', '단체 가입 제도', '근로 환경 제도', '최저 임금 제도'],
+    ['미군', '일본군', '러시아군', '네덜란드군'],
+    ['넓은 갯벌이 펼쳐진다', '굽이쳐 흐르는 강물이 있다', '해발 고도가 높고 경사가 급하다', '바다 위에 솟은 바위가 있다']
+  ].forEach((c) => assert.strictEqual(jieop(withChoices('soc-6-2-1-1', c)).length, 0, JSON.stringify(c)));
+});
+
+test('지엽: OX 문제는 이름이 들어 있어도 경고하지 않는다(이름을 문장에 주는 OX가 규정이 권하는 방식)', () => {
+  const d = makeUnit('soc-6-2-1-1');
+  const ox = d.items.find((x) => x.t === 'ox');
+  ox.q = '황허강은 황토가 섞여 강물이 누렇게 보이는 강이다.';
+  assert.strictEqual(jieop(check('soc-6-2-1-1', d)).length, 0);
+});
+
+test('지엽: 실제 문제 파일 25개에는 지엽(proper-noun-choices) 경고가 없다', () => {
+  const res = V.runValidation({ appRoot: APP });
+  const hits = [];
+  res.units.forEach((u) => u.warnings.concat(u.errors).forEach((w) => { if (w.rule === '지엽') hits.push(u.id + ' #' + w.n); }));
+  assert.deepStrictEqual(hits, [], '이름 고르기 객관식이 다시 생겼어요(OX로 바꾸거나 사용자에게 권장안을 제안하세요): ' + hits.join(', '));
+});
+
+test('지엽: 사용자가 OX로 바꾸기로 한 33문항(spec §42, 1차 21 + 2차 12)은 객관식으로 되돌아오지 않는다', () => {
+  const OX_NOW = {
+    'soc-6-2-1-1': [28, 29, 30, 31, 32, 38, 40, 41, 46, 49, 50, 51],
+    'soc-6-2-1-2': [36],
+    'soc-6-2-3-1': [20, 25, 31, 32, 36, 45, 46, 51],
+    'soc-5-2-1-2': [4, 16, 51],
+    'soc-6-2-3-2': [48, 50, 52, 55],
+    'soc-6-2-2-2': [37],
+    'soc-5-2-2-1': [43],
+    'soc-5-2-2-2': [13, 58],
+    'soc-5-2-3-2': [56]
+  };
+  let total = 0;
+  Object.keys(OX_NOW).forEach((id) => {
+    const data = V.loadUnitFile(path.join(APP, 'edu-data', 'q', id + '.js'), id);
+    const unit = data.data || data;
+    OX_NOW[id].forEach((n) => {
+      const it = unit.items.find((x) => x.n === n);
+      assert.ok(it, id + ' #' + n + ' 없음');
+      assert.strictEqual(it.t, 'ox', id + ' #' + n + ' 은 OX 여야 해요(지엽적 고유명사 문제 금지 규정)');
+      total++;
+    });
+  });
+  assert.strictEqual(total, 33);
+});
+
 // spec §21.4.5 샘플 12개 (학년, 문항). 문항 단위 검사(스키마·길이·금칙·민감어·가독성)에서 오류가 없어야 한다.
 const SAMPLES = [
   [3, { t: 'mc', k: 'd2t', q: '전체 사람 수에서 노인이 차지하는 비율이 점점 높아지는 현상을 무엇이라고 할까요?', c: ['저출산', '고령화', '세계화', '지능정보화'], a: 1, e: '노인의 비율이 높아지는 것을 고령화라고 해요. 태어나는 아이의 수가 줄어드는 것은 저출산이에요.' }],

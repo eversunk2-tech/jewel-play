@@ -8,6 +8,7 @@
  *    --json 기계가 읽는 결과 / 옵션 없이 실행하면 카탈로그의 25개 소단원을 모두 검사하고 파일이 없는 소단원은 '문제 파일 없음'으로 보고)
  * 결과 읽는 법: 소단원마다 [오류]와 [경고]가 한 건씩 '번호 필드 [규칙이름] 무엇이 문제인지 / → 어떻게 고칠지' 두 줄로 나온다.
  *   [오류]는 반드시 0이 되어야 하고(종료 코드 1), [경고]는 사람이 한 건씩 읽고 정말 문제인지 판단해 고치거나 보고에 이유를 적는다(종료 코드는 0).
+ *   '지엽' 규칙(proper-noun-choices)은 객관식 보기 4개 중 3개 이상이 지명처럼 보일 때 경고한다(CLAUDE.md 지엽적 고유명사 문제 금지 규정). 이름 고르기 객관식이면 OX로 바꾼다.
  *   '재서술' 규칙은 학습지 문장을 14자 이상 그대로 쓴 곳이다. 한 소단원에 3곳 이상이면 [오류]이니 같은 뜻을 새 문장으로 다시 쓴다.
  *   '민감어'는 폭력·죽음 낱말이라 기본은 그 문항을 빼거나 다시 쓴다. 파일 첫 줄 아래 상수(CONFIG·낱말 목록)를 바꾸지 말고 이상하면 보고한다.
  * 종료 코드: 0 = 오류 없음(경고만 있어도 0), 1 = 오류 있음, 2 = 사용법 오류·내부 오류.
@@ -46,6 +47,15 @@ const CONFIG = {
   answerLongestWarn: 0.5,                  // 객관식 정답이 '가장 긴 보기'인 비율이 이 값을 넘으면 경고(길이 편향)
   hangulRatioMin: 0.6,                     // 문제·해설의 한글 비율 최소 (미만이면 경고)
   rephrase: { minRun: 14, errorAt: 3 },    // 원문과 14자 이상 연속 일치, 소단원당 3곳 이상이면 오류
+  // 지엽적 고유명사 보기 경고(CLAUDE.md "지엽적 고유명사 문제 금지 규정", spec §42.5·§42.6): 객관식 보기 4개 중 minNames 개 이상이 지명(나라·강·산·섬·해안·사막·공원 이름)처럼 보이면 경고한다.
+  //   휴리스틱이라 [경고]로만 쓴다 — 사람이 읽고 "이름 고르기 객관식이면 OX로, 핵심 지명이면 사용자에게 권장안을 제안"한다. 대륙·대양 이름과 지형 일반 용어(화산·고원·평야 ...)는 지명으로 세지 않는다.
+  properNoun: {
+    minNames: 3,
+    maxLen: 14,                            // 보기 한 개가 이보다 길면 문장이라 지명으로 보지 않는다(짝짓기 보기는 ' – ' 앞부분만 본다)
+    countries: ['미국', '중국', '일본', '러시아', '인도', '캐나다', '호주', '오스트레일리아', '브라질', '이집트', '노르웨이', '스위스', '네덜란드', '몽골', '리비아', '르완다', '방글라데시', '투발루', '스리랑카', '멕시코', '영국', '프랑스', '독일', '이탈리아', '스페인', '터키', '베트남', '태국', '인도네시아', '필리핀', '싱가포르', '케냐', '나이지리아', '남아프리카공화국', '사우디아라비아', '아르헨티나', '칠레', '페루', '콜롬비아', '뉴질랜드', '우크라이나', '파키스탄', '이란', '이라크', '이스라엘', '북한', '서부 유럽', '동부 유럽', '동남아시아', '서남아시아', '중앙아시아'],
+    placeSuffix: '(산맥|산|강|호수|호|섬|열도|반도|해협|해|양|만|사막|평야|고원|분지|폭포|계곡|피오르|공원|국립 ?공원)',   // 어간(접미사 앞)이 2글자 이상일 때만 이름으로 본다
+    generic: ['화산', '고원', '계곡', '폭포', '평야', '사막', '해안', '갯벌', '항구', '공원', '해양', '대양']
+  },
   fileTimeoutMs: 2000                      // 문제 파일 실행 제한 시간
 };
 
@@ -143,6 +153,17 @@ function add(ctx, level, rule, code, where, msg, fix) {
   const w = where || {};
   ctx.out.push({ level: level, rule: rule, code: code, n: w.n == null ? null : w.n, index: w.index == null ? null : w.index, field: w.field || null, msg: msg, fix: fix || '' });
 }
+/* 객관식 보기 하나가 지명(고유명사)처럼 보이는가 — CONFIG.properNoun 휴리스틱 */
+const PLACE_SUFFIX_RE = new RegExp(CONFIG.properNoun.placeSuffix + '$');
+function nameLikeChoice(text) {
+  if (!isStr(text)) return false;
+  const left = text.trim().split(/\s[–→-]\s/)[0].trim();
+  if (!left || left.length > CONFIG.properNoun.maxLen) return false;
+  if (CONFIG.properNoun.countries.indexOf(left) >= 0) return true;
+  if (CONFIG.properNoun.generic.indexOf(left) >= 0) return false;
+  const m = PLACE_SUFFIX_RE.exec(left);
+  return !!m && left.slice(0, left.length - m[1].length).replace(/\s+/g, '').length >= 2;
+}
 function itemWhere(item, idx, field) {
   return { n: isObj(item) && Number.isInteger(item.n) && item.n >= 1 ? item.n : null, index: idx, field: field || null };
 }
@@ -237,6 +258,10 @@ function checkItem(item, idx, ctx, factIds) {
         if (CHOICE_BAD_RE.test(c)) add(ctx, 'error', '금칙', 'choice-all-none', where('c' + i), (i + 1) + '번 보기에 "모두/없음" 같은 말이 있어요: "' + shorten(c, 20) + '"', '"모두 맞다/없다/위 보기 모두" 보기는 쓰지 않아요. 구체적인 보기로 바꾸세요.');
         if (CHOICE_NUMBER_RE.test(c)) add(ctx, 'warn', '스키마', 'choice-numbered', where('c' + i), (i + 1) + '번 보기 앞에 번호 기호가 붙어 있어요: "' + shorten(c, 12) + '"', '번호는 화면이 붙여요. 보기 글자만 쓰세요.');
       });
+    }
+    if (Array.isArray(item.c) && item.c.length === 4) {
+      const names = item.c.filter(nameLikeChoice).length;
+      if (names >= CONFIG.properNoun.minNames) add(ctx, 'warn', '지엽', 'proper-noun-choices', where('c'), '객관식 보기 4개 중 ' + names + '개가 지명(고유명사)처럼 보여요. 이름을 고르는 문제는 지엽적일 수 있어요.', '이름을 문장에 주고 맞다/틀리다를 묻는 OX로 바꾸거나 개념·특징을 묻는 문제로 바꾸세요. 꼭 필요한 핵심 지명이면 사용자에게 권장안과 함께 제안하세요(CLAUDE.md 지엽적 고유명사 문제 금지 규정).');
     }
     if (!Number.isInteger(item.a) || item.a < 0 || item.a > 3) add(ctx, 'error', '스키마', 'answer-range', where('a'), '객관식 정답(a)이 0~3 범위의 정수가 아니에요: ' + JSON.stringify(item.a), '정답 보기의 위치를 0(①)~3(④)으로 쓰세요.');
   }

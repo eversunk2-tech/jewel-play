@@ -26,6 +26,7 @@ const MARK = '/* 메뉴 V1 (spec §32, U-A) */';
 const idx = CSS.indexOf(MARK);
 const BLOCK = idx >= 0 ? CSS.slice(idx) : '';
 const BASE_COMMIT = '41a5b53';          // U-A 시작 시점(M4 푸시 직후)의 git 커밋
+const MENU_COMMIT = 'd6f798c';          // 메뉴 V1 구현 커밋. "U-A 시작 시점과 같다"는 시험은 이 커밋까지만 비교한다(그 뒤의 규칙·문제·에셋 변경은 다른 작업이라 작업 트리를 묶어 두지 않는다)
 
 /** CSS 한 블록(주석 제외)의 규칙 목록: { at: 감싸는 @규칙 또는 '', sel: 선택자, body: 선언, keyframes } */
 function rulesOf(css) {
@@ -337,12 +338,11 @@ test('⑦ 루트 index.html: 새 블록이 하나, 규칙은 이 화면의 .mode
 function gitOut(args) {
   try { return cp.execFileSync('git', args, { cwd: repo, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }); } catch (e) { return null; }
 }
-const HAS_BASE = gitOut(['cat-file', '-t', BASE_COMMIT]) !== null;
+const HAS_BASE = gitOut(['cat-file', '-t', BASE_COMMIT]) !== null && gitOut(['cat-file', '-t', MENU_COMMIT]) !== null;
 
-test('⑧ 새 에셋 0개: 두 앱 assets/ 의 파일 목록이 U-A 시작 시점과 같다(이미지·음원·글꼴 없음)', { skip: HAS_BASE ? false : 'git 기준 커밋 없음' }, () => {
+test('⑧ 새 에셋 0개: 두 앱 assets/ 의 파일 목록이 U-A 시작 시점과 메뉴 구현 커밋에서 같다(이미지·음원·글꼴 없음)', { skip: HAS_BASE ? false : 'git 기준 커밋 없음' }, () => {
   ['element-gems', 'element-gems-edu'].forEach((app) => {
-    const walk = (d) => fs.readdirSync(d, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(path.join(d, e.name)) : [path.relative(path.join(repo, 'apps', app), path.join(d, e.name))]));
-    const now = walk(path.join(repo, 'apps', app, 'assets')).sort();
+    const now = gitOut(['ls-tree', '-r', '--name-only', MENU_COMMIT, 'apps/' + app + '/assets']).split('\n').filter(Boolean).map((p) => p.replace('apps/' + app + '/', '')).sort();
     const before = gitOut(['ls-tree', '-r', '--name-only', BASE_COMMIT, 'apps/' + app + '/assets']).split('\n').filter(Boolean).map((p) => p.replace('apps/' + app + '/', '')).sort();
     assert.ok(before.length > 50);
     assert.deepStrictEqual(now, before, app + ' assets 목록');
@@ -352,13 +352,13 @@ test('⑧ 새 에셋 0개: 두 앱 assets/ 의 파일 목록이 U-A 시작 시�
   assert.deepStrictEqual(fonts, []);
 });
 
-test('⑧ 게임 규칙·서버·저장 파일은 U-A 시작 시점과 바이트 동일하다(game.js · ranking*.js · nickname.js · nick-words.js · server/**)', { skip: HAS_BASE ? false : 'git 기준 커밋 없음' }, () => {
+test('⑧ 게임 규칙·서버·저장 파일은 U-A 시작 시점과 메뉴 구현 커밋에서 바이트 동일하다(game.js · ranking*.js · nickname.js · nick-words.js · server/**)', { skip: HAS_BASE ? false : 'git 기준 커밋 없음' }, () => {
   const files = ['game.js', 'ranking.js', 'ranking-ui.js', 'nickname.js', 'nick-words.js'];
   files.forEach((f) => {
     const base = gitOut(['show', BASE_COMMIT + ':apps/element-gems/' + f]);
-    assert.strictEqual(fs.readFileSync(path.join(root, f), 'utf8'), base, f);
+    assert.strictEqual(gitOut(['show', MENU_COMMIT + ':apps/element-gems/' + f]), base, f);
   });
-  const changed = gitOut(['diff', '--name-only', BASE_COMMIT, '--', 'apps/element-gems/server']) || '';
+  const changed = gitOut(['diff', '--name-only', BASE_COMMIT, MENU_COMMIT, '--', 'apps/element-gems/server']) || '';
   assert.strictEqual(changed.trim(), '', 'server/** 변경 없음');
 });
 
