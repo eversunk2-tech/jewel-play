@@ -45,7 +45,9 @@ test('sync: 첫 등록 응답 모양, 번호표 0~9999, pub 8자, pid 미노출'
   assert.equal(j.changed, true);
   assert.equal(j.nickChangesLeft, 2);
   assert.equal(j.serverTime, t.clock.ms);
-  assert.deepEqual(Object.keys(j.me).sort(), ['avatar', 'hidden', 'nick', 'pub', 'stars', 'tag']);
+  assert.deepEqual(Object.keys(j.me).sort(), ['avatar', 'hidden', 'nick', 'pub', 'score', 'stars', 'tag']);      // spec §46.3.4: score(저장된 최고점) 추가
+  assert.equal(j.me.score, 0, '도전 기록이 없으면 0');
+  assert.equal(j.scoreRejected, undefined);
   assert.ok(Number.isInteger(j.me.tag) && j.me.tag >= 0 && j.me.tag <= 9999);
   assert.match(j.me.pub, /^[0-9A-HJKMNP-TV-Z]{8}$/);
   assert.deepEqual(j.me.stars, { easy: 5, normal: 0, hard: 0, all: 5 });
@@ -357,7 +359,8 @@ test('순위표: 별 > 남은 시간 합 > 먼저 달성 > id, 공동 순위 없
   assert.deepEqual(lb.json.rows.map((r) => r.rank), [1, 2, 3, 4, 5, 6, 7]);
   assert.equal(lb.json.of, 7);
   // 공개 응답에 숨은 값이 없다
-  for (const row of lb.json.rows) assert.deepEqual(Object.keys(row).sort(), ['avatar', 'nick', 'rank', 'stars', 'tag']);
+  for (const row of lb.json.rows) assert.deepEqual(Object.keys(row).sort(), ['avatar', 'nick', 'rank', 'score', 'stars', 'tag']);     // spec §46.3.4: score 추가(0 = 도전 기록 없음)
+  assert.ok(lb.json.rows.every((r) => r.score === 0));
   assert.ok(!lb.text.includes(A.pid) && !lb.text.includes(A.me.pub));
   assert.deepEqual(lb.json.rows.map((r) => r.stars), [3, 3, 3, 3, 2, 2, 2]);
   // 같은 초에 같은 값 -> 먼저 등록한 F 가 G 보다 앞 (id)
@@ -408,7 +411,7 @@ test('상위 50 제한 + 50위 밖 내 순위 + SQL 순위(COUNT)가 정렬 결�
   for (const board of ['all', 'easy', 'normal']) {
     const lb = (await t.call('GET', '/api/leaderboard?board=' + board)).json;
     const c = core.boardCols(board);
-    const all = rows(t, `SELECT id, pub, ${c.stars} AS stars, ${c.left} AS left, ${c.up} AS up FROM players WHERE hidden = 0 AND ${c.stars} > 0`);
+    const all = rows(t, `SELECT id, pub, ${c.stars} AS stars, ${c.score} AS score, ${c.left} AS left, ${c.up} AS up FROM players WHERE hidden = 0 AND ${c.stars} > 0`);
     const sorted = all.slice().sort(core.compareRank);
     assert.equal(lb.of, sorted.length, board + ' of');
     assert.equal(lb.rows.length, Math.min(50, sorted.length));
@@ -422,7 +425,7 @@ test('상위 50 제한 + 50위 밖 내 순위 + SQL 순위(COUNT)가 정렬 결�
     if (board === 'all') assert.ok(sorted.length > 50, '50명을 넘는 시나리오여야 함: ' + sorted.length);
   }
   // 상위 50 밖의 사람도 순위가 나온다
-  const all2 = rows(t, 'SELECT pub FROM players WHERE total_stars > 0 ORDER BY total_stars DESC, total_left DESC, up_all ASC, id ASC');
+  const all2 = rows(t, 'SELECT pub FROM players WHERE total_stars > 0 ORDER BY total_stars DESC, best_score DESC, total_left DESC, up_all ASC, id ASC');
   const last = (await t.call('GET', '/api/rank?board=all&pub=' + all2[all2.length - 1].pub)).json;
   assert.equal(last.rank, all2.length);
   assert.ok(last.rank > 50);
@@ -446,7 +449,7 @@ test('순위 쿼리가 부분 인덱스를 쓴다 (EXPLAIN QUERY PLAN)', async (
     const n = (sql.match(/\?/g) || []).length;
     return t.DB.db.prepare('EXPLAIN QUERY PLAN ' + sql).all(...new Array(n).fill(1)).map((r) => r.detail).join(' | ');
   };
-  const want = ['idx_rank_all', 'idx_rank_easy', 'idx_rank_normal', 'idx_rank_hard'];
+  const want = ['idx_rank2_all', 'idx_rank2_easy', 'idx_rank2_normal', 'idx_rank2_hard'];            // spec §46.3.2: 최고점이 들어간 새 인덱스
   top.forEach((sql, i) => {
     const p = plan(sql);
     assert.ok(p.includes(want[i]), p);
@@ -454,7 +457,7 @@ test('순위 쿼리가 부분 인덱스를 쓴다 (EXPLAIN QUERY PLAN)', async (
   });
   for (const sql of cnt) {
     const p = plan(sql);
-    assert.ok(/idx_rank_/.test(p), p);
+    assert.ok(/idx_rank2_/.test(p), p);
     assert.ok(!/SCAN players(?! USING)/.test(p), '표 전체 스캔 금지: ' + p);
   }
 });
@@ -465,7 +468,8 @@ test('/api/rank: 없음 404, 잘못된 pub 400, 별 0이면 rank null, 숨김은
   const z = await register(t, '별없음');
   const ok = await t.call('GET', `/api/rank?board=all&pub=${a.me.pub.toLowerCase()}`);
   assert.equal(ok.status, 200);
-  assert.deepEqual(Object.keys(ok.json).sort(), ['asOf', 'avatar', 'board', 'nick', 'of', 'ok', 'rank', 'stars', 'tag', 'v']);
+  assert.deepEqual(Object.keys(ok.json).sort(), ['asOf', 'avatar', 'board', 'nick', 'of', 'ok', 'rank', 'score', 'stars', 'tag', 'v']);      // spec §46.3.4: score 추가
+  assert.equal(ok.json.score, 0);
   assert.equal(ok.json.rank, 1);
   assert.equal(ok.json.nick, '별빛냥');
   assert.equal((await t.call('GET', '/api/rank?board=all&pub=ZZZZZZZZ')).status, 404);

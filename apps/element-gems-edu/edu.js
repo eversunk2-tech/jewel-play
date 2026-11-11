@@ -1086,11 +1086,14 @@
     let inner = null;
     const original = host.setStartGate;
     host.setStartGate = function (fn) { inner = typeof fn === 'function' ? fn : null; };
-    original(function () {
+    original(function (kind) {
+      // spec §46.9(최고점 도전): 도전 판은 문제·학습 단원을 쓰지 않으므로 단원 선택 게이트(startGate)를 건너뛰고 프로필 안내(inner)만 거친다.
+      // kind 는 ranking-ui.js 의 게이트에 그대로 넘긴다(프로필 안내 팝업이 끝난 뒤 이어갈 곳을 기억하려고). [시작]은 kind 가 없어 이전과 같다
+      if (kind === 'challenge') return inner ? inner(kind) : true;
       let go = true;
       try { go = startGate() !== false; } catch (e) { go = true; }
       if (!go) return false;
-      return inner ? inner() : true;
+      return inner ? inner(kind) : true;
     });
   }
 

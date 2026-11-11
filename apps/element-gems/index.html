@@ -104,6 +104,8 @@
       </div>
       <p id="level-desc" class="level-desc">기본 규칙. 균형 잡힌 2분 승부!</p>
       <button id="btn-start" class="btn primary big" type="button">시작</button>
+      <!-- 최고점 도전 (spec §46): 목표·레벨이 없는 2분 점수 놀이. 부제와 추천 딱지는 game.js 가 저장 기록에서 채운다. 아이콘은 장식(SVG, 글자 이모지 아님) -->
+      <button id="btn-challenge" class="btn chal-btn" type="button"><span class="chal-ic" aria-hidden="true"><svg viewBox="0 0 32 32" width="28" height="28" focusable="false"><path d="M12 4h8" fill="none" stroke="#0b5f78" stroke-width="3" stroke-linecap="round"/><circle cx="16" cy="18" r="11" fill="#fff" stroke="#0b5f78" stroke-width="3"/><path d="M16 11v7l4.5 3" fill="none" stroke="#0b5f78" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="chal-txt"><b class="chal-t">최고점 도전</b><small id="chal-sub" class="chal-s">2분 동안 최고 점수에 도전!</small></span><i id="chal-badge" class="chal-badge" hidden>추천</i></button>
       </div>
       <button id="btn-hall" class="btn hall" type="button" hidden><span class="st" aria-hidden="true">&#9733;</span>명예의 전당<span class="hall-sub">별 챔피언 순위 보기</span></button>
       </div>
@@ -118,6 +120,7 @@
         <li><b>게이지</b> 색마다 게이지가 따로 차고, 가득 차면 버튼이 반짝여요.</li>
         <li><b>스킬</b> 게이지 버튼을 눌러 원소 스킬을 쓰세요.</li>
         <li><b>콤보</b> 쉬지 않고 계속 맞추면 콤보! 점수 배수가 올라가요(최대 ×3).</li>
+        <li class="rule-chal"><b>최고점 도전</b> 2분 동안 점수를 최대한 모아요. 별이 같을 때 최고점이 높은 사람이 위에 올라요.</li>
       </ul>
       <p id="tutorial" class="tutorial" hidden>처음이시군요! 불과 풀 스킬은 버튼을 누른 뒤 보드의 칸을 한 번 더 눌러 조준해요.</p>
       </div>
@@ -178,7 +181,7 @@
       </div>
       <div id="pf-msg-wrap" class="pf-msg-wrap" aria-live="polite"></div>
       <p id="pf-left" class="pf-left" hidden></p>
-      <div class="pf-notice"><b>실명, 학교 이름, 학년·반, 연락처는 쓰지 마세요.</b><br>명예의 전당에는 <b>닉네임·그림·별 수·순위</b>만 모두에게 보여요.</div>
+      <div class="pf-notice"><b>실명, 학교 이름, 학년·반, 연락처는 쓰지 마세요.</b><br>명예의 전당에는 <b>닉네임·그림·별 수·최고점·순위</b>만 모두에게 보여요.</div>
       <p id="pf-carry" class="pf-carry" role="status" hidden></p>
       <p id="pf-wipe" class="pf-carry warn" role="status" hidden></p>
       <div id="pf-actions" class="pf-actions">
@@ -211,7 +214,7 @@
           <button id="pf-confirm2-yes" class="btn danger" type="button">네, 지울게요</button>
         </div>
       </div>
-      <p class="pf-small">닉네임·그림·별 수는 순위표를 보여 주려고 서버에 저장돼요. 이름이나 학교, 연락처, 사진은 받지 않아요. <b>순위표에 올라간 이름은 내가 직접 지울 수 없으니 신중하게 정해요.</b> 이름과 그림은 ‘수정’으로 바꿀 수 있어요. [프로필 지우기]는 이 기기의 기록만 지워요.</p>
+      <p class="pf-small">닉네임·그림·별 수·최고점은 순위표를 보여 주려고 서버에 저장돼요. 이름이나 학교, 연락처, 사진은 받지 않아요. <b>순위표에 올라간 이름은 내가 직접 지울 수 없으니 신중하게 정해요.</b> 이름과 그림은 ‘수정’으로 바꿀 수 있어요. [프로필 지우기]는 이 기기의 기록만 지워요.</p>
       </div>
     </div>
   </section>
@@ -231,14 +234,14 @@
         <button class="hf-tab t-normal" id="hall-tab-normal" type="button" role="tab" aria-selected="false" tabindex="-1" aria-controls="hall-panel" data-board="normal">중수</button>
         <button class="hf-tab t-hard" id="hall-tab-hard" type="button" role="tab" aria-selected="false" tabindex="-1" aria-controls="hall-panel" data-board="hard">고수</button>
       </div>
-      <div class="hf-meta"><span id="hall-asof"></span><span id="hall-rule" class="rule">점수가 같으면 남은 시간이 많은 순</span></div>
+      <div class="hf-meta"><span id="hall-asof"></span><span id="hall-rule" class="rule">점수가 같으면 최고점이 높은 순 (그다음 남은 시간)</span></div>
       <p id="hall-weight" class="hf-weight">고수 별은 3점, 중수 별은 2점, 초보 별은 1점이에요.</p>
       <div id="hall-panel" class="hf-panel" role="tabpanel" aria-labelledby="hall-tab-all">
         <ol id="hall-list" class="hf-list" aria-label="별 챔피언 순위 상위 50명" tabindex="0" hidden></ol>
         <div id="hall-empty" class="hf-empty" role="status" hidden></div>
       </div>
       <div id="hall-me" class="myrank" hidden></div>
-      <p id="hall-foot" class="hf-foot">상위 50명을 보여 줘요. 보이는 정보는 닉네임·그림·별 수·순위뿐이에요.</p>
+      <p id="hall-foot" class="hf-foot">상위 50명을 보여 줘요. 보이는 정보는 닉네임·그림·별 수·최고점·순위뿐이에요.</p>
     </div>
   </section>
 
@@ -371,6 +374,29 @@
         <button id="btn-next" class="btn primary" type="button" hidden>다음 레벨</button>
         <button id="btn-again" class="btn" type="button">다시 하기</button>
         <button id="btn-home" class="btn ghost" type="button">레벨 선택</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 최고점 도전 결과 (spec §46). 글은 game.js 가 채우고, 서버 제출 상태 한 줄(#chal-end-rank)과 [명예의 전당 보기]의 표시는 ranking-ui.js 가 맡는다(명예의 전당이 꺼져 있으면 숨은 채로) -->
+  <div id="overlay-chal-end" class="overlay" hidden role="dialog" aria-modal="true" aria-labelledby="chal-end-title">
+    <div class="panel chal-panel">
+      <h2 id="chal-end-title" class="chal-ribbon">도전 끝!</h2>
+      <p class="chal-lab">이번 점수</p>
+      <div class="end-score chal-score" id="chal-end-score">0</div>
+      <p class="chal-new" id="chal-end-new" hidden><span aria-hidden="true">&#9733;</span> 새 기록!</p>
+      <p class="chal-line" id="chal-end-line" role="status"></p>
+      <p class="chal-cheer" id="chal-end-cheer" hidden></p>
+      <dl class="stats chal-stats">
+        <div><dt>최고 콤보</dt><dd id="chal-end-combo">0</dd></div>
+        <div><dt>최대 연쇄</dt><dd id="chal-end-chain">0</dd></div>
+        <div><dt>스킬 점수</dt><dd id="chal-end-skills">+0</dd></div>
+      </dl>
+      <p class="muted end-rank chal-rank" id="chal-end-rank" role="status" hidden></p>
+      <div class="chal-buttons">
+        <button id="btn-chal-again" class="btn chal-again" type="button">다시 도전</button>
+        <button id="btn-chal-hall" class="btn" type="button" hidden>명예의 전당 보기</button>
+        <button id="btn-chal-home" class="btn chal-home" type="button">돌아가기</button>
       </div>
     </div>
   </div>

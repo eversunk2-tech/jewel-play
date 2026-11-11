@@ -595,12 +595,16 @@ __mods['core'] = function (module, exports, require) {
   const STAR_RATIO_BY = { hard: [0.15, 0.3] };         // 난이도별 덮어쓰기(spec §44): 고수는 >=0.15 -> 2별, >=0.3 -> 3별
   // spec §19.2.2 서버 허용 left 상한 = 시작 시간 + 20 (Review가 실제 최대를 확인한 뒤 필요하면 완화)
   const LEFT_CAP = { easy: 150, normal: 140, hard: 120 };
+  // 최고점 도전 모드(spec §46.3.5) 최고점 상한. 이 값을 넘는 정수는 정직한 점수가 아니라 보고 그 값만 무시한다(기록 안 함).
+  // game.js 의 CONFIG.challenge.scoreCap 과 같아야 한다(server/test/core.test.js 가 대조). 점수 규칙·프리셋을 바꾸면 새 Plan 으로 다시 잰다(§46.3.5).
+  const SCORE_CAP = 280000;
 
   const LIMITS = {
     bodyBytes: 2048,          // 요청 본문 최대
     writeIntervalSec: 3,      // 같은 pid의 쓰기 간격
     nickChangesPerDay: 2,
     regPerHour: 100,          // IP 해시당 시간당 등록 수
+    scoreWriteIntervalSec: 60, // 최고점이 오르는 요청은 마지막 쓰기로부터 이 시간 이상(spec §46.3.4). 프로필·진행 변경은 writeIntervalSec(3초)
     topMax: 50,
     adminFailMax: 5,          // 관리자 키 실패 허용 횟수
     adminFailWindowSec: 600,
@@ -662,6 +666,13 @@ __mods['core'] = function (module, exports, require) {
     return { ok: true, d: { easy: d.easy.slice(), normal: d.normal.slice(), hard: d.hard.slice() } };
   }
 
+  /** 요청의 s(최고점) 검증. 0 이상의 정수만 정상(null·true·문자열·배열·소수·음수·NaN 은 progress_invalid, field 's').
+   *  성공: { ok:true, s, rejected } - rejected 는 SCORE_CAP 초과(그 값만 무시하고 나머지는 정상 처리하라는 뜻). 실패: { ok:false, code:'progress_invalid', field:'s' } */
+  function validateScore(s) {
+    if (typeof s !== 'number' || !Number.isInteger(s) || s < 0) return { ok: false, code: 'progress_invalid', field: 's' };
+    return { ok: true, s: s || 0, rejected: s > SCORE_CAP };                       // s || 0 : -0 을 0 으로
+  }
+
   /** 스테이지별 최대값 병합(감소 불가) */
   function mergeProgress(oldP, newD) {
     const out = {};
@@ -711,16 +722,17 @@ __mods['core'] = function (module, exports, require) {
     return t;
   }
 
-  /** 보드 -> D1 열 이름 */
+  /** 보드 -> D1 열 이름. score(최고점) 열은 네 보드가 같다 */
   function boardCols(board) {
-    if (board === 'all') return { stars: 'total_stars', left: 'total_left', up: 'up_all' };
+    if (board === 'all') return { stars: 'total_stars', score: 'best_score', left: 'total_left', up: 'up_all' };
     if (DIFFS.indexOf(board) < 0) return null;
-    return { stars: 'stars_' + board, left: 'left_' + board, up: 'up_' + board };
+    return { stars: 'stars_' + board, score: 'best_score', left: 'left_' + board, up: 'up_' + board };
   }
 
-  /** 순위 비교 함수(SQL의 ORDER BY 와 같은 순서): 별 내림 -> 남은 시간 합 내림 -> 달성 시각 오름 -> id 오름 */
+  /** 순위 비교 함수(SQL의 ORDER BY 와 같은 순서, spec §46.3.3): 별 내림 -> 최고점 내림 -> 남은 시간 합 내림 -> 달성 시각 오름 -> id 오름.
+   *  score 가 없는 행은 0점(도전 기록 없음)으로 보므로, 모두 0점이면 옛 규칙(남은 시간 -> 달성 시각 -> id)과 같다 */
   function compareRank(a, b) {
-    return (b.stars - a.stars) || (b.left - a.left) || (a.up - b.up) || (a.id - b.id);
+    return (b.stars - a.stars) || ((b.score || 0) - (a.score || 0)) || (b.left - a.left) || (a.up - b.up) || (a.id - b.id);
   }
 
   /** 한국 시간(UTC+9) 날짜 번호 */
@@ -779,8 +791,8 @@ __mods['core'] = function (module, exports, require) {
   }
 
   module.exports = {
-    API_VERSION, STAR_WEIGHT, MAX_TOTAL_SCORE, weightedScore, DIFFS, BOARDS, STAGES, START_TIME, STAR_RATIO, STAR_RATIO_BY, LEFT_CAP, LIMITS, EMPTY_PROG_STR, PUB_ALPHABET,
-    starRatioOf, starThresholds, starsForLeft, parseProg, serializeProg, emptyProgress, validateProgress, mergeProgress, chainViolation,
+    API_VERSION, STAR_WEIGHT, MAX_TOTAL_SCORE, weightedScore, DIFFS, BOARDS, STAGES, START_TIME, STAR_RATIO, STAR_RATIO_BY, LEFT_CAP, SCORE_CAP, LIMITS, EMPTY_PROG_STR, PUB_ALPHABET,
+    starRatioOf, starThresholds, starsForLeft, parseProg, serializeProg, emptyProgress, validateProgress, validateScore, mergeProgress, chainViolation,
     computeTotals, boardCols, compareRank, kstDay, isUuid, normalizePub, originAllowed, checkProfile, safeEqual
   };
 };
@@ -969,11 +981,11 @@ __mods['worker'] = function (module, exports, require) {
     if (sec > 0 && hit && ctx.nowMs - hit.asOf < sec * 1000) return hit;
     const c = core.boardCols(board);
     const rows = await dbAll(ctx.env,
-      'SELECT nick, tag, avatar, ' + c.stars + ' AS stars FROM players WHERE hidden = 0 AND ' + c.stars + ' > 0' +
-      ' ORDER BY ' + c.stars + ' DESC, ' + c.left + ' DESC, ' + c.up + ' ASC, id ASC LIMIT ' + LIMITS.topMax, []);
+      'SELECT nick, tag, avatar, ' + c.stars + ' AS stars, ' + c.score + ' AS score FROM players WHERE hidden = 0 AND ' + c.stars + ' > 0' +
+      ' ORDER BY ' + c.stars + ' DESC, ' + c.score + ' DESC, ' + c.left + ' DESC, ' + c.up + ' ASC, id ASC LIMIT ' + LIMITS.topMax, []);
     const ent = {
       asOf: ctx.nowMs,
-      rows: rows.map((r, i) => ({ rank: i + 1, nick: r.nick, tag: r.tag, avatar: r.avatar, stars: r.stars }))
+      rows: rows.map((r, i) => ({ rank: i + 1, nick: r.nick, tag: r.tag, avatar: r.avatar, stars: r.stars, score: r.score }))
     };
     cache.top[board] = ent;
     return ent;
@@ -1014,7 +1026,7 @@ __mods['worker'] = function (module, exports, require) {
     if (!pub) throw new ApiError('bad_request', 'pub');
     const c = core.boardCols(board);
     const row = await dbFirst(ctx.env,
-      'SELECT id, nick, tag, avatar, hidden, ' + c.stars + ' AS stars, ' + c.left + ' AS lft, ' + c.up + ' AS up FROM players WHERE pub = ?', [pub]);
+      'SELECT id, nick, tag, avatar, hidden, ' + c.stars + ' AS stars, ' + c.score + ' AS score, ' + c.left + ' AS lft, ' + c.up + ' AS up FROM players WHERE pub = ?', [pub]);
     if (!row) throw new ApiError('player_not_found');
     const sec = cacheSec(ctx.env);
     const cc = sec > 0 ? 'public, max-age=' + Math.max(1, Math.floor(sec / 2)) : 'no-store';
@@ -1022,16 +1034,19 @@ __mods['worker'] = function (module, exports, require) {
     const of = await boardCount(ctx, board);
     let rankNo = null;
     if (row.stars > 0) {
+      // 나보다 앞선 사람 수 + 1. 정렬 키 순서(별 -> 최고점 -> 남은 시간 -> 달성 시각 -> id)대로 앞 단계가 같은 사람 안에서 다음 단계가 앞선 수를 센다(spec §46.3.3)
       const base = 'SELECT COUNT(*) FROM players WHERE hidden = 0 AND ' + c.stars + ' > 0 AND ';
       const r = await dbFirst(ctx.env,
-        'SELECT (' + base + c.stars + ' > ?) + (' + base + c.stars + ' = ? AND ' + c.left + ' > ?) + (' +
-        base + c.stars + ' = ? AND ' + c.left + ' = ? AND ' + c.up + ' < ?) + (' +
-        base + c.stars + ' = ? AND ' + c.left + ' = ? AND ' + c.up + ' = ? AND id < ?) + 1 AS rank',
-        [row.stars, row.stars, row.lft, row.stars, row.lft, row.up, row.stars, row.lft, row.up, row.id]);
+        'SELECT (' + base + c.stars + ' > ?) + (' +
+        base + c.stars + ' = ? AND ' + c.score + ' > ?) + (' +
+        base + c.stars + ' = ? AND ' + c.score + ' = ? AND ' + c.left + ' > ?) + (' +
+        base + c.stars + ' = ? AND ' + c.score + ' = ? AND ' + c.left + ' = ? AND ' + c.up + ' < ?) + (' +
+        base + c.stars + ' = ? AND ' + c.score + ' = ? AND ' + c.left + ' = ? AND ' + c.up + ' = ? AND id < ?) + 1 AS rank',
+        [row.stars, row.stars, row.score, row.stars, row.score, row.lft, row.stars, row.score, row.lft, row.up, row.stars, row.score, row.lft, row.up, row.id]);
       rankNo = r ? r.rank : null;
     }
     return ok(ctx, {
-      board: board, asOf: ctx.nowMs, rank: rankNo, of: of, stars: row.stars, nick: row.nick, tag: row.tag, avatar: row.avatar
+      board: board, asOf: ctx.nowMs, rank: rankNo, of: of, stars: row.stars, score: row.score, nick: row.nick, tag: row.tag, avatar: row.avatar
     }, cc);
   }
 
@@ -1047,19 +1062,20 @@ __mods['worker'] = function (module, exports, require) {
   function publicMe(p, totals) {
     return {
       pub: p.pub, nick: p.nick, tag: p.tag, avatar: p.avatar, hidden: p.hidden,
-      stars: { easy: totals.stars.easy, normal: totals.stars.normal, hard: totals.stars.hard, all: totals.totalStars }
+      stars: { easy: totals.stars.easy, normal: totals.stars.normal, hard: totals.stars.hard, all: totals.totalStars },
+      score: p.score                                                  // 서버에 저장된 최고점(0 = 도전 기록 없음)
     };
   }
 
   const INSERT_SQL =
     'INSERT INTO players (pid_hash, pub, nick, nick_key, tag, avatar, prog_easy, prog_normal, prog_hard,' +
     ' stars_easy, stars_normal, stars_hard, left_easy, left_normal, left_hard, best_easy, best_normal, best_hard,' +
-    ' total_stars, total_left, up_all, up_easy, up_normal, up_hard, hidden, nick_changes, nick_day, created_at, last_write_at)' +
-    ' VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)';
+    ' total_stars, total_left, best_score, up_all, up_easy, up_normal, up_hard, hidden, nick_changes, nick_day, created_at, last_write_at)' +
+    ' VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)';
   const UPDATE_SQL =
     'UPDATE players SET nick=?, nick_key=?, tag=?, avatar=?, prog_easy=?, prog_normal=?, prog_hard=?,' +
     ' stars_easy=?, stars_normal=?, stars_hard=?, left_easy=?, left_normal=?, left_hard=?, best_easy=?, best_normal=?, best_hard=?,' +
-    ' total_stars=?, total_left=?, up_all=?, up_easy=?, up_normal=?, up_hard=?, hidden=?, nick_changes=?, nick_day=?, last_write_at=?' +
+    ' total_stars=?, total_left=?, best_score=?, up_all=?, up_easy=?, up_normal=?, up_hard=?, hidden=?, nick_changes=?, nick_day=?, last_write_at=?' +
     ' WHERE id = ?';
 
   function progStrings(p) { return DIFFS.map((d) => core.serializeProg(p[d])); }
@@ -1121,6 +1137,14 @@ __mods['worker'] = function (module, exports, require) {
       if (!r.ok) throw new ApiError(r.code, r.field);
       dReq = r.d;
     }
+    // 최고점 s(선택, spec §46.3.4): 형식이 틀리면 d 와 같이 400, 상한 초과는 그 값만 무시하고 나머지는 정상 처리(응답에 scoreRejected)
+    let sReq = null;                                                  // 상한 이하의 정상 최고점. 없거나 무시하면 null
+    let scoreRejected = false;
+    if (body.s !== undefined) {
+      const r = core.validateScore(body.s);
+      if (!r.ok) throw new ApiError(r.code, r.field);
+      if (r.rejected) scoreRejected = true; else sReq = r.s;
+    }
 
     const now = ctx.nowSec;
     const today = core.kstDay(now);
@@ -1142,6 +1166,7 @@ __mods['worker'] = function (module, exports, require) {
         await dbRun(env, 'DELETE FROM rate_limits WHERE win < ?', [now - 86400]);
       }
 
+      const score = sReq || 0;                                       // 새 플레이어의 첫 최고점(없거나 무시했으면 0)
       const up = (v) => (v ? now : 0);
       for (let attempt = 0; attempt < 4; attempt++) {
         const pub = randomPub();
@@ -1149,7 +1174,7 @@ __mods['worker'] = function (module, exports, require) {
         const ps = progStrings(merged);
         const params = [h, pub, prof.nick, prof.key, tag, prof.avatar, ps[0], ps[1], ps[2]]
           .concat(totalsCols(t))
-          .concat([up(t.totalStars > 0 || t.totalLeft > 0), up(t.stars.easy > 0), up(t.stars.normal > 0), up(t.stars.hard > 0), 0, 0, 0, now, now]);
+          .concat([score, up(t.totalStars > 0 || t.totalLeft > 0 || score > 0), up(t.stars.easy > 0 || score > 0), up(t.stars.normal > 0 || score > 0), up(t.stars.hard > 0 || score > 0), 0, 0, 0, now, now]);
         try {
           await dbRun(env, INSERT_SQL, params);
         } catch (e) {
@@ -1160,10 +1185,10 @@ __mods['worker'] = function (module, exports, require) {
           }
           throw e;
         }
-        return ok(ctx, {
-          me: publicMe({ pub: pub, nick: prof.nick, tag: tag, avatar: prof.avatar, hidden: 0 }, t),
+        return ok(ctx, Object.assign({
+          me: publicMe({ pub: pub, nick: prof.nick, tag: tag, avatar: prof.avatar, hidden: 0, score: score }, t),
           changed: true, nickChangesLeft: LIMITS.nickChangesPerDay, serverTime: ctx.nowMs
-        });
+        }, scoreRejected ? { scoreRejected: true } : null));
       }
       throw new ApiError('server_error');
     }
@@ -1210,20 +1235,28 @@ __mods['worker'] = function (module, exports, require) {
     const hiddenChanged = hidden !== row.hidden;
     const t = core.computeTotals(merged);
     const nickChangesLeft = Math.max(0, LIMITS.nickChangesPerDay - (nickDay === today ? nickChanges : 0));
-    const me = publicMe({ pub: row.pub, nick: nick, tag: tag, avatar: avatar, hidden: hidden }, t);
+    const oldScore = row.best_score || 0;                             // 열이 아직 없는 DB 에서는 undefined -> 0 (쓰기는 어차피 'no such column' 500)
+    const score = sReq !== null ? Math.max(oldScore, sReq) : oldScore;  // 최대값 병합(감소 불가). 상한 초과·없음은 저장값 그대로
+    const scoreRose = score > oldScore;
+    const me = publicMe({ pub: row.pub, nick: nick, tag: tag, avatar: avatar, hidden: hidden, score: oldScore }, t);
+    const extra = scoreRejected ? { scoreRejected: true } : null;
 
-    if (!profileChanged && !progChanged && !hiddenChanged) {          // 변경 없음 -> 쓰기 0 (읽기 1회로 끝)
-      return ok(ctx, { me: me, changed: false, nickChangesLeft: nickChangesLeft, serverTime: ctx.nowMs });
+    if (!profileChanged && !progChanged && !hiddenChanged && !scoreRose) {   // 변경 없음 -> 쓰기 0 (읽기 1회로 끝)
+      return ok(ctx, Object.assign({ me: me, changed: false, nickChangesLeft: nickChangesLeft, serverTime: ctx.nowMs }, extra));
     }
-    if ((profileChanged || progChanged) && now - row.last_write_at < LIMITS.writeIntervalSec) {
-      throw rateLimited(Math.max(1, LIMITS.writeIntervalSec - (now - row.last_write_at)));
+    // 쓰기 간격: 프로필·진행 변경은 3초, 최고점이 오르는 요청은 60초(spec §46.3.4, 점수를 1점씩 올려 쓰기 한도를 태우는 악용 방지)
+    const minGap = scoreRose ? LIMITS.scoreWriteIntervalSec : LIMITS.writeIntervalSec;
+    if ((profileChanged || progChanged || scoreRose) && now - row.last_write_at < minGap) {
+      throw rateLimited(Math.max(1, minGap - (now - row.last_write_at)));
     }
+    me.score = score;
 
-    const rose = (diff) => t.stars[diff] > row['stars_' + diff] || t.left[diff] > row['left_' + diff];
-    const upAll = (t.totalStars > row.total_stars || t.totalLeft > row.total_left) ? now : row.up_all;
+    // up_* = 순위 키(별·최고점·남은 시간)가 마지막으로 오른 시각. 최고점이 오르면 네 보드 모두 현재 시각(spec §46.3.2)
+    const rose = (diff) => scoreRose || t.stars[diff] > row['stars_' + diff] || t.left[diff] > row['left_' + diff];
+    const upAll = (scoreRose || t.totalStars > row.total_stars || t.totalLeft > row.total_left) ? now : row.up_all;
     const params = [nick, nickKey, tag, avatar, ps[0], ps[1], ps[2]]
       .concat(totalsCols(t))
-      .concat([upAll, rose('easy') ? now : row.up_easy, rose('normal') ? now : row.up_normal, rose('hard') ? now : row.up_hard,
+      .concat([score, upAll, rose('easy') ? now : row.up_easy, rose('normal') ? now : row.up_normal, rose('hard') ? now : row.up_hard,
         hidden, nickChanges, nickDay, now, row.id]);
     try {
       await dbRun(env, UPDATE_SQL, params);
@@ -1231,7 +1264,7 @@ __mods['worker'] = function (module, exports, require) {
       if (e instanceof UniqueError) throw rateLimited(1);            // 같은 이름·번호가 동시에 생긴 드문 경우: 잠시 뒤 재시도
       throw e;
     }
-    return ok(ctx, { me: me, changed: true, nickChangesLeft: nickChangesLeft, serverTime: ctx.nowMs });
+    return ok(ctx, Object.assign({ me: me, changed: true, nickChangesLeft: nickChangesLeft, serverTime: ctx.nowMs }, extra));
   }
 
   /* ------------------------------------------------------------------ 관리자 (ADMIN_KEY 가 설정된 경우에만) */
@@ -1275,8 +1308,8 @@ __mods['worker'] = function (module, exports, require) {
     if (!q || q.length > 20) throw new ApiError('bad_request', 'q');
     const like = '%' + q.replace(/[\\%_]/g, (c) => '\\' + c) + '%';
     const rows = await dbAll(ctx.env,
-      "SELECT id, pub, nick, tag, total_stars, hidden FROM players WHERE nick LIKE ? ESCAPE '\\' ORDER BY id DESC LIMIT 20", [like]);
-    return ok(ctx, { rows: rows.map((r) => ({ id: r.id, pub: r.pub, nick: r.nick, tag: r.tag, stars: r.total_stars, hidden: r.hidden })) });
+      "SELECT id, pub, nick, tag, total_stars, best_score, hidden FROM players WHERE nick LIKE ? ESCAPE '\\' ORDER BY id DESC LIMIT 20", [like]);
+    return ok(ctx, { rows: rows.map((r) => ({ id: r.id, pub: r.pub, nick: r.nick, tag: r.tag, stars: r.total_stars, score: r.best_score, hidden: r.hidden })) });
   }
 
   /* ------------------------------------------------------------------ 라우팅 */

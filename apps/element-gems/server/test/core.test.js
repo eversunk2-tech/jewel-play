@@ -193,3 +193,87 @@ test('safeEqual / isUuid / normalizePub', () => {
   assert.equal(core.normalizePub('ABCDILOU'), null);           // I L O U 는 쓰지 않음
   assert.equal(core.normalizePub('SHORT'), null);
 });
+
+/* ---------------------------------------------------------------- 최고점 도전 모드 (spec §46.3) */
+
+test('SCORE_CAP = 280000 · scoreWriteIntervalSec = 60 (spec §46.3.4~46.3.5), 기존 쓰기 간격 3초는 그대로', () => {
+  assert.equal(core.SCORE_CAP, 280000);
+  assert.equal(core.LIMITS.scoreWriteIntervalSec, 60);
+  assert.equal(core.LIMITS.writeIntervalSec, 3);
+  assert.equal(core.API_VERSION, 1, 'API_VERSION 을 올리면 옛 클라이언트가 랭킹을 꺼 버린다(spec §46.3.4)');
+});
+
+test('서버 SCORE_CAP 이 game.js 의 CONFIG.challenge.scoreCap 과 같다 (spec §46.3.5·46.4: 두 값이 어긋나면 정직한 점수가 서버에서 무시된다)', () => {
+  // Review R-S(§34): B-C 구현 전에는 CONFIG.challenge 가 없으면 건너뛰게 했던 것을, 구현이 들어온 뒤라 단언으로 바꿨다(조용히 건너뛰지 못하게).
+  assert.ok(game.CONFIG.challenge, 'game.js 에 CONFIG.challenge 가 있어야 한다(없으면 서버 상한 대조가 사라진다)');
+  assert.equal(game.CONFIG.challenge.scoreCap, core.SCORE_CAP);
+});
+
+test('validateScore: 0·상한은 정상, 상한+1은 정상이지만 rejected, 음수·소수·문자열·null·true·배열·객체는 progress_invalid(field s)', () => {
+  const okV = (v) => core.validateScore(v);
+  assert.deepEqual(okV(0), { ok: true, s: 0, rejected: false });
+  assert.deepEqual(okV(1), { ok: true, s: 1, rejected: false });
+  assert.deepEqual(okV(173040), { ok: true, s: 173040, rejected: false });
+  assert.deepEqual(okV(core.SCORE_CAP), { ok: true, s: 280000, rejected: false });
+  assert.deepEqual(okV(core.SCORE_CAP + 1), { ok: true, s: 280001, rejected: true });
+  assert.equal(okV(Number.MAX_SAFE_INTEGER).rejected, true);
+  assert.equal(okV(1e300).rejected, true, '정수로 보이는 큰 수도 무시 대상일 뿐 오류는 아니다');
+  assert.equal(Object.is(okV(-0).s, 0), true, '-0 은 0 으로');
+  const bad = { ok: false, code: 'progress_invalid', field: 's' };
+  for (const v of [-1, -280000, 0.5, 1.5, 100.0001, '100', '', 'abc', null, undefined, true, false, [], [1], {}, { a: 1 }, NaN, Infinity, -Infinity, () => 1, 10n]) {
+    assert.deepEqual(core.validateScore(v), bad, String(typeof v === 'bigint' ? v + 'n' : JSON.stringify(v) || typeof v));
+  }
+});
+
+test('boardCols: 네 보드 모두 score 열은 best_score, 별·남은 시간·달성 시각 열은 기존대로', () => {
+  assert.deepEqual(core.boardCols('all'), { stars: 'total_stars', score: 'best_score', left: 'total_left', up: 'up_all' });
+  for (const d of core.DIFFS) assert.deepEqual(core.boardCols(d), { stars: 'stars_' + d, score: 'best_score', left: 'left_' + d, up: 'up_' + d });
+  assert.equal(core.boardCols('zzz'), null);
+});
+
+test('정렬 비교(spec §46.3.3): 별 -> 최고점 -> 남은 시간 합 -> 먼저 달성 -> id, 키를 하나씩 뒤집은 12쌍', () => {
+  const base = { id: 10, stars: 10, score: 5000, left: 100, up: 50 };
+  const better = (over) => Object.assign({}, base, over);
+  // [더 앞서야 하는 행, 뒤여야 하는 행, 설명]: 각 쌍은 앞 단계는 같고 한 단계만 다르다. (더 앞선 쪽이 일부러 뒤 단계 값은 더 나쁘게 만들어 단계 우선순위를 확인)
+  const pairs = [
+    [better({ stars: 11, score: 0, left: 0, up: 999, id: 99 }), base, '별이 많으면 나머지가 모두 나빠도 앞'],
+    [better({ score: 5001, left: 0, up: 999, id: 99 }), base, '별이 같으면 최고점이 높은 쪽(남은 시간·달성 시각·id 가 나빠도)'],
+    [better({ left: 101, up: 999, id: 99 }), base, '별·최고점이 같으면 남은 시간이 많은 쪽'],
+    [better({ up: 49, id: 99 }), base, '별·최고점·남은 시간이 같으면 먼저 달성한 쪽'],
+    [better({ id: 9 }), base, '모두 같으면 id 가 작은 쪽'],
+    [better({ score: 5000, stars: 10 }), better({ score: 4999 }), '최고점 1점 차이'],
+    [better({ score: 280000 }), better({ score: 279999, left: 9999 }), '상한 근처 1점 차이도 남은 시간보다 우선'],
+    [better({ score: 1, left: 0 }), better({ score: 0, left: 9999, up: 1, id: 1 }), '점수 1점이 0점(기록 없음)보다 앞'],
+    [better({ stars: 1, score: 0 }), better({ stars: 0, score: 280000 }), '별 0개의 최고점은 의미 없음 - 별이 우선'],
+    [better({ left: 101, score: 0 }), better({ left: 100, score: 0 }), '둘 다 0점이면 옛 규칙: 남은 시간'],
+    [better({ up: 49, score: 0 }), better({ up: 50, score: 0 }), '둘 다 0점이면 옛 규칙: 달성 시각'],
+    [better({ id: 1, score: 0 }), better({ id: 2, score: 0 }), '둘 다 0점이면 옛 규칙: id']
+  ];
+  assert.ok(pairs.length >= 10);
+  for (const [a, b, why] of pairs) {
+    assert.ok(core.compareRank(a, b) < 0, why + ' (a 가 앞)');
+    assert.ok(core.compareRank(b, a) > 0, why + ' (b 가 뒤)');
+  }
+  assert.equal(core.compareRank(base, Object.assign({}, base)), 0);
+  // score 가 없는 행(옛 형식)은 0점으로 본다 -> 모두 0점이면 옛 규칙과 순서가 똑같다
+  const oldStyle = [
+    { id: 5, stars: 10, left: 100, up: 50 }, { id: 3, stars: 10, left: 100, up: 50 }, { id: 4, stars: 10, left: 100, up: 40 },
+    { id: 2, stars: 10, left: 120, up: 90 }, { id: 1, stars: 11, left: 1, up: 99 }, { id: 6, stars: 9, left: 999, up: 1 }
+  ];
+  assert.deepEqual(oldStyle.slice().sort(core.compareRank).map((r) => r.id), [1, 2, 4, 3, 5, 6]);
+  assert.deepEqual(oldStyle.map((r) => Object.assign({ score: 0 }, r)).sort(core.compareRank).map((r) => r.id), [1, 2, 4, 3, 5, 6]);
+  // 전순서: 무작위 행을 섞어 정렬해도 결과가 같고(추이성), 같은 행이 둘 있을 수 없다(id 가 다르므로)
+  let a32 = 7;
+  const rnd = (n) => {                                              // mulberry32(시드 7)
+    a32 = (a32 + 0x6D2B79F5) | 0;
+    let x = Math.imul(a32 ^ (a32 >>> 15), 1 | a32);
+    x = (x + Math.imul(x ^ (x >>> 7), 61 | x)) ^ x;
+    return Math.floor((((x ^ (x >>> 14)) >>> 0) / 4294967296) * n);
+  };
+  const many = [];
+  for (let i = 1; i <= 300; i++) many.push({ id: i, stars: rnd(3), score: rnd(3) * 1000, left: rnd(3) * 10, up: rnd(3) });
+  const s1 = many.slice().sort(core.compareRank).map((r) => r.id);
+  const s2 = many.slice().reverse().sort(core.compareRank).map((r) => r.id);
+  assert.deepEqual(s1, s2);
+  assert.equal(new Set(s1).size, 300);
+});

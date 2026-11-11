@@ -321,6 +321,74 @@
 }
 
 /* =====================================================================
+ * 시작 화면 높이 보정 — 최고점 도전 버튼(spec §46.9, B-E 후속)
+ * 시작 화면 [시작] 아래에 [최고점 도전] 버튼(약 50~60px + 간격)이 생기면서, 학습 단원 칩이 자리를 차지하는 교육용 시작 화면이
+ * 폰 세로(390×844·360×640·320×568)에서 한 화면을 넘어 세로 스크롤이 생기고 낮은 가로 폰·낮은 PC 화면에서는 더 길어졌다.
+ * 일반용에는 단원 칩이 없어 여유가 있으므로 이 블록은 교육용에만 둔다(style.css 는 두 앱이 같아야 한다).
+ * 줄이는 순서(눈에 덜 띄는 것부터): 칸 사이 간격·안쪽 여백 -> 단추 높이(44px 이상 유지) -> 로고 크기. 구조(배치)·색·글자 크기(.76rem 이상)는 바꾸지 않는다.
+ * 높이 구간마다 따로 두는 이유: 구간마다 style.css·위의 U-A 규칙이 이미 한 번씩 줄여 두어서 덮어쓸 값이 다르다. 폰 세로·낮은 가로·낮은 와이드 가로에만 걸리고 태블릿·높은 화면은 그대로다.
+ * 새 이미지·글꼴·애니메이션 없음. 단추는 모두 44px 이상.
+ * ===================================================================== */
+/* 폰·작은 태블릿 세로, 높이 701~1000px(예 390×844·375×812·600×960): 단원 칩이 쌓인 모양 그대로 간격·여백만 줄인다 */
+@media (orientation: portrait) and (min-height: 701px) and (max-height: 1000px) {
+  .menu-screen.start .start-card { row-gap: 4px; padding-top: calc(8px + env(safe-area-inset-top)); padding-bottom: calc(10px + env(safe-area-inset-bottom)); }
+  .menu-screen .sc-cta { gap: 6px; }
+  .menu-screen #btn-challenge { min-height: 52px; }
+  .menu-screen .eg-unit { padding: 6px 10px 8px; }
+  .menu-screen .eg-unit-top { margin-bottom: 2px; }
+  .menu-screen .eg-unit-label { margin-bottom: 6px; }
+  .menu-screen .level-btn { min-height: 48px; }
+  .menu-screen .level-desc { padding: 5px 12px; }
+  .menu-screen #btn-start { min-height: 72px; }
+  .menu-screen .logo { width: min(84vw, 540px, calc(var(--vh100) * .35 * 1.4876)); }
+}
+/* 낮은 폰 세로, 높이 601~700px(예 360×640·375×667): 칩은 이미 한 줄 높이 */
+@media (orientation: portrait) and (min-height: 601px) and (max-height: 700px) {
+  .menu-screen.start .start-card { row-gap: 2px; padding-top: calc(4px + env(safe-area-inset-top)); padding-bottom: calc(5px + env(safe-area-inset-bottom)); }
+  .menu-screen .sc-cta { gap: 4px; }
+  .menu-screen #btn-challenge { min-height: 46px; }
+  .menu-screen .level-btn { min-height: 44px; }
+  .menu-screen #btn-start { min-height: 54px; }
+  .menu-screen .logo { width: min(70vw, 400px, calc(var(--vh100) * .23 * 1.4876)); }
+}
+@media (orientation: portrait) and (min-height: 601px) and (max-height: 700px) and (max-width: 340px) {
+  .menu-screen .level-select { padding: 2px; }
+  .menu-screen .howto-btn i { width: 28px; height: 28px; line-height: 28px; }
+}
+/* 아주 낮은 폰 세로, 높이 600px 이하(예 320×568): 위 규칙에 더해 [최고점 도전]의 부제는 이미 숨겨져 있다(style.css) */
+@media (orientation: portrait) and (max-height: 600px) {
+  .menu-screen #btn-challenge { min-height: 44px; }
+  .menu-screen .sc-cta { gap: 3px; }
+  .menu-screen #btn-start { min-height: 50px; }
+  .menu-screen .level-select { padding: 2px; }
+  .menu-screen .howto-btn { min-height: 44px; }
+  .menu-screen .howto-btn i { width: 28px; height: 28px; line-height: 28px; }
+  .menu-screen .level-desc { padding: 2px 10px; font-size: .76rem; }
+  .menu-screen .best-line { border-width: 1px; padding-top: 1px; padding-bottom: 1px; }
+  .menu-screen .eg-unit { padding-top: 4px; padding-bottom: 4px; }
+  .menu-screen .logo { width: min(70vw, 400px, calc(var(--vh100) * .18 * 1.4876)); }
+}
+@media (orientation: portrait) and (max-height: 500px) {
+  .menu-screen .logo { width: min(70vw, 400px, calc(var(--vh100) * .16 * 1.4876)); }
+}
+/* 낮은 가로 폰(높이 380px 이하, 예 740×360·667×375·568×320): 오른쪽 열(난이도·[시작]·[최고점 도전])이 왼쪽 열보다 길어져 칸이 늘어나지 않게 간격을 줄인다 */
+@media (orientation: landscape) and (max-height: 380px) {
+  .menu-screen .sc-cta { gap: 3px; }
+  .menu-screen #btn-challenge { min-height: 44px; }
+  .menu-screen .level-select { padding: 3px; }
+  .menu-screen .level-desc { padding-top: 2px; padding-bottom: 2px; }
+}
+@media (orientation: landscape) and (max-height: 340px) {
+  .menu-screen .sc-cta { gap: 2px; }
+  .menu-screen #btn-start { min-height: 48px; }
+  .menu-screen .level-desc { font-size: .74rem; line-height: 1.2; }
+}
+/* 와이드 가로(PC·태블릿) 중 높이 701~800px(예 1280×720·1536×730): 로고 높이를 "화면 높이 − 340px"까지만 쓴다(그보다 낮은 화면은 위의 낮은 와이드 규칙, 더 높은 화면은 원래 크기) */
+@media (min-width: 800px) and (min-height: 701px) and (max-height: 800px) and (orientation: landscape) {
+  .menu-screen .logo { width: min(58vw, 700px, calc(var(--vh100) * .56 * 1.4876), calc((var(--vh100) - 340px) * 1.4876)); }
+}
+
+/* =====================================================================
  * 선물상자 문제 양 "보통 / 많이"와 학습 칩 (spec §27.7·§27.8, M3-B)
  *  ① 학습단원 선택 화면의 라디오 두 개(.eg-amount) · 시작 화면 단원 칩의 한 줄(.eg-unit-amount)
  *  ② 게임 화면의 "선물상자 문제 풀기 3 / 7" 칩(.learn-chip): 문제 양 "많이"인 판에서만 보이고, 점수형은 목표 바 아래·미션형은 미션 칩 아래에 놓인다

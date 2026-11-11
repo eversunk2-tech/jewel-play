@@ -219,6 +219,19 @@
       },
       loadTimeoutMs: 2500
     },
+    // spec §46(최고점 도전, 사용자 승인 2026-11-11): 목표·레벨·별이 없는 2분 점수 놀이. 규칙은 중수 값을 그대로 복사한 뒤 아래 두 가지(시간 보너스 전부 0, 빛 스킬 시간 0)만 덮는다(applyChallenge).
+    //   점수 규칙은 §28 그대로(규칙 함수를 새로 만들지 않는다). 물 스킬의 시간 정지·스킬 컷인은 원래대로라 시계 120초는 그동안 멈춘다.
+    //   base          규칙을 복사해 올 난이도(CONFIG.difficulty[base]).   seconds  시계 시작 값이자 상한(시간 보너스가 없으므로 늘지 않는다).
+    //   boardGrade    보드 구조 등급. 0 = 균등 무작위(기존 코드 경로 그대로, 기본). 0 이 아니면 CONFIG.board.grades[base][등급]을 쓴다.
+    //   scoreCap      서버 core.js 의 SCORE_CAP 과 같아야 하는 점수 상한(280,000). 저장·제출은 이 값으로 줄여서 한다(server/test/core.test.js 가 두 값을 대조한다).
+    //   submitDelaySec  새 기록을 서버에 올리기 전에 모으는 시간(초). 마지막 개선 이만큼 뒤, 또는 도전을 나갈 때·탭이 숨겨질 때 한 번 올린다(서버는 점수 개선 쓰기를 60초 간격으로 제한한다).
+    challenge: {
+      base: 'normal',
+      seconds: 120,
+      boardGrade: 0,
+      scoreCap: 280000,
+      submitDelaySec: 300
+    },
     // spec §19: 별 챔피언 명예의 전당. apiBase가 비어 있으면 프로필·명예의 전당 UI와 네트워크 호출이 전부 꺼진다(기본 배포 상태).
     // 배포 후 Worker 주소(예: 'https://element-gems-ranking.sunkyboy.workers.dev')를 넣는다. 로컬 시험 주소는 커밋하지 않는다.
     ranking: {
@@ -990,7 +1003,8 @@
       level: 'normal', progress: { easy: 0, normal: 0, hard: 0 }, stages: stages,
       bestByLevel: { easy: 0, normal: 0, hard: 0 }, best: 0,
       bestChain: 0, plays: 0, lastScore: 0, muted: false, tutorialSeen: false, cutin: true,
-      scoreRule: CONFIG.score.rule        // spec §28.9: 점수 규칙 표식. 이 값이 다른(없는) 옛 저장은 parseSave 가 레벨별 best 를 bestOld 로 옮긴다
+      scoreRule: CONFIG.score.rule,       // spec §28.9: 점수 규칙 표식. 이 값이 다른(없는) 옛 저장은 parseSave 가 레벨별 best 를 bestOld 로 옮긴다
+      challenge: defaultChallenge()       // spec §46: 최고점 도전 기록 { best, last, plays, rule } — 스테이지 기록과 따로다
     };
   }
 
@@ -1047,6 +1061,7 @@
       const pv = (typeof p === 'number' && p % 1 === 0 && p >= 0 && p <= CONFIG.stages.count) ? p : 0;
       out.progress[k] = Math.max(pv, highestStar);
     });
+    out.challenge = parseChallenge(o.challenge);      // spec §46: 옛 저장에는 없다 -> 기본값. 손상·범위 밖은 0, 규칙 표식이 다르면 옛 최고점은 bestOld 로
     return out;
   }
 
@@ -1064,6 +1079,90 @@
       if (stage > sv.progress[diff]) { sv.progress[diff] = stage; firstClear = true; }
     }
     return { firstClear: firstClear, unlocked: firstClear && stage < CONFIG.stages.count ? stage + 1 : 0, improved: improved };
+  }
+
+  /* ---------- 최고점 도전 (spec §46) 순수 함수 — DOM·난수 없음 ----------
+   * 도전은 스테이지 기록(stages·progress·bestByLevel·plays·lastScore·bestChain)과 완전히 분리돼 있다. 저장 필드 save.challenge = { best, last, plays, rule[, bestOld] }. */
+  /** 도전 기록 기본값. rule = 점수 규칙 표식(CONFIG.score.rule): 규칙이 바뀐 뒤에는 옛 점수를 새 점수와 비교할 수 없다 */
+  function defaultChallenge() { return { best: 0, last: 0, plays: 0, rule: CONFIG.score.rule }; }
+
+  /** 저장의 challenge 필드를 검증해 새 객체로 돌려준다. 없음·손상·범위 밖(0~scoreCap 정수가 아님)은 0.
+   *  규칙 표식이 현재 규칙과 다르면 best·last 를 0 으로 시작하고 옛 최고점은 bestOld 로 옮긴다(§28.9 스테이지 bestOld 와 같은 방식) */
+  function parseChallenge(o) {
+    const c = defaultChallenge();
+    if (!o || typeof o !== 'object' || Array.isArray(o)) return c;
+    const cap = CONFIG.challenge.scoreCap;
+    const best = intIn(o.best, 0, cap) ? o.best : 0;
+    const last = intIn(o.last, 0, cap) ? o.last : 0;
+    if (intIn(o.plays, 0, 1e9)) c.plays = o.plays;
+    if (o.rule === CONFIG.score.rule) {
+      c.best = best;
+      c.last = last;
+      const old = intIn(o.bestOld, 0, cap) ? o.bestOld : 0;
+      if (old > 0) c.bestOld = old;
+    } else if (best > 0) {
+      c.bestOld = best;
+    }
+    return c;
+  }
+
+  /** 최고점 도전 규칙을 활성 값 위치에 적용한다: 중수 값(CONFIG.challenge.base)을 복사한 뒤 시계를 seconds 로 고정하고 시간 보너스(3·4·5매치·연쇄)와 빛 스킬의 시간 +초를 0 으로 한다.
+   *  물 스킬의 시간 정지·스킬 컷인은 원래대로다. 점수 규칙(§28)·콤보 창·스킬 점수는 복사한 값 그대로다. 반환: 쓴 난이도 이름 */
+  function applyChallenge() {
+    const C = CONFIG.challenge;
+    const lv = applyDifficulty(C.base);
+    CONFIG.time.start = C.seconds;
+    CONFIG.time.max = C.seconds;
+    CONFIG.timeBonus[3] = 0;
+    CONFIG.timeBonus[4] = 0;
+    CONFIG.timeBonus[5] = 0;
+    CONFIG.timeBonus.chainExtra = 0;
+    CONFIG.skills.light.time = 0;
+    return lv;
+  }
+
+  /** 도전 결과를 저장 객체에 반영한다(저장소 쓰기는 호출한 쪽). 스테이지 기록은 건드리지 않는다. 점수는 scoreCap 으로 줄여 저장한다.
+   *  반환: { score(저장한 점수), prev(이전 최고), best(새 최고), newBest, first(이전 최고가 없었고 점수가 있는 첫 기록) } */
+  function applyChallengeResult(sv, score) {
+    if (!sv.challenge || typeof sv.challenge !== 'object') sv.challenge = defaultChallenge();
+    const c = sv.challenge;
+    const cap = CONFIG.challenge.scoreCap;
+    const s = Math.max(0, Math.min(cap, Math.floor(validScore(score) ? score : 0)));
+    const prev = intIn(c.best, 0, cap) ? c.best : 0;
+    c.plays = (intIn(c.plays, 0, 1e9) ? c.plays : 0) + 1;
+    c.last = s;
+    c.rule = CONFIG.score.rule;
+    c.best = s > prev ? s : prev;
+    return { score: s, prev: prev, best: c.best, newBest: s > prev, first: prev === 0 && s > 0 };
+  }
+
+  function koInt(n) { return Math.max(0, Math.round(n)).toLocaleString('ko-KR'); }
+
+  /** 시작 화면 [최고점 도전] 버튼의 글: 기록이 있으면 "내 최고 N점", 세 난이도를 모두 깼는데 도전은 처음이면 "모두 깼다면 도전해 봐요!" + 추천 딱지, 아니면 기본 안내 */
+  function challengeStartInfo(sv) {
+    const c = sv && sv.challenge ? sv.challenge : defaultChallenge();
+    const allClear = LEVELS.every(function (k) { return sv && sv.progress && sv.progress[k] >= CONFIG.stages.count; });
+    if (c.best > 0) return { sub: '내 최고 ' + koInt(c.best) + '점', badge: false, state: 'best' };
+    if (allClear && c.plays === 0) return { sub: '모두 깼다면 도전해 봐요!', badge: true, state: 'recommend' };
+    return { sub: '2분 동안 최고 점수에 도전!', badge: false, state: 'new' };
+  }
+
+  /** 도전 중 막대(#goal 자리)의 글·채움. best = 이번 판을 시작할 때의 내 최고(0 이면 첫 기록 도전), score = 지금 점수.
+   *  kind: 'first'(기록 없음) | 'chase'(최고까지 남음) | 'beat'(최고를 넘음 — 글자와 ★ 모양으로도 알린다, 색에만 기대지 않는다) */
+  function challengeHudInfo(best, score) {
+    if (!(best > 0)) return { kind: 'first', best: '', gap: '첫 기록에 도전!', frac: 0, label: '첫 기록에 도전하는 중' };
+    if (score >= best) return { kind: 'beat', best: '내 최고 ' + koInt(best), gap: '★ 신기록!', frac: 1, label: '신기록! 내 최고 ' + koInt(best) + '점을 넘었어요' };
+    const left = best - score;
+    return { kind: 'chase', best: '내 최고 ' + koInt(best), gap: '신기록까지 ' + koInt(left) + '점', frac: Math.max(0, score) / best, label: '내 최고 ' + koInt(best) + '점, 신기록까지 ' + koInt(left) + '점' };
+  }
+
+  /** 결과 화면의 글. res = applyChallengeResult 의 반환. badge = "★ 새 기록!" 딱지, line = 한 줄 설명, cheer = 격려 한 줄(빨간색·TIME UP·"실패"는 쓰지 않는다) */
+  function challengeResultInfo(res) {
+    if (res.first) return { badge: true, line: '첫 기록이에요! 내 최고 점수로 저장했어요.', cheer: '' };
+    if (res.newBest) return { badge: true, line: '지난 최고 ' + koInt(res.prev) + ' → +' + koInt(res.best - res.prev), cheer: '' };
+    if (res.score <= 0) return { badge: false, line: '이번에는 점수를 모으지 못했어요.', cheer: '한 번 더 해 볼까요?' };
+    if (res.score === res.prev) return { badge: false, line: '내 최고와 같은 점수예요!', cheer: '좋은 점수예요! 한 번 더 해 볼까요?' };
+    return { badge: false, line: '내 최고 ' + koInt(res.prev) + ' · ' + koInt(res.prev - res.score) + '점 남았어요', cheer: '좋은 점수예요! 한 번 더 해 볼까요?' };
   }
 
   function praiseLevel(maxStep, maxGroup, total) {
@@ -1102,7 +1201,9 @@
       missionValid: missionValid, missionDef: missionDef, missionInit: missionInit, missionUpdate: missionUpdate, missionDone: missionDone,
       missionProgress: missionProgress, missionDescribe: missionDescribe,
       stageKind: stageKind, isSpecialMission: isSpecialMission, stageCardLabel: stageCardLabel, stageDetailInfo: stageDetailInfo,
-      spiritOf: spiritOf, spiritStep: spiritStep, spiritCells: spiritCells, awakenedCount: awakenedCount, SPIRIT_TEXT: SPIRIT_TEXT
+      spiritOf: spiritOf, spiritStep: spiritStep, spiritCells: spiritCells, awakenedCount: awakenedCount, SPIRIT_TEXT: SPIRIT_TEXT,
+      defaultChallenge: defaultChallenge, parseChallenge: parseChallenge, applyChallenge: applyChallenge, applyChallengeResult: applyChallengeResult,
+      challengeStartInfo: challengeStartInfo, challengeHudInfo: challengeHudInfo, challengeResultInfo: challengeResultInfo
     };
   }
   if (typeof document === 'undefined') return;
@@ -1161,6 +1262,7 @@
     mission: null,    // 이번 스테이지의 미션 상태(missionInit). null = 점수 목표(기본). 미션형이면 goalMet 이 이것으로 판정한다(spec §27)
     spirit: null,     // 특별 레벨(5·10단계)의 정령 화면 상태 { info: { type, name, steps }, k: 깨어남 단계, special: 미션형 특별 레벨인가 }. 특별 레벨이 아니면 null (spec §27.6, M4 — 규칙에는 쓰이지 않는다)
     startTime: 120,   // 별 계산 기준 시작 시간
+    challenge: null,  // 최고점 도전(spec §46) 판이면 { prevBest: 판을 시작할 때의 내 최고 }, 스테이지 판이면 null. resetState 가 null 로 되돌린다(나가도 다음 판을 시작할 때까지 남아 있다)
     idle: 0
   };
 
@@ -1182,7 +1284,9 @@
       'overlay-end', 'end-title', 'level-select', 'level-desc', 'level-chip', 'pause-level', 'end-level', 'btn-cutin-start', 'btn-cutin-pause', 'cutin', 'cutin-img', 'cb-shout', 'cb-skill', 'cn-gem', 'cn-text', 'logo-img', 'title-fallback', 'end-score', 'end-best', 'end-combo', 'end-chain', 'end-skills',
       'end-matches', 'combo-chip', 'combo-run', 'combo-mult', 'combo-max', 'combo-bar', 'combo-live', 'btn-again', 'btn-home', 'mission', 'mission-list', 'mission-live',
       'stage-detail', 'sd-title', 'sd-tag', 'sd-goal', 'sd-hint', 'sd-time', 'btn-stage-go',
-      'sp-wrap', 'spirit', 'sp-art', 'sp-img', 'sp-zz', 'sp-title', 'sp-gauge', 'sp-count', 'sp-live', 'sp-note', 'end-spirit', 'sp-roster', 'sp-roster-art', 'sp-roster-text', 'sp-roster-sr'
+      'sp-wrap', 'spirit', 'sp-art', 'sp-img', 'sp-zz', 'sp-title', 'sp-gauge', 'sp-count', 'sp-live', 'sp-note', 'end-spirit', 'sp-roster', 'sp-roster-art', 'sp-roster-text', 'sp-roster-sr',
+      'btn-challenge', 'chal-sub', 'chal-badge', 'overlay-chal-end', 'chal-end-score', 'chal-end-new', 'chal-end-line', 'chal-end-cheer', 'chal-end-combo', 'chal-end-chain', 'chal-end-skills',
+      'chal-end-rank', 'btn-chal-again', 'btn-chal-hall', 'btn-chal-home'
     ].forEach(function (id) { el[id] = $(id); });
   }
 
@@ -2875,7 +2979,10 @@
     const dt = Math.min(0.25, Math.max(0, (now - lastT) / 1000));
     lastT = now;
     if (state.phase === 'playing') advance(dt);
-    if (state.phase !== 'start') updateHUD(dt);
+    if (state.phase !== 'start') {
+      updateHUD(dt);
+      if (state.challenge) updateChallengeHud();      // spec §46: #goal 자리의 "내 최고까지" 막대
+    }
   }
 
   /* ---------- 화면 전환 ---------- */
@@ -2964,6 +3071,7 @@
   function renderStart() {
     renderLevelUi();
     el.tutorial.hidden = save.tutorialSeen;
+    renderChallengeBtn();             // spec §46: [최고점 도전] 버튼의 부제("내 최고 N점" 등)
     emit('renderStart');
   }
 
@@ -2996,6 +3104,7 @@
     state.confirmFrom = null;
     state.mission = null;
     state.spirit = null;
+    state.challenge = null;           // spec §46: 최고점 도전은 startChallenge 가 이 뒤에 다시 켠다
     state.cutinActive = false;
     state.warnSec = 99;
     state.idle = 0;
@@ -3004,6 +3113,7 @@
     hud.goal = -1; hud.goalText = ''; hud.bar = -1; hud.text = ''; hud.frozen = null; hud.low = null; hud.dark = null; hud.hint = ''; hud.mis = null;
     el.score.textContent = '0';
     el.goal.classList.remove('hit');
+    resetChallengeHud();              // spec §46: 도전 막대(#goal 자리)를 점수형 목표 바로 되돌린다
     el.popup.className = 'popup';
     el['aim-msg'].hidden = true;
     el.boardWrap.classList.remove('aiming', 'shake');
@@ -3131,7 +3241,189 @@
     goStages();
   }
 
-  function restartStage() { startStage(state.stage); }
+  /* =====================================================================
+   * 최고점 도전 (spec §46) — 시작 화면 버튼 · 판 시작/끝 · 막대(#goal 자리) · 결과 화면
+   * 규칙·점수 함수는 스테이지와 같은 것을 그대로 쓴다(applyChallenge 가 활성 값만 바꾼다). 이 판은 목표·미션·정령이 없고(state.target = 0, goalMet() 은 항상 거짓) 시계가 0 이 될 때 끝난다.
+   * 중간에 나가면 그 판은 기록하지 않는다. 서버가 없어도 이 기기의 최고점으로 완전히 동작한다(서버 제출은 ranking-ui.js 가 'challengeResult' 이벤트로 맡는다).
+   * ===================================================================== */
+  const hudChal = { f: -1, best: '', gap: '', kind: '' };
+
+  /** 시작 화면 [최고점 도전] 버튼의 부제·추천 딱지를 저장 기록에서 그린다(renderStart 가 부른다) */
+  function renderChallengeBtn() {
+    if (!el['btn-challenge']) return;      // (캐시된 옛 index.html 과 새 game.js 가 잠깐 섞여도 시작 화면이 멈추지 않게)
+    const info = challengeStartInfo(save);
+    el['chal-sub'].textContent = info.sub;
+    el['chal-badge'].hidden = !info.badge;
+  }
+
+  /** 도전 막대: #goal 을 "내 최고까지" 막대로 쓴다(진행 바·글·접근성 값만 바꾼다. 위치·크기는 점수형 목표 바 그대로라 레이아웃이 변하지 않는다) */
+  function setupChallengeHud() {
+    el.goal.dataset.chal = '1';
+    el.goal.setAttribute('aria-label', '내 최고 점수까지 진행');
+    hudChal.f = -1; hudChal.best = ''; hudChal.gap = ''; hudChal.kind = '';
+    el['goal-text'].textContent = '';
+    updateChallengeHud();
+  }
+
+  function resetChallengeHud() {
+    if (!el.goal.dataset || !el.goal.dataset.chal) return;
+    delete el.goal.dataset.chal;
+    el.goal.setAttribute('aria-label', '목표 점수 진행');
+    el.goal.removeAttribute('aria-valuetext');
+    el.goal.classList.remove('beat');
+    hudChal.f = -1; hudChal.best = ''; hudChal.gap = ''; hudChal.kind = '';
+  }
+
+  /** 값이 바뀐 때만 DOM 을 쓴다. 점수는 롤링 값(state.shown) 기준 — 점수형 목표 바와 같다 */
+  function updateChallengeHud() {
+    const ch = state.challenge;
+    if (!ch) return;
+    const info = challengeHudInfo(ch.prevBest, state.shown);
+    const f = Math.max(0, Math.min(1, info.frac));
+    if (Math.abs(f - hudChal.f) > 0.0005) {
+      el['goal-fill'].style.transform = 'scaleX(' + f.toFixed(4) + ')';
+      el.goal.setAttribute('aria-valuenow', String(Math.round(f * 100)));
+      hudChal.f = f;
+    }
+    if (info.best !== hudChal.best || info.gap !== hudChal.gap) {
+      const t = el['goal-text'];
+      t.textContent = '';
+      if (info.best) {
+        const a = document.createElement('span');
+        a.className = 'gt-best';
+        a.textContent = info.best + ' · ';
+        t.appendChild(a);
+      }
+      const b = document.createElement('span');
+      b.className = 'gt-gap';
+      b.textContent = info.gap;
+      t.appendChild(b);
+      el.goal.setAttribute('aria-valuetext', info.label);
+      hudChal.best = info.best; hudChal.gap = info.gap;
+    }
+    if (info.kind !== hudChal.kind) {
+      if (info.kind === 'beat' && !reduceMotion) { el.goal.classList.remove('hit'); void el.goal.offsetWidth; el.goal.classList.add('hit'); }
+      el.goal.classList.toggle('beat', info.kind === 'beat');
+      hudChal.kind = info.kind;
+    }
+  }
+
+  /** 3-2-1-GO 카운트다운과 시작(startStage 의 끝부분과 같은 순서). 중간에 판이 바뀌면 멈춘다 */
+  async function playCountdown(id) {
+    showOverlay('overlay-count', true);
+    for (let n = 3; n >= 1; n--) {
+      el['count-num'].textContent = String(n);
+      el['count-num'].style.animation = 'none';
+      void el['count-num'].offsetWidth;
+      el['count-num'].style.animation = '';
+      sfx('tick');
+      await sleepRaw(CONFIG.countdown.stepMs);
+      if (id !== state.gameId) return false;
+    }
+    el['count-num'].textContent = 'GO!';
+    el['count-num'].style.animation = 'none';
+    void el['count-num'].offsetWidth;
+    el['count-num'].style.animation = '';
+    sfx('go');
+    await sleepRaw(CONFIG.countdown.goMs);
+    if (id !== state.gameId) return false;
+    showOverlay('overlay-count', false);
+    return true;
+  }
+
+  async function startChallenge() {
+    audio.init();
+    state.gameId++;
+    const id = state.gameId;
+    cancelCutin();
+    audio.musicPrepare();
+    hideAllOverlays();
+    showOverlay('overlay-chal-end', false);
+    applyChallenge();                  // 중수 값 + 시계 120초 고정 + 시간 보너스·빛 시간 0
+    resetState();
+    const C = CONFIG.challenge;
+    const grade = C.boardGrade !== 0 && CONFIG.board.enabled && CONFIG.board.grades[C.base] ? CONFIG.board.grades[C.base][String(C.boardGrade)] : null;
+    state.board = grade ? { s: C.boardGrade, pair: grade.pair, auto: grade.auto, lo: grade.lo, hi: grade.hi, tries: CONFIG.board.tries } : null;     // 0 = 균등 무작위(기존 코드 경로)
+    state.challenge = { prevBest: save.challenge.best };
+    state.target = 0;
+    state.startTime = CONFIG.time.start;
+    el['level-chip'].textContent = '도전';
+    el['level-chip'].className = 'level-chip lv-challenge';
+    el['pause-level'].textContent = '최고점 도전 · 2분 동안 점수를 모아요';
+    el['count-info'].textContent = '최고점 도전 · 2분 동안 점수를 모아요';
+    await Promise.race([assetsReady, sleepRaw(CONFIG.assets.loadTimeoutMs)]);
+    if (id !== state.gameId) return;
+    buildBoard();
+    buildMissionHud();                 // state.mission·state.spirit 이 null 이라 목표 바(#goal)만 보이고 미션 칩·정령 패널은 숨는다
+    buildSpiritHud();
+    setupChallengeHud();
+    showScreen('game');
+    renderGauges();
+    if (!save.tutorialSeen) { save.tutorialSeen = true; writeSave(); }
+    if (!(await playCountdown(id))) return;
+    state.phase = 'playing';
+    renderGauges();
+    audio.bgmPlay(true);
+  }
+
+  /** 시계가 0 이 되고 진행 중인 행동이 끝났을 때(finishStage 가 부른다). 기록은 이 기기에 저장하고 'challengeResult' 이벤트를 낸다 */
+  function finishChallenge() {
+    state.phase = 'over';
+    cancelAim();
+    clearHint();
+    setSelected(null);
+    renderCursor();
+    renderGauges();
+    state.shown = state.score;
+    el.score.textContent = fmt(state.score);
+    updateChallengeHud();
+    const res = applyChallengeResult(save, state.score);
+    writeSave();
+    const info = challengeResultInfo(res);
+    el['chal-end-score'].textContent = fmt(state.score);
+    el['chal-end-new'].hidden = !info.badge;
+    el['chal-end-line'].textContent = info.line;
+    el['chal-end-cheer'].textContent = info.cheer;
+    el['chal-end-cheer'].hidden = !info.cheer;
+    el['chal-end-combo'].textContent = fmt(state.stats.maxCombo);
+    el['chal-end-chain'].textContent = String(state.stats.maxChain);
+    el['chal-end-skills'].textContent = '+' + fmt(state.stats.skillPts);
+    el['chal-end-rank'].textContent = '';             // 서버 제출 상태 한 줄은 ranking-ui.js 가 채운다
+    el['chal-end-rank'].hidden = true;
+    applyDifficulty(save.level);                      // 활성 값을 고른 난이도로 되돌린다(도전 값은 이 판 동안만)
+    renderChallengeBtn();
+    audio.bgmStop();
+    sfx(res.newBest ? 'newbest' : 'end');
+    showOverlay('overlay-chal-end', true);
+    el['btn-chal-again'].focus();
+    emit('challengeResult', { score: res.score, prev: res.prev, best: res.best, newBest: res.newBest, first: res.first });
+  }
+
+  /** 도전을 나가 시작 화면으로(일시정지의 [나가기]·결과 화면의 [돌아가기]). 중간에 나간 판은 기록하지 않는다 */
+  function leaveChallenge() {
+    showOverlay('overlay-chal-end', false);
+    state.challenge = null;
+    resetChallengeHud();
+    applyDifficulty(save.level);
+    goHome();
+  }
+
+  /** 시작 화면 [최고점 도전]: 프로필 안내(게이트)를 거친다. 게이트가 팝업을 띄우면 false 를 돌려주고, 팝업·프로필 저장 뒤에 enterChallenge 로 이어진다 */
+  function openChallenge() {
+    if (state.phase !== 'start') return;
+    if (startGate) { let go = true; try { go = startGate('challenge') !== false; } catch (e) { go = true; } if (!go) return; }
+    startChallenge();
+  }
+  function enterChallenge() {      // 게이트를 거치지 않고 도전으로 (팝업·프로필 저장 뒤에 이어갈 때)
+    if (state.phase !== 'start') return;
+    startChallenge();
+  }
+  function onQuit() { if (state.challenge) leaveChallenge(); else goStages(); }
+
+  function restartStage() {
+    if (state.challenge) { startChallenge(); return; }      // spec §46: 최고점 도전 판의 [다시 시작]은 도전을 새로 시작한다
+    startStage(state.stage);
+  }
   function nextStage() { startStage(Math.min(CONFIG.stages.count, state.stage + 1)); }
 
   async function startStage(stage) {
@@ -3266,6 +3558,7 @@
   /** 스테이지 종료(클리어/실패). 한 번만 실행된다(phase 가드) */
   function finishStage() {
     if (state.phase !== 'playing') return;
+    if (state.challenge) { finishChallenge(); return; }       // spec §46: 최고점 도전은 시계가 0 이 될 때만 끝난다(목표·별·미션 없음)
     state.phase = 'over';
     cancelAim();
     clearHint();
@@ -3402,12 +3695,18 @@
     el['btn-reset'].addEventListener('click', openConfirm);
     el['btn-resume'].addEventListener('click', resumeGame);
     el['btn-restart'].addEventListener('click', restartStage);
-    el['btn-quit'].addEventListener('click', goStages);
+    el['btn-quit'].addEventListener('click', onQuit);
     el['btn-confirm-yes'].addEventListener('click', restartStage);
     el['btn-confirm-no'].addEventListener('click', cancelConfirm);
     el['btn-again'].addEventListener('click', restartStage);
     el['btn-next'].addEventListener('click', nextStage);
     el['btn-home'].addEventListener('click', goStages);
+    if (el['btn-challenge']) {       // spec §46: 최고점 도전 (캐시된 옛 index.html 과 섞여도 init 이 멈추지 않게 있을 때만 잇는다)
+      el['btn-challenge'].addEventListener('click', openChallenge);
+      el['btn-chal-again'].addEventListener('click', startChallenge);
+      el['btn-chal-home'].addEventListener('click', leaveChallenge);
+      el['btn-chal-hall'].addEventListener('click', function () { leaveChallenge(); emit('openHall'); });      // 명예의 전당 화면은 ranking-ui.js 가 연다
+    }
     document.addEventListener('visibilitychange', function () {
       if (document.hidden) {
         if (state.phase === 'playing') pauseGame();
@@ -3488,6 +3787,7 @@
     goHome: goHome,
     setStartGate: function (fn) { startGate = typeof fn === 'function' ? fn : null; },
     enterStages: enterStages,
+    enterChallenge: enterChallenge,      // spec §46: 게이트(프로필 안내 팝업) 없이 최고점 도전을 시작한다 — 팝업·프로필 저장 뒤에 이어갈 때
     getPhase: function () { return state.phase; }
   };
 

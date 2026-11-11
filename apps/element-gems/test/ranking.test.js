@@ -176,7 +176,7 @@ test('normalizeProfile/normalizeSync: 손상된 저장을 안전하게 정리', 
   const p = R.normalizeProfile({ pid: UUID, pub: 'A', nick: 'n', tag: 5, avatar: 16, hidden: 2, nickLeft: { day: 3, n: 1 } });
   assert.strictEqual(p.avatar, 16); assert.strictEqual(p.hidden, 2); assert.strictEqual(p.nickLeft.n, 1);
   const s = R.normalizeSync({ dirty: 'yes', fails: -4, lastOkAt: 'x', blocked: 1 });
-  assert.deepStrictEqual(s, { dirty: false, lastOkAt: 0, fails: 0, nextTryAt: 0, blocked: false, blockedCode: '' });
+  assert.deepStrictEqual(s, { dirty: false, lastOkAt: 0, fails: 0, nextTryAt: 0, blocked: false, blockedCode: '', sdirty: false, sat: 0 });      // spec §46: 최고점 대기 표식(sdirty·sat) 두 칸이 늘었다
   assert.deepStrictEqual(R.normalizeRows([{ nick: 'a', tag: 1, avatar: 3, stars: 5 }, { nick: 5 }, null, { nick: 'b', stars: 'x' }], 50).length, 1);
 });
 

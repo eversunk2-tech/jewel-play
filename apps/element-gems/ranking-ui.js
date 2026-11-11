@@ -3,6 +3,8 @@
  * CONFIG.ranking.apiBase 가 비어 있으면 이 파일은 아무것도 하지 않는다(UI 숨김 유지, 네트워크 0회).
  * 닉네임·순위 이름은 항상 textContent 로만 출력한다(HTML 삽입 금지).
  * spec §23: [프로필 지우기] = 이 기기에서만 지우기(확인 ①②, 서버 삭제 API 는 부르지 않는다) · 새 프로필 안내 줄 · 다른 탭 변경 감지.
+ * spec §46: 최고점 도전 — 순위표 각 줄의 "최고점"·순위 규칙 문구, 도전 결과 이벤트(challengeResult)·나갈 때 제출, 프로필 안내 팝업이 이어갈 곳(레벨 선택/도전)을 기억한다.
+ *   host.enterChallenge 가 없는 빌드(아직 도전 모드가 없는 앱)에서는 도전 관련 연결이 모두 꺼진 채 기존 동작 그대로다.
  */
 (function () {
   'use strict';
@@ -28,6 +30,7 @@
     getSave: host.getSave,
     stageCount: host.CONFIG.stages.count,
     caps: caps,
+    challenge: host.CONFIG.challenge,                      // spec §46: scoreCap·submitDelaySec (도전 모드가 없는 빌드는 undefined -> 최고점을 보내지 않는다)
     crypto: window.crypto,
     emit: onClientEvent,
     isOffline: function () { return window.navigator && window.navigator.onLine === false; },
@@ -50,6 +53,9 @@
     renamePrompted: false,
     lastHidden: 0,
     pendingStart: false,        // 프로필 안내 팝업 -> [프로필 만들기]로 왔는가(저장하면 레벨 선택으로 이어간다)
+    pendingNext: 'stages',      // spec §46: 위에서 이어갈 곳 'stages'(레벨 선택) | 'challenge'(최고점 도전, host.enterChallenge 가 있을 때만)
+    askKind: 'stages',          // 지금 열린 프로필 안내 팝업을 부른 버튼([시작] = 'stages', [최고점 도전] = 'challenge')
+    chalPending: false,         // 도전에서 새 기록을 냈고 아직 서버에 올리지 못했다(결과 화면의 한 줄 + 나갈 때 제출)
     askOpen: false,
     createInfo: null,           // 프로필 만들기 화면을 열 때의 판정(client.createMode(), spec §23.4.1) — 안내 줄·버튼 이름·records 옵션
     erasing: false,             // [네, 지울게요] 진행 중(마지막 전송 → 정리 → 새로고침). 이 동안 취소·Esc·저장은 모두 무시한다
@@ -68,7 +74,7 @@
     ['btn-profile-chip', 'me-note', 'btn-hall', 'end-rank', 'screen-profile', 'screen-hall', 'pf-title', 'pf-sub', 'pf-rename', 'pf-avatars', 'pf-nick', 'pf-count',
       'pf-msg-wrap', 'pf-left', 'pf-save', 'pf-skip', 'pf-cancel', 'pf-delete', 'pf-confirm', 'pf-confirm-yes', 'pf-confirm-no',
       'pf-actions', 'pf-carry', 'pf-wipe', 'pf-del-rec', 'pf-del-hall', 'pf-confirm2', 'pf-confirm2-yes', 'pf-confirm2-no', 'pf-pend',
-      'overlay-profile-ask', 'pa-close', 'pa-create', 'pa-without', 'btn-start', 'screen-start',
+      'overlay-profile-ask', 'pa-close', 'pa-create', 'pa-without', 'btn-start', 'screen-start', 'chal-end-rank', 'btn-chal-hall',
       'hall-title', 'hall-back', 'hall-refresh', 'hall-banner', 'hall-tabs', 'hall-asof', 'hall-rule', 'hall-weight', 'hall-panel', 'hall-list', 'hall-empty', 'hall-me', 'hall-foot'
     ].forEach(function (id) { el[id] = $(id); });
   }
@@ -125,6 +131,7 @@
     const on = client.enabled();
     el['btn-hall'].hidden = !on;
     el['btn-profile-chip'].hidden = !on;
+    if (el['btn-chal-hall']) el['btn-chal-hall'].hidden = !on;      // spec §46: 도전 결과 화면의 [명예의 전당 보기]도 명예의 전당이 켜져 있을 때만
     if (!on) { el['me-note'].hidden = true; return; }
     const p = client.profile();
     const chip = el['btn-profile-chip'];
@@ -179,6 +186,7 @@
   function disableUi(code) {
     el['btn-hall'].hidden = true;
     el['btn-profile-chip'].hidden = true;
+    if (el['btn-chal-hall']) el['btn-chal-hall'].hidden = true;
     if (code === 'unsupported_version') {
       el['me-note'].textContent = '명예의 전당은 앱을 새로 고치면 다시 쓸 수 있어요.';
       el['me-note'].hidden = false;
@@ -277,6 +285,7 @@
     clearEraseNote();
     const p = client.profile();
     ui.pendingStart = !!(opts && opts.pendingStart) && mode !== 'edit';
+    ui.pendingNext = opts && opts.next === 'challenge' && typeof host.enterChallenge === 'function' ? 'challenge' : 'stages';
     ui.mode = mode === 'edit' && p.registered ? 'edit' : 'create';
     ui.busy = false;
     ui.composing = false;
@@ -327,7 +336,7 @@
     if (res.ok && res.wiped) { window.location.reload(); return; }   // 지난 기록을 지웠으니 메모리의 옛 기록을 비우려고 새로고침(시작 화면으로 돌아온다)
     if (!onProfileScreen()) return;
     if (res.ok) {
-      if (ui.pendingStart) { ui.pendingStart = false; host.enterStages(); window.scrollTo(0, 0); }   // 원래 가려던 곳(난이도·레벨 선택)으로 이어간다
+      if (ui.pendingStart) { ui.pendingStart = false; goNext(ui.pendingNext); window.scrollTo(0, 0); }   // 원래 가려던 곳(난이도·레벨 선택 또는 최고점 도전)으로 이어간다
       else home();
       return;
     }
@@ -358,11 +367,15 @@
     el['pf-wipe'].hidden = true;
     if (!info) return;
     const n = info.stars.total;
+    const b = info.best || 0;                                  // spec §46: 최고점만 있는 기기도 "기록 있음"이다
+    const bt = b.toLocaleString('ko-KR');
     if (info.row === 1) {
-      noteLine(el['pf-carry'], '이 기기의 기록을 이어서 써요.', ' 프로필 없이 모은 별 ' + n + '개가 이 프로필의 기록이 돼요.');
+      const what = !b ? '모은 별 ' + n + '개가' : (n > 0 ? '모은 별 ' + n + '개와 최고점 ' + bt + '점이' : '낸 최고점 ' + bt + '점이');
+      noteLine(el['pf-carry'], '이 기기의 기록을 이어서 써요.', ' 프로필 없이 ' + what + ' 이 프로필의 기록이 돼요.');
       el['pf-carry'].hidden = false;
     } else if (info.row === 4) {
-      noteLine(el['pf-wipe'], '지난 프로필의 기록(별 ' + n + '개)이 이 기기에 남아 있어요.', ' 새 프로필은 처음부터 시작해서, 만들면 이 기록이 지워져요.');
+      const what = !b ? '별 ' + n + '개' : (n > 0 ? '별 ' + n + '개 · 최고점 ' + bt + '점' : '최고점 ' + bt + '점');
+      noteLine(el['pf-wipe'], '지난 프로필의 기록(' + what + ')이 이 기기에 남아 있어요.', ' 새 프로필은 처음부터 시작해서, 만들면 이 기록이 지워져요.');
       el['pf-wipe'].hidden = false;
     }
   }
@@ -381,10 +394,11 @@
   }
 
   /** 기록 줄 문구: 두 앱 저장 값에서 읽은 별 개수. 0 이 아닌 쪽만 쓰고, 교육용 화면은 '푼 문제 기록'을 덧붙인다 */
-  function recordsLine(st) {
+  function recordsLine(st, best) {
     const parts = [];
     if (st.gen > 0) parts.push('일반용 별 ' + st.gen + '개');
     if (st.edu > 0) parts.push('교육용 별 ' + st.edu + '개');
+    if (best > 0) parts.push('최고점 ' + best.toLocaleString('ko-KR') + '점');      // spec §46
     if (!parts.length) return '이 기기의 게임 기록' + (IS_EDU ? '과 푼 문제 기록' : '') + '이 사라져요. 되돌릴 수 없어요.';
     return '이 기기의 게임 기록(' + parts.join(' · ') + (IS_EDU ? '와 푼 문제 기록' : '') + ')이 사라져요. 되돌릴 수 없어요.';
   }
@@ -392,7 +406,8 @@
   function askDelete() {
     if (ui.erasing) return;
     const p = client.profile();
-    el['pf-del-rec'].textContent = recordsLine(client.createMode().stars);
+    const cm = client.createMode();
+    el['pf-del-rec'].textContent = recordsLine(cm.stars, cm.best);
     el['pf-del-hall'].textContent = '순위표에는 ‘' + p.nick + ' ' + tagText(p.tag) + '’이 그대로 남아요.';   // 닉네임은 textContent 로만
     el['pf-actions'].hidden = true;
     el['pf-confirm2'].hidden = true;
@@ -455,16 +470,24 @@
     if (toStart && visible(el['screen-start'])) el['btn-start'].focus({ preventScroll: true });
   }
 
+  /** 프로필 안내 팝업·프로필 저장 뒤에 원래 가려던 곳으로. 도전 모드가 없는 빌드에서는 항상 레벨 선택 */
+  function goNext(kind) {
+    if (kind === 'challenge' && typeof host.enterChallenge === 'function') host.enterChallenge();
+    else host.enterStages();
+  }
+
   function askCreate() {
+    const next = ui.askKind;
     closeAsk(false);
-    openProfile('create', { pendingStart: true });
+    openProfile('create', { pendingStart: true, next: next });
   }
 
   function askWithout() {
     clearEraseNote();
     client.setSessionOptOut(true);                             // 이번 접속에서만. 서버로 아무것도 보내지 않는다
+    const next = ui.askKind;
     closeAsk(false);
-    host.enterStages();
+    goNext(next);
     window.scrollTo(0, 0);
   }
 
@@ -482,10 +505,11 @@
     });
   }
 
-  /** [시작] 게이트: 프로필 안내가 필요하면 팝업을 띄우고 false(여기서 멈춤), 아니면 true */
-  function startGate() {
+  /** [시작]·[최고점 도전] 게이트: 프로필 안내가 필요하면 팝업을 띄우고 false(여기서 멈춤), 아니면 true. kind = 'challenge' 이면 팝업·프로필 저장 뒤에 도전으로 이어간다 */
+  function startGate(kind) {
     clearEraseNote();
     if (!client.needsProfilePrompt()) return true;
+    ui.askKind = kind === 'challenge' && typeof host.enterChallenge === 'function' ? 'challenge' : 'stages';
     openAsk();
     return false;
   }
@@ -549,21 +573,24 @@
 
   function rowEl(r, board) {
     const li = mk('li', 'hr' + (r.rank === 1 ? ' top1' : '') + (isMine(r) ? ' me' : ''));
-    li.setAttribute('aria-label', r.rank + '위, ' + r.nick + ' 번호 ' + r.tag + ', ' + R.scoreLabel(board, r.stars));
+    li.setAttribute('aria-label', r.rank + '위, ' + r.nick + ' 번호 ' + r.tag + ', ' + R.scoreLabel(board, r.stars) + ', ' + R.bestLabel(r.score));
     li.appendChild(mk('span', 'rk' + (r.rank <= 3 ? ' m' + r.rank : ''), String(r.rank)));
     li.appendChild(avatarEl(r.avatar, r.nick, 44));
     const nm = mk('span', 'nm');
     nm.appendChild(mk('span', 'nn', r.nick));                  // 이름이 길면 이름만 줄임표로 줄이고 #번호는 남긴다
     nm.appendChild(mk('small', '', '#' + r.tag));
     li.appendChild(nm);
-    li.appendChild(scEl(board, r.stars));
+    li.appendChild(scEl(board, r.stars, r.score));
     return li;
   }
 
-  /** 점수 칸: ★ + 숫자(전체 탭은 뒤에 작은 "점") */
-  function scEl(board, n) {
-    const sc = mk('span', 'sc', String(n));
-    if (board === 'all') sc.appendChild(mk('small', 'pt', '점'));
+  /** 점수 칸: ★ + 숫자(전체 탭은 뒤에 작은 "점") + 오른쪽 아래의 작은 "최고점 N"(도전 기록이 없으면 "최고점 —", spec §46) */
+  function scEl(board, n, best) {
+    const sc = mk('span', 'sc');
+    const line = mk('span', 'sl', String(n));                  // 첫 줄: ★ + 숫자(+ "점"). 별 모양은 CSS 가 .sl 앞에 붙인다
+    if (board === 'all') line.appendChild(mk('small', 'pt', '점'));
+    sc.appendChild(line);
+    sc.appendChild(mk('small', 'bs', R.bestText(best)));       // 둘째 줄: 최고점
     return sc;
   }
 
@@ -648,7 +675,7 @@
     clear(bar);
     bar.className = 'myrank';
     const board = res.board || ui.board;
-    bar.setAttribute('aria-label', '내 순위 ' + me.rank + '위, ' + R.scoreLabel(board, me.stars));
+    bar.setAttribute('aria-label', '내 순위 ' + me.rank + '위, ' + R.scoreLabel(board, me.stars) + ', ' + R.bestLabel(me.score));
     const lab = mk('span', 'lab');
     lab.appendChild(mk('small', '', stale ? '내 순위*' : '내 순위'));
     lab.appendChild(mk('strong', '', me.rank + '위'));
@@ -658,7 +685,7 @@
     nm.appendChild(mk('span', 'nn', me.nick || p.nick));
     nm.appendChild(mk('small', '', tagText(me.tag != null ? me.tag : p.tag)));
     bar.appendChild(nm);
-    bar.appendChild(scEl(board, me.stars));
+    bar.appendChild(scEl(board, me.stars, me.score));
     bar.hidden = false;
   }
 
@@ -666,9 +693,9 @@
     const f = el['hall-foot'];
     clear(f);
     if (stale && asOfMs) f.appendChild(document.createTextNode('* ' + R.formatClock(asOfMs) + ' 기준이에요. '));
-    f.appendChild(document.createTextNode('상위 ' + (cfg.pageSize || 50) + '명을 보여 줘요. 보이는 정보는 닉네임·그림·별 수·순위뿐이에요.'));
+    f.appendChild(document.createTextNode('상위 ' + (cfg.pageSize || 50) + '명을 보여 줘요. 보이는 정보는 닉네임·그림·별 수·최고점·순위뿐이에요.'));
     const st = client.status();
-    if (st.registered && st.dirty && !st.blocked) f.appendChild(mk('span', 'pending-chip', '올릴 기록 1개 대기 중'));
+    if (st.registered && (st.dirty || st.sdirty) && !st.blocked) f.appendChild(mk('span', 'pending-chip', '올릴 기록 1개 대기 중'));
   }
 
   function setBanner(texts) {
@@ -715,7 +742,7 @@
       t.setAttribute('aria-selected', on ? 'true' : 'false');
       t.tabIndex = on ? 0 : -1;
     });
-    el['hall-rule'].textContent = ui.board === 'all' ? '점수가 같으면 남은 시간이 많은 순' : '별이 같으면 남은 시간이 많은 순';
+    el['hall-rule'].textContent = ui.board === 'all' ? '점수가 같으면 최고점이 높은 순 (그다음 남은 시간)' : '별이 같으면 최고점이 높은 순 (그다음 남은 시간)';
     el['hall-weight'].hidden = ui.board !== 'all';
     el['hall-panel'].setAttribute('aria-labelledby', 'hall-tab-' + ui.board);
     el['hall-list'].setAttribute('aria-label', '별 챔피언 순위 ' + BOARD_LABEL[ui.board] + ' 상위 ' + (cfg.pageSize || 50) + '명');
@@ -827,15 +854,40 @@
     }
   }
 
+  /** 도전 결과 화면의 제출 상태 한 줄(#chal-end-rank). 글이 없으면 숨긴다 */
+  function setChalLine(text) {
+    const n = el['chal-end-rank'];
+    if (!n) return;
+    n.textContent = text || '';
+    n.hidden = !text;
+  }
+
+  /**
+   * 최고점 도전 결과(spec §46): 새 기록이고 프로필이 있으면 "묶어서 제출"을 건다(5분 뒤 또는 나갈 때·탭이 숨겨질 때 한 번).
+   * 곧바로 서버에 보내지 않는다 — 결과 화면에는 안내만 보이고, 나가면(시작 화면으로 돌아오면) 올린다.
+   */
+  function onChallengeResult(r) {
+    ui.chalPending = false;
+    setChalLine('');
+    if (!r || !r.newBest || !client.enabled() || !client.registered()) return;
+    if (client.markScore()) {
+      ui.chalPending = true;
+      setChalLine('기록은 저장됐어요. 나갈 때 명예의 전당에 올려요');
+    }
+  }
+
   function onClientEvent(name, data) {
     if (name === 'synced') {
+      if (ui.chalPending && data && data.scoreAcked) { ui.chalPending = false; setChalLine('명예의 전당에 기록을 올렸어요'); }
       if (ui.resultPending) { ui.resultPending = false; setResultLine('명예의 전당에 기록을 올렸어요'); }
       delete ui.data.all; delete ui.data.easy; delete ui.data.normal; delete ui.data.hard;   // 내 기록이 바뀌었으니 다음에 열 때 새로 받는다
       if (onHallScreen()) renderFoot(false, 0);
     } else if (name === 'syncFail') {
+      if (ui.chalPending) { ui.chalPending = false; setChalLine('기록은 저장됐어요. 연결되면 올릴게요'); }
       if (ui.resultPending) { ui.resultPending = false; setResultLine('기록은 저장됐어요. 연결되면 올릴게요'); }
       if (onHallScreen()) renderFoot(false, 0);
     } else if (name === 'blocked') {
+      if (ui.chalPending) { ui.chalPending = false; setChalLine('기록은 이 기기에 저장됐어요.'); }
       if (ui.resultPending) { ui.resultPending = false; setResultLine('기록은 이 기기에 저장됐어요.'); }
     } else if (name === 'profile') {
       if (ui.resultPending && !client.registered()) { ui.resultPending = false; setResultLine(''); }   // 서버에서 프로필이 사라진 경우
@@ -899,7 +951,7 @@
     });
     window.addEventListener('storage', onStorage);
     window.addEventListener('online', client.onOnline);
-    document.addEventListener('visibilitychange', function () { if (!document.hidden) client.onVisible(); });
+    document.addEventListener('visibilitychange', function () { if (document.hidden) client.onHidden(); else client.onVisible(); });     // spec §46: 숨겨질 때 묶어 둔 최고점을 한 번 올린다
   }
 
   function start() {
@@ -922,6 +974,8 @@
   host.on('renderStart', function () {
     if (!el['btn-hall']) return;
     if (ui.stale && !ui.busy && !ui.erasing) { window.location.reload(); return; }   // 게임 중에 다른 탭이 프로필을 바꿨다 -> 시작 화면으로 돌아온 지금 새로고침
+    ui.chalPending = false;
+    client.flushScore();                               // spec §46: 도전을 나가 시작 화면으로 돌아왔다 -> 묶어 둔 최고점을 지금 한 번 올린다(없으면 아무 일도 없다)
     renderStartExtras();
     const p = client.profile();
     if (client.enabled() && p.registered && p.hidden === 2 && !ui.renamePrompted) {
@@ -930,5 +984,7 @@
     }
   });
   host.on('stageResult', onStageResult);
+  host.on('challengeResult', onChallengeResult);        // spec §46: 도전 모드가 없는 빌드는 이 이벤트를 내지 않는다
+  host.on('openHall', function () { if (host.getPhase() === 'start' && client.enabled()) openHall(); });     // 도전 결과 화면의 [명예의 전당 보기]
   host.on('init', start);
 })();

@@ -3,6 +3,8 @@
  * 브라우저에서는 window.ElementGemsRanking 으로 노출되고, ranking-ui.js 가 이것을 쓴다.
  * 핵심 규칙: 서버가 없거나 느리거나 망가져도 게임은 아무 영향이 없다 — 모든 호출은 비동기이고 예외는 삼킨다.
  * 비밀 정보 없음: playerId 는 이 기기에서 만든 무작위 값이며 서버에는 해시만 저장된다.
+ * spec §46(최고점 도전): 제출 본문에 선택 필드 s(= min(이 기기 최고점, scoreCap))를 더한다. 서버 쓰기를 줄이려고 마지막 개선 submitDelaySec 뒤, 또는 도전을 나갈 때·탭이 숨겨질 때 한 번에 묶어 올리고,
+ * 서버 응답의 me.score 가 보낸 값 이상일 때만 "올렸다"고 본다(옛 서버·간격 제한이면 다음 시작·온라인·개선 때 다시 보낸다 — 즉시 재시도 반복 없음). d 는 s 와 항상 함께 보낸다(옛 서버 호환).
  */
 (function (root, factory) {
   'use strict';
@@ -175,6 +177,7 @@
     const o = { v: API_VERSION, pid: parts.pid };
     if (parts.profile) o.profile = { nick: String(parts.profile.nick), avatar: parts.profile.avatar };
     if (parts.d) o.d = parts.d;
+    if (isInt(parts.s) && parts.s >= 0) o.s = parts.s;       // spec §46: 최고점(선택 필드). 보낼 때는 d 도 항상 함께 보낸다(옛 서버는 profile·d 가 하나도 없으면 400)
     return JSON.stringify(o);
   }
 
@@ -296,9 +299,11 @@
   }
 
   function normalizeSync(o) {
-    const s = { dirty: false, lastOkAt: 0, fails: 0, nextTryAt: 0, blocked: false, blockedCode: '' };
+    const s = { dirty: false, lastOkAt: 0, fails: 0, nextTryAt: 0, blocked: false, blockedCode: '', sdirty: false, sat: 0 };
     if (!o || typeof o !== 'object') return s;
     s.dirty = o.dirty === true;
+    s.sdirty = o.sdirty === true;                           // spec §46: 올리지 못한 최고점이 있다
+    if (typeof o.sat === 'number' && isFinite(o.sat) && o.sat >= 0) s.sat = o.sat;       // 이 시각부터 최고점을 올릴 수 있다(마지막 개선 + submitDelaySec)
     if (typeof o.lastOkAt === 'number' && isFinite(o.lastOkAt)) s.lastOkAt = o.lastOkAt;
     if (isInt(o.fails) && o.fails >= 0 && o.fails < 1000) s.fails = o.fails;
     if (typeof o.nextTryAt === 'number' && isFinite(o.nextTryAt)) s.nextTryAt = o.nextTryAt;
@@ -316,12 +321,14 @@
       const stars = Number(r.stars);
       if (!isFinite(stars)) continue;
       const av = Number(r.avatar);
+      const sc = Number(r.score);
       out.push({
         rank: isInt(Number(r.rank)) && Number(r.rank) > 0 ? Number(r.rank) : i + 1,
         nick: r.nick.slice(0, 16),
         tag: pad4(r.tag),
         avatar: isInt(av) && av >= 1 && av <= AVATAR_COUNT ? av : 0,
-        stars: Math.max(0, Math.floor(stars))
+        stars: Math.max(0, Math.floor(stars)),
+        score: isInt(sc) && sc > 0 ? sc : 0                   // spec §46: 최고점(0 = 도전 기록 없음). 옛 서버 응답에는 없다
       });
     }
     return out;
@@ -343,6 +350,26 @@
   function starsOfRaw(raw) {
     try { return starsOfSave(typeof raw === 'string' && raw ? JSON.parse(raw) : null); } catch (e) { return 0; }
   }
+
+  /** 저장 객체의 최고점 도전 최고점(양의 정수, 없거나 손상이면 0). 교육용 저장에는 도전 필드가 없을 수 있다 */
+  function bestOfSave(save) {
+    const c = save && typeof save === 'object' ? save.challenge : null;
+    return c && typeof c === 'object' && isInt(c.best) && c.best > 0 ? c.best : 0;
+  }
+
+  function bestOfRaw(raw) {
+    try { return bestOfSave(typeof raw === 'string' && raw ? JSON.parse(raw) : null); } catch (e) { return 0; }
+  }
+
+  /** 두 앱 저장 값에 남은 최고점 도전 최고점 중 큰 값(spec §46: "기록 있음" 판정은 별 합계 > 0 또는 최고점 > 0) */
+  function deviceBest(store) {
+    return Math.max(bestOfRaw(store.get(RECORD_KEYS.save[0])), bestOfRaw(store.get(RECORD_KEYS.save[1])));
+  }
+
+  /** 순위표의 최고점 글: 기록이 없으면(0) "—" */
+  function bestText(n) { return isInt(n) && n > 0 ? '최고점 ' + n.toLocaleString('ko-KR') : '최고점 —'; }
+  /** 같은 내용의 스크린리더용 글 */
+  function bestLabel(n) { return isInt(n) && n > 0 ? '최고점 ' + n.toLocaleString('ko-KR') + '점' : '최고점 기록 없음'; }
 
   /** 두 앱(일반용·교육용)의 저장 값에서 읽은 별 개수: { gen, edu, total } */
   function deviceStars(store) {
@@ -398,7 +425,7 @@
 
   /* ---------------------------------------------------------------------
    * 클라이언트 본체
-   * opts: { config(CONFIG.ranking), store, fetch, now, timers:{set,clear}, getSave, stageCount, caps, crypto,
+   * opts: { config(CONFIG.ranking), challenge(CONFIG.challenge: scoreCap·submitDelaySec — 없으면 최고점은 보내지 않는다), store, fetch, now, timers:{set,clear}, getSave, stageCount, caps, crypto,
    *         emit(name,data), isOffline(), log }
    * ------------------------------------------------------------------- */
   function createClient(opts) {
@@ -417,6 +444,7 @@
     const eraseMs = cfg.eraseFlushTimeoutMs || 4000;        // 지우기 직전 전송의 제한 시간(CONFIG.ranking.eraseFlushTimeoutMs)
     const gapMs = cfg.minSubmitGapMs == null ? 3000 : cfg.minSubmitGapMs;
     const pageSize = cfg.pageSize || 50;
+    const chal = opts.challenge || {};                       // spec §46: CONFIG.challenge(scoreCap·submitDelaySec). 교육용 game.js 가 아직 이 블록이 없으면 {} 라 최고점은 보내지 않는다
 
     let profile = normalizeProfile(readJson(store, KEYS.profile));
     let sync = normalizeSync(readJson(store, KEYS.sync));
@@ -429,6 +457,7 @@
     let sessionOptOut = false;                              // 이번 접속에서 "프로필 없이 시작"을 골랐는가(메모리에만 둔다 — 새로 열면 다시 묻는다)
     let erasing = false;                                    // 지우기가 시작됐다: 새 제출 타이머를 걸지 않는다(spec §23.3.4)
     let erased = false;                                     // 이 기기의 기록을 지웠다: 이 클라이언트는 더 이상 아무 키도 쓰지 않는다(늦게 도는 응답이 키를 되살리지 못하게)
+    let scoreStale = false;                                 // 보낸 최고점을 서버가 받았다고 답하지 않았다(옛 서버·상한 초과·간격 제한). 다음 시작·온라인·새 개선 전에는 다시 보내지 않는다(즉시 재시도 반복 금지)
     const boardFlights = {};
 
     function apiBase() { return String(cfg.apiBase || cfg.api || '').replace(/\/+$/, ''); }
@@ -439,9 +468,25 @@
     function registered() { return !!(profile.pid && profile.pub && profile.nick); }
     function snapshot() { return buildSnapshot(getSave(), stageCount, caps); }
 
+    /* ---- 최고점(spec §46): 보낼 값 · 묶어서 제출 ---- */
+    function scoreCap() { return isInt(chal.scoreCap) && chal.scoreCap > 0 ? chal.scoreCap : 0; }
+    function scoreDelayMs() { const v = Number(chal.submitDelaySec); return isFinite(v) && v >= 0 ? Math.round(v * 1000) : 300000; }       // 설정이 없을 때만 쓰는 기본(5분)
+    /** 서버에 보낼 최고점 = min(이 기기 최고점, scoreCap). 기록이 없거나 상한 설정이 없으면 0(보내지 않는다) */
+    function scoreToSend() {
+      const cap = scoreCap();
+      const b = bestOfSave(getSave());
+      return cap > 0 && b > 0 ? Math.min(b, cap) : 0;
+    }
+    /** 지금 보낼 때가 된 최고점인가: 올리지 못한 점수가 있고(sdirty), 기다릴 시간(sat)이 지났고, 방금 받았다는 답을 못 받은 값이 아니다 */
+    function scoreDue() { return sync.sdirty && !scoreStale && scoreToSend() > 0 && now() >= sync.sat; }
+    /** 최고점 때문에 타이머를 다시 건다(다른 제출이 먼저 타이머를 가져갔을 때 최고점 차례가 사라지지 않게) */
+    function rearmScore() {
+      if (sync.sdirty && !scoreStale && scoreToSend() > 0 && sync.sat > now()) schedule(sync.sat - now());
+    }
+
     function status() {
       return { enabled: enabled(), disabledCode: disabledCode, registered: registered(), dirty: sync.dirty, blocked: sync.blocked, blockedCode: sync.blockedCode,
-        fails: sync.fails, lastOkAt: sync.lastOkAt, inflight: !!inflight };
+        fails: sync.fails, lastOkAt: sync.lastOkAt, inflight: !!inflight, sdirty: sync.sdirty };
     }
 
     /* ---- 네트워크 한 번 ---- */
@@ -520,7 +565,8 @@
         const records = input.records === 'carry' || input.records === 'none' || input.records === 'wipe' ? input.records : (registered() ? 'carry' : createMode().records);
         if (!profile.pid) { profile.pid = newPlayerId(opts.crypto); saveProfile(); }   // 응답을 못 받아도 같은 ID로 다시 시도(중복 가입 방지)
         const prof = { nick: String(input.nick).normalize('NFC'), avatar: input.avatar };
-        let c = await request('POST', '/api/sync', buildSyncBody(records === 'carry' ? { pid: profile.pid, profile: prof, d: snapshot() } : { pid: profile.pid, profile: prof }));
+        const sendS = records === 'carry' ? scoreToSend() : 0;      // spec §46: 이어서 쓰는 기록에는 최고점도 싣는다(d 와 함께)
+        let c = await request('POST', '/api/sync', buildSyncBody(records === 'carry' ? { pid: profile.pid, profile: prof, d: snapshot(), s: sendS > 0 ? sendS : undefined } : { pid: profile.pid, profile: prof }));
         let progressBlocked = false;
         if (c.kind === 'block' && /^progress_/.test(c.code)) {
           // 기록 모양이 이상해도 프로필 만들기는 되게: 프로필만 다시 보내고 기록 제출은 멈춘다(콘솔에 남김)
@@ -545,6 +591,13 @@
         sync.fails = 0; sync.nextTryAt = 0; sync.lastOkAt = now();
         sync.blocked = progressBlocked; sync.blockedCode = progressBlocked ? c.code || 'progress_invalid' : '';
         sync.dirty = progressBlocked ? sync.dirty : false;
+        if (sendS > 0 && !progressBlocked) {                  // 최고점을 실어 보냈다: 서버가 그 값 이상을 갖고 있다고 답해야 올린 것으로 본다
+          const acked = isInt(me.score) && me.score >= sendS;
+          sync.sdirty = !acked || scoreToSend() > sendS;
+          if (!acked) scoreStale = true;
+        } else if (records !== 'carry') {
+          sync.sdirty = false;                                // 싣지 않은 만들기: 대기 중이던 최고점 표식은 이 프로필의 것이 아니다
+        }
         saveSync();
         let wiped = false;
         if (records === 'wipe') {                           // 행 4: 새 프로필은 0부터 — 만들기에 성공한 뒤에만 지난 기록을 지운다(실패하면 그대로)
@@ -619,7 +672,37 @@
       if (timer && timerAt <= at) return;
       if (timer) timers.clear(timer);
       timerAt = at;
-      timer = timers.set(function () { timer = null; timerAt = 0; flush(); }, delay);
+      timer = timers.set(function () { timer = null; timerAt = 0; Promise.resolve(flush()).then(rearmScore, rearmScore); }, delay);
+    }
+
+    /**
+     * 새 최고점(도전 결과)이 생겼을 때 부른다(spec §46). 곧바로 보내지 않고 submitDelaySec(기본 5분) 뒤에 한 번 올린다.
+     * 그 사이에 도전을 나가거나 탭이 숨겨지면 flushScore()/onHidden() 이 앞당긴다. 프로필이 없거나 서버가 꺼져 있거나 "프로필 없이 시작"이면 아무것도 하지 않는다(false).
+     */
+    function markScore() {
+      if (!enabled() || !registered() || sessionOptOut || !(scoreToSend() > 0)) return false;
+      const delay = scoreDelayMs();
+      sync.sdirty = true;
+      sync.sat = now() + delay;
+      scoreStale = false;                                   // 새 개선이므로 다시 보낼 수 있다
+      saveSync();
+      schedule(Math.max(delay, sync.nextTryAt - now()));
+      emit('status', status());
+      return true;
+    }
+
+    /** 도전을 나갈 때: 기다리던 최고점을 지금 한 번 올린다(서버 쓰기 간격·백오프는 flush 가 지킨다) */
+    function flushScore() {
+      if (!sync.sdirty || scoreStale || !(scoreToSend() > 0)) return Promise.resolve({ skipped: true });
+      sync.sat = 0;
+      saveSync();
+      return flush();
+    }
+
+    /** 탭이 숨겨질 때: 기다리던 최고점·기록을 한 번 올린다 */
+    function onHidden() {
+      if (sync.sdirty && !scoreStale && scoreToSend() > 0) { flushScore(); return; }
+      if (sync.dirty && !sync.blocked && now() >= sync.nextTryAt) schedule(0);
     }
 
     /** 기록이 올랐을 때 부른다. delayMs 뒤에 한 번 제출(연출과 겹치지 않게) */
@@ -634,11 +717,11 @@
     }
 
     async function flush() {
-      if (!enabled() || !registered() || sessionOptOut || !sync.dirty || sync.blocked) return { skipped: true };
+      if (!enabled() || !registered() || sessionOptOut || (!sync.dirty && !scoreDue()) || sync.blocked) return { skipped: true };
       if (inflight) return inflight;                        // single-flight: 끝나면 스냅샷이 달라졌는지 보고 다시 보낸다
       const wait = lastSendAt + gapMs - now();
       if (lastSendAt && wait > 0) { schedule(wait); return { skipped: true }; }
-      inflight = runFlush().then(function (r) { inflight = null; return r; }, function (e) { inflight = null; log('[ranking] flush error', e); return { error: true }; });
+      inflight = runFlush().then(function (r) { inflight = null; rearmScore(); return r; }, function (e) { inflight = null; log('[ranking] flush error', e); return { error: true }; });
       emit('status', status());
       return inflight;
     }
@@ -647,7 +730,8 @@
       lastSendAt = now();
       const d = snapshot();
       const sentKey = JSON.stringify(d);
-      const c = await request('POST', '/api/sync', buildSyncBody({ pid: profile.pid, d: d }));
+      const sentS = scoreDue() ? scoreToSend() : 0;           // spec §46: 보낼 때가 된 최고점이 있으면 이번 요청에 싣는다(d 와 함께)
+      const c = await request('POST', '/api/sync', buildSyncBody({ pid: profile.pid, d: d, s: sentS > 0 ? sentS : undefined }));
       if (c.kind === 'ok') {
         const j = c.json || {};
         const pChanged = applyMe(j.me);
@@ -655,12 +739,29 @@
         sync.fails = 0; sync.nextTryAt = 0; sync.lastOkAt = now(); sync.blocked = false; sync.blockedCode = '';
         const same = JSON.stringify(snapshot()) === sentKey;
         sync.dirty = !same;
+        let scoreAcked = false;
+        if (sentS > 0) {
+          // 서버가 이 값 이상을 갖고 있다고 답했을 때만 올린 것으로 본다. 답이 없거나 작으면(옛 서버·상한 초과·간격 제한) 대기 표시를 남기되 즉시 다시 보내지는 않는다
+          scoreAcked = !!j.me && isInt(j.me.score) && j.me.score >= sentS;
+          sync.sdirty = !scoreAcked || scoreToSend() > sentS;
+          if (!scoreAcked) scoreStale = true;
+        }
         saveSync(); saveProfile();
         if (pChanged) emit('profile', publicProfile());
         if (!same) schedule(gapMs);
-        emit('synced', { me: j.me || null, changed: !!j.changed });
+        emit('synced', { me: j.me || null, changed: !!j.changed, scoreAcked: scoreAcked });
         emit('status', status());
         return { ok: true };
+      }
+      if (c.kind === 'block' && c.field === 's') {
+        // 서버가 최고점 값만 거부했다(클라이언트 버그): 이 값은 포기하고 별 기록 제출은 막지 않는다
+        log('[ranking] 최고점 제출 중단(서버가 값을 거부했어요):', c.code);
+        sync.sdirty = false;
+        saveSync();
+        emit('blocked', { code: c.code, field: 's' });
+        emit('status', status());
+        if (sync.dirty) schedule(gapMs);
+        return { ok: false, blocked: true, score: true };
       }
       if (c.kind === 'block') {
         sync.blocked = true; sync.blockedCode = c.code || 'blocked'; saveSync();
@@ -697,8 +798,12 @@
     /** 앱 시작 시: 프로필이 있으면 대기 중인 기록을 올린다(처음 동기화 전이면 전체를 올린다) */
     function start() {
       if (!enabled() || !registered()) return;
-      if (!sync.lastOkAt) sync.dirty = true;
-      if (sync.dirty) {
+      if (!sync.lastOkAt) {
+        sync.dirty = true;
+        if (scoreToSend() > 0) sync.sdirty = true;           // 한 번도 동기화한 적이 없으면 최고점도 함께 올린다
+      }
+      if (sync.sdirty) sync.sat = 0;                         // 지난 접속에서 못 올린 최고점은 새 실행에서 바로 보낸다
+      if (sync.dirty || sync.sdirty) {
         sync.blocked = false;                                // 새 실행마다 한 번은 다시 시도(고쳐진 경우 자동 복구)
         saveSync();
         schedule(1500);
@@ -707,11 +812,13 @@
 
     function onOnline() {
       sync.nextTryAt = 0;
+      scoreStale = false;                                    // 연결이 돌아왔으니 못 올린 최고점을 다시 보낼 수 있다
       if (sync.dirty && !sync.blocked) schedule(500);
+      else if (sync.sdirty && !sync.blocked) schedule(Math.max(500, sync.sat - now()));
       emit('online');
     }
     function onVisible() {
-      if (sync.dirty && !sync.blocked && now() >= sync.nextTryAt) schedule(500);
+      if ((sync.dirty || scoreDue()) && !sync.blocked && now() >= sync.nextTryAt) schedule(500);
     }
 
     /* ---- 새 프로필 판정 · 프로필 지우기 (spec §23.3·§23.4) ---- */
@@ -724,18 +831,19 @@
     function createMode() {
       const st = deviceStars(store);
       const total = Math.max(st.total, starsOfSave(getSave()));
+      const best = Math.max(deviceBest(store), bestOfSave(getSave()));      // spec §46: 최고점만 있는 기기도 "기록 있음"이다
       const had = !!profile.hadProfile;
-      const has = total > 0;
+      const has = total > 0 || best > 0;
       let row = 2;
       let records = 'none';
       if (!had && has) { row = 1; records = 'carry'; }
       else if (had && !has) { row = 3; }
       else if (had && has) { row = 4; records = 'wipe'; }
-      return { row: row, records: records, history: had, hasRecords: has, stars: { gen: st.gen, edu: st.edu, total: total } };
+      return { row: row, records: records, history: had, hasRecords: has, stars: { gen: st.gen, edu: st.edu, total: total }, best: best };
     }
 
     /** 지우기 직전에 올릴 기록이 있는가(프로필·서버 연결·제출 대기·막히지 않음). 오프라인 여부는 보지 않는다 */
-    function erasePending() { return enabled() && registered() && !sessionOptOut && !!sync.dirty && !sync.blocked; }
+    function erasePending() { return enabled() && registered() && !sessionOptOut && (!!sync.dirty || (!!sync.sdirty && scoreToSend() > 0)) && !sync.blocked; }
 
     /**
      * 지우기 직전 마지막 전송 1회(spec §23.3.5). 결과 { pending, sent, ok }. 지우기 전용이라 끝난 뒤에도 제출 타이머를 다시 걸지 않는다.
@@ -755,13 +863,14 @@
         guard = timers.set(finish, gapMs + eraseMs + 300);
         (async function () {
           if (inflight) { try { await inflight; } catch (e) { /* 무시 */ } }
-          if (!sync.dirty) { info.ok = true; return; }          // 방금 끝난 전송이 이미 다 올렸다
+          if (!sync.dirty && !(sync.sdirty && scoreToSend() > 0)) { info.ok = true; return; }          // 방금 끝난 전송이 이미 다 올렸다
           const wait = lastSendAt ? lastSendAt + gapMs - now() : 0;
           if (wait > 0) await new Promise(function (r) { timers.set(r, wait); });
           if (finished) return;
           info.sent = true;
           lastSendAt = now();
-          const c = await request('POST', '/api/sync', buildSyncBody({ pid: profile.pid, d: snapshot() }), eraseMs);
+          const lastS = sync.sdirty ? scoreToSend() : 0;         // 지우기 직전 마지막 전송에는 못 올린 최고점도 싣는다
+          const c = await request('POST', '/api/sync', buildSyncBody({ pid: profile.pid, d: snapshot(), s: lastS > 0 ? lastS : undefined }), eraseMs);
           info.ok = c.kind === 'ok';
         })().then(finish, finish);
       });
@@ -826,14 +935,14 @@
       if (registered()) {
         const idx = rows.findIndex(isMine);
         if (idx >= 0) {
-          data.me = { rank: rows[idx].rank, stars: rows[idx].stars, nick: rows[idx].nick, tag: rows[idx].tag, avatar: rows[idx].avatar, inList: true };
+          data.me = { rank: rows[idx].rank, stars: rows[idx].stars, nick: rows[idx].nick, tag: rows[idx].tag, avatar: rows[idx].avatar, inList: true, score: rows[idx].score };
         } else if (localStars(board) > 0) {
           // 별이 0개면 순위에 없으므로 물어보지 않는다(불필요한 404 방지)
           const rc = await request('GET', '/api/rank?board=' + encodeURIComponent(board) + '&pub=' + encodeURIComponent(profile.pub));
           if (rc.kind === 'ok' && rc.json) {
             const r = rc.json;
             if (r.hidden === 1 || r.hidden === 2) data.me = { hidden: r.hidden };
-            else if (isInt(r.rank)) data.me = { rank: r.rank, stars: isInt(r.stars) ? r.stars : 0, nick: String(r.nick || profile.nick), tag: pad4(r.tag != null ? r.tag : profile.tag), avatar: isInt(r.avatar) ? r.avatar : profile.avatar, inList: false };
+            else if (isInt(r.rank)) data.me = { rank: r.rank, stars: isInt(r.stars) ? r.stars : 0, nick: String(r.nick || profile.nick), tag: pad4(r.tag != null ? r.tag : profile.tag), avatar: isInt(r.avatar) ? r.avatar : profile.avatar, inList: false, score: isInt(r.score) && r.score > 0 ? r.score : 0 };
             if (isInt(r.of) && !data.of) data.of = r.of;
           }
           // 내 순위 조회가 실패해도 목록은 보여 준다(me = null)
@@ -859,6 +968,7 @@
       saveProfile: saveProfileRemote, deleteProfile: deleteProfileRemote, skipProfile: skipProfile, dismissNotice: dismissNotice,
       setSessionOptOut: setSessionOptOut, sessionOptOut: function () { return sessionOptOut; }, needsProfilePrompt: needsProfilePrompt,
       markDirty: markDirty, flush: flush, start: start, onOnline: onOnline, onVisible: onVisible,
+      markScore: markScore, flushScore: flushScore, onHidden: onHidden,
       createMode: createMode, erasePending: erasePending, flushForErase: flushForErase, eraseDevice: eraseDevice,
       fetchBoard: fetchBoard, loadCache: loadCache, snapshot: snapshot,
       _internals: { getSync: function () { return sync; }, getProfile: function () { return profile; } }
@@ -873,6 +983,7 @@
     findNickFn: findNickFn, fallbackNickCheck: fallbackNickCheck, checkNick: checkNick,
     createStore: createStore, normalizeProfile: normalizeProfile, normalizeSync: normalizeSync, normalizeRows: normalizeRows,
     createClient: createClient, startGate: startGate,
-    RECORD_KEYS: RECORD_KEYS, SETTING_FIELDS: SETTING_FIELDS, starsOfSave: starsOfSave, deviceStars: deviceStars, wipeSaveRaw: wipeSaveRaw, eraseDeviceData: eraseDeviceData
+    RECORD_KEYS: RECORD_KEYS, SETTING_FIELDS: SETTING_FIELDS, starsOfSave: starsOfSave, deviceStars: deviceStars, wipeSaveRaw: wipeSaveRaw, eraseDeviceData: eraseDeviceData,
+    bestOfSave: bestOfSave, bestOfRaw: bestOfRaw, deviceBest: deviceBest, bestText: bestText, bestLabel: bestLabel
   };
 });

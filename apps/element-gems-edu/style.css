@@ -1731,6 +1731,120 @@ body::after {
 }
 
 /* =====================================================================
+ * 최고점 도전 (spec §46) — 시작 화면 [최고점 도전] 버튼 · 도전 중 막대(#goal 자리) · 도전 결과 화면 · 명예의 전당 "최고점" 줄.
+ * 새 규칙은 #btn-challenge · .chal-* · .level-chip.lv-challenge · .goal[data-chal] · .rule-chal · .bs(순위표 최고점)로만 걸린다: 도전을 하지 않는 화면에는 아무것도 달라지지 않는다.
+ * 도전 막대는 점수형 목표 바(#goal)를 그대로 쓰므로 높이·위치·보드 크기식을 건드리지 않는다. 글자는 11px 아래로 내려가지 않고 잉크색 계열 + 밝은 바탕이라 4.5:1 이상이다.
+ * 색에만 의존하지 않는다: 새 기록·추천은 글자("새 기록!", "추천", "신기록!")와 ★ 모양으로도 알린다. 연출은 기존 목표 바 반짝임(goalHit) 하나뿐이고 감소 모션에서는 JS 가 켜지 않는다.
+ * 빨간색 · "TIME UP" · 실패 표현 없음. 새 이미지·글꼴 0개(아이콘은 index.html 의 인라인 SVG).
+ * 이 블록은 정령 블록 앞에 놓는다(앞 단계 블록 시험이 "블록 시작 ~ 파일 끝쪽 메뉴 블록 앞"을 읽으므로). 시작 화면 버튼은 id 선택자(#btn-challenge)로 메뉴 V1 의 .menu-screen 규칙보다 앞선다.
+ * ===================================================================== */
+/* ---------- 시작 화면: [시작] 바로 아래 하늘색 청록 버튼 ---------- */
+#btn-challenge {
+  position: relative; display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; min-height: 60px; margin: 0; padding: 6px 16px;
+  border: 3px solid #fff; border-radius: 20px; text-align: left;
+  background: linear-gradient(180deg, #a6eef8 0%, #5ad0e6 55%, #38bad6 100%); color: #04323f; text-shadow: none;
+  box-shadow: inset 0 -4px 0 rgba(0, 80, 110, .2), 0 5px 0 #0f7f9c, 0 10px 14px rgba(0, 70, 100, .28);
+  transition: transform .08s, box-shadow .08s;
+}
+#btn-challenge:hover { background: linear-gradient(180deg, #a6eef8 0%, #5ad0e6 55%, #38bad6 100%); filter: brightness(1.04); }
+#btn-challenge:active { transform: translateY(4px); box-shadow: inset 0 -3px 0 rgba(0, 80, 110, .2), 0 1px 0 #0f7f9c; }
+#btn-challenge:focus-visible { outline: 4px solid var(--focus); outline-offset: 3px; box-shadow: 0 0 0 7px #fff, 0 5px 0 #0f7f9c; }
+.chal-ic { flex: none; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; background: #fff; box-shadow: 0 2px 0 rgba(0, 80, 110, .3); }
+.chal-ic svg { display: block; width: 26px; height: 26px; }
+.chal-txt { display: flex; flex-direction: column; min-width: 0; line-height: 1.15; }
+.chal-t { font-size: 1.2rem; font-weight: 900; letter-spacing: .02em; }
+.chal-s { font-size: .8rem; font-weight: 800; color: #05404f; }
+.chal-badge { flex: none; margin-left: 2px; padding: 1px 10px; border-radius: 999px; background: #ffd23f; color: #4a2600; font-style: normal; font-size: .78rem; font-weight: 900; box-shadow: 0 2px 0 #d9830a; }
+.rules li.rule-chal b { background: #cdf1f8; color: #04323f; }
+@media (orientation: portrait) and (max-height: 700px) {
+  #btn-challenge { min-height: 50px; padding: 3px 14px; border-radius: 20px; }
+  .chal-ic { width: 34px; height: 34px; }
+  .chal-ic svg { width: 22px; height: 22px; }
+  .chal-t { font-size: 1.08rem; }
+  .chal-s { font-size: .74rem; }
+}
+@media (orientation: portrait) and (max-height: 600px) {
+  #btn-challenge { min-height: 46px; padding-top: 2px; padding-bottom: 2px; }
+  .chal-s { display: none; }
+}
+@media (orientation: landscape) and (max-height: 500px), (orientation: landscape) and (min-height: 501px) and (max-width: 799px) {
+  #btn-challenge { min-height: 52px; padding: 3px 12px; }
+  .chal-ic { width: 34px; height: 34px; }
+  .chal-ic svg { width: 22px; height: 22px; }
+  .chal-t { font-size: 1.08rem; }
+  .chal-s { font-size: .74rem; }
+}
+@media (orientation: landscape) and (max-height: 400px) {
+  #btn-challenge { min-height: 46px; }
+  .chal-s { display: none; }
+}
+@media (min-width: 800px) and (min-height: 501px) and (max-height: 700px) and (orientation: landscape) {
+  #btn-challenge { min-height: 52px; }
+  .chal-s { font-size: .74rem; }
+}
+
+/* ---------- 도전 중: 점수 칸의 "도전" 칩 · "내 최고까지" 막대(#goal 자리, 주황 선 = 내 최고) ---------- */
+.level-chip.lv-challenge { background: #c9f0f8; color: #05404f; }
+.goal[data-chal] .goal-fill { background: linear-gradient(180deg, rgba(255, 255, 255, .5) 0 42%, rgba(255, 255, 255, 0) 50%), repeating-linear-gradient(115deg, rgba(255, 255, 255, .22) 0 8px, rgba(255, 255, 255, 0) 8px 16px), linear-gradient(90deg, #5ad0e6, #2fa7c6); }
+.goal[data-chal].beat .goal-fill { background: linear-gradient(180deg, rgba(255, 255, 255, .5) 0 42%, rgba(255, 255, 255, 0) 50%), repeating-linear-gradient(115deg, rgba(255, 255, 255, .22) 0 8px, rgba(255, 255, 255, 0) 8px 16px), linear-gradient(90deg, #ffd23f, #ffa31a); }
+.goal[data-chal]::after { content: ""; position: absolute; top: 0; bottom: 0; right: 3px; z-index: 2; width: 4px; border-radius: 2px; background: #ff9d0a; box-shadow: 0 0 0 1px #fff; pointer-events: none; }
+.goal[data-chal] .goal-text { z-index: 1; padding: 0 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@media (orientation: landscape) and (max-height: 400px) {
+  .goal[data-chal] .gt-best { display: none; }
+}
+
+/* ---------- 도전 결과 화면 ---------- */
+#overlay-chal-end .chal-panel { width: min(100%, 380px); gap: 8px; padding: 18px 18px 16px; border-radius: 32px; }
+#chal-end-title { display: inline-block; align-self: center; margin: 0 0 2px; padding: 6px 30px 8px; border-radius: 12px; background: linear-gradient(180deg, #6f57f7 0%, #5b3df5 100%); color: #fff; font-size: 1.5rem; letter-spacing: .04em; text-shadow: 0 2px 0 #3b2a8f; box-shadow: 0 4px 0 #3a22b8, 0 10px 14px rgba(50, 30, 140, .28); }
+.chal-lab { margin: 2px 0 0; color: var(--ink-2); font-weight: 800; font-size: .9rem; }
+.chal-score { color: var(--ink); font-size: 3.2rem; }
+.chal-new { margin: 0 auto; padding: 4px 18px; border-radius: 999px; background: linear-gradient(180deg, #ffe97a 0%, #ffb21a 100%); color: var(--accent-ink); font-size: 1.05rem; font-weight: 900; box-shadow: 0 3px 0 #d9830a; }
+.chal-line { margin: 0 auto; max-width: 100%; padding: 4px 14px; border-radius: 999px; background: #ece6ff; color: var(--ink); font-size: .92rem; font-weight: 800; line-height: 1.35; }
+.chal-cheer { margin: 0; color: var(--ink-2); font-size: .92rem; font-weight: 700; }
+.chal-stats div { display: flex; flex-direction: column-reverse; align-items: center; }
+.chal-stats dt { font-size: .74rem; }
+.chal-stats dd { font-size: 1.2rem; }
+.chal-rank { margin: 0; min-height: 0; }
+.chal-buttons { display: grid; gap: 8px; margin-top: 2px; }
+.panel .chal-buttons .btn { width: 100%; min-width: 0; min-height: 48px; }
+#btn-chal-again { background: linear-gradient(180deg, #a6eef8 0%, #5ad0e6 55%, #38bad6 100%); color: #04323f; font-size: 1.1rem; font-weight: 900; box-shadow: inset 0 -3px 0 rgba(0, 80, 110, .2), 0 4px 0 #0f7f9c; }
+#btn-chal-again:hover { background: linear-gradient(180deg, #a6eef8 0%, #5ad0e6 55%, #38bad6 100%); }
+#btn-chal-home { background: transparent; border-color: transparent; box-shadow: none; color: var(--ink-2); text-decoration: underline; text-underline-offset: 3px; }
+@media (max-height: 700px) {
+  #chal-end-title { font-size: 1.3rem; padding: 4px 24px 6px; }
+  .chal-score { font-size: 2.6rem; }
+}
+@media (orientation: landscape) and (max-height: 500px) {
+  #overlay-chal-end .chal-panel { width: min(100%, 560px); gap: 4px; padding: 8px 14px 8px; }
+  #chal-end-title { font-size: 1.1rem; padding: 2px 20px 4px; }
+  .chal-lab { display: none; }
+  .chal-score { font-size: 2rem; }
+  .chal-new { padding: 1px 14px; font-size: .9rem; }
+  .chal-line, .chal-cheer { font-size: .8rem; padding-top: 1px; padding-bottom: 1px; }
+  .chal-stats dd { font-size: 1rem; }
+  .chal-stats div { padding: 3px 4px; }
+  .chal-buttons { grid-auto-flow: column; grid-auto-columns: 1fr; }
+  .panel .chal-buttons .btn { min-height: 44px; padding: 4px 8px; font-size: .9rem; }
+}
+
+/* ---------- 명예의 전당: 줄 오른쪽 아래의 작은 "최고점 N"(기록이 없으면 "최고점 —") ---------- */
+.hr .sc, .myrank .sc { flex-direction: column; align-items: flex-end; gap: 0; }
+.hr .sc::before, .myrank .sc::before { content: none; }
+.hr .sc .sl, .myrank .sc .sl { display: flex; align-items: center; gap: 3px; }
+.hr .sc .sl::before { content: "\2605"; color: #ffb703; -webkit-text-stroke: 1.5px #b86b00; paint-order: stroke fill; font-size: 1.1rem; }
+.myrank .sc .sl::before { content: "\2605"; color: #ffb703; -webkit-text-stroke: 1.5px #b86b00; paint-order: stroke fill; font-size: 1.15rem; }
+.hr .sc .bs, .myrank .sc .bs { margin: 0; font-size: .7rem; font-weight: 800; line-height: 1.2; white-space: nowrap; color: #075468; font-variant-numeric: tabular-nums; }
+.hr.me .sc .bs, .myrank .sc .bs { color: #4a2600; }
+@media (min-width: 800px) and (min-height: 501px) and (orientation: landscape), (orientation: portrait) {
+  .hf-list > .hr:nth-child(-n+3) .sc { align-items: center; }
+}
+/* 감소 모션. "screen and" 형식으로 쓴 이유: 앞 단계 블록 시험이 "screen and" 없는 감소 모션 미디어 쿼리를 막아 둔다 */
+@media screen and (prefers-reduced-motion: reduce) {
+  #btn-challenge { transition: none; }
+  .goal[data-chal] .goal-fill { transition: none; }
+}
+
+/* =====================================================================
  * 정령 특별 레벨 (spec §27.6, M4) — 5·10단계 6곳의 "잠든 원소 정령 깨우기" 패널 · 결과 줄 · 레벨 선택의 "깨운 정령" 줄.
  * 새 규칙은 모두 .sp-* / .spirit / .end-spirit 접두어와 #screen-game[data-spirit] 로만 걸린다: 특별 레벨이 아닌 판에서는 #sp-wrap 이 display: contents 라 아무 것도 달라지지 않는다.
  * 패널 높이는 2칩 레벨과 같은 93px(= 머리 38 + 간격 3 + 요청 52). 보드 크기식은 미션 HUD 블록의 #screen-game[data-spirit] 규칙이 같은 71px 를 뺀다.

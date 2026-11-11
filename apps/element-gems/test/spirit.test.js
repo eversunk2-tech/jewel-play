@@ -783,7 +783,7 @@ test('⑦ 레벨 선택 화면의 "깨운 정령 n/6" 줄: 보이는 글·낭독
   env.dispose();
 });
 
-const SAVE_KEYS = ['level', 'progress', 'stages', 'bestByLevel', 'best', 'plays', 'lastScore', 'bestChain', 'muted', 'tutorialSeen', 'cutin', 'scoreRule', 'bestOld'];
+const SAVE_KEYS = ['level', 'progress', 'stages', 'bestByLevel', 'best', 'plays', 'lastScore', 'bestChain', 'muted', 'tutorialSeen', 'cutin', 'scoreRule', 'bestOld', 'challenge'];      // 'challenge' = spec §46 최고점 도전 기록(정령과 무관한 새 키, challenge.test.js 가 따로 시험한다)
 test('⑦ 저장 구조 불변: defaultSave 의 키 목록이 변경 전과 같고, 정령 관련 키가 없으며, parseSave 가 읽은 옛 저장에도 새 키가 생기지 않는다', () => {
   const keys = Object.keys(G.defaultSave()).sort();
   assert.deepStrictEqual(keys, SAVE_KEYS.slice().sort().filter((k) => keys.indexOf(k) !== -1), '변경 전 키 목록의 부분집합이 아니면 새 키가 생긴 것이다');
@@ -898,8 +898,10 @@ for (const variant of [{ name: '기본 표', cfg: null, stages: [5, 10, 3], redu
           assert.strictEqual(rb.score, ra.score, tag + ' 점수');
           assert.strictEqual(rb.timeLeft, ra.timeLeft, tag + ' 남은 시간');
           assert.strictEqual(rb.end, ra.end, tag + ' 결과 문구');
-          assert.strictEqual(rb.save, ra.save, tag + ' 저장 객체');
-          assert.strictEqual(rb.stored, ra.stored, tag + ' localStorage 저장 문자열');
+          // spec §46: 지금 소스의 저장에는 최고점 도전 기록 필드(challenge)가 하나 더 있다(M4 시작 시점 소스에는 없다). 스테이지 판은 그 필드를 건드리지 않으므로 그 한 필드만 빼고 나머지가 글자 그대로 같아야 한다
+          const noChal = (str) => (str == null ? str : str.replace(/,"challenge":\{[^}]*\}/, ''));
+          assert.strictEqual(noChal(rb.save), ra.save, tag + ' 저장 객체');
+          assert.strictEqual(noChal(rb.stored), ra.stored, tag + ' localStorage 저장 문자열');
           assert.strictEqual(rb.rnd, ra.rnd, tag + ' 난수 사용 횟수(화면 코드는 난수를 쓰지 않는다)');
           assert.deepStrictEqual(a.errors, []); assert.deepStrictEqual(b.errors, []);
           // 정령 쪽 부수 확인: 특별 레벨이면 k 는 규칙 결과와 맞고, 아니면 정령 상태가 없다

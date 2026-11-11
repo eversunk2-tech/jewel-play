@@ -1082,8 +1082,10 @@ for (const mode of ['many', 'normal']) {
             assert.strictEqual(rb.score, ra.score, tag + ' 점수');
             assert.strictEqual(rb.timeLeft, ra.timeLeft, tag + ' 남은 시간');
             assert.strictEqual(rb.end, ra.end, tag + ' 결과 문구');
-            assert.strictEqual(rb.save, ra.save, tag + ' 저장 객체');
-            assert.strictEqual(rb.stored, ra.stored, tag + ' localStorage 저장 문자열');
+            // spec §46: 지금 소스의 저장에는 최고점 도전 기록 필드(challenge)가 하나 더 있다(M4-B 시작 시점 소스에는 없다). 스테이지 판은 그 필드를 건드리지 않으므로 그 한 필드만 빼고 나머지가 글자 그대로 같아야 한다(일반용 spirit.test.js 와 같은 방식)
+            const noChal = (str) => (str == null ? str : str.replace(/,"challenge":\{[^}]*\}/, ''));
+            assert.strictEqual(noChal(rb.save), ra.save, tag + ' 저장 객체');
+            assert.strictEqual(noChal(rb.stored), ra.stored, tag + ' localStorage 저장 문자열');
             assert.strictEqual(rb.rnd, ra.rnd, tag + ' 난수 사용 횟수(화면 코드는 난수를 쓰지 않는다)');
             assert.strictEqual(rb.asks, ra.asks, tag + ' 문제 수');
             assert.strictEqual(rb.edu, ra.edu, tag + ' state.edu');

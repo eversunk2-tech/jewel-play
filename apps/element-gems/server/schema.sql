@@ -1,5 +1,7 @@
 -- element-gems 명예의 전당 D1 스키마 (spec §19.4.2)
 -- 여러 번 실행해도 안전합니다(IF NOT EXISTS). D1 대시보드 Console에 전체를 붙여넣고 Execute 하세요.
+-- 최고점 도전 모드(spec §46)로 best_score 열과 idx_rank2_* 인덱스가 더해졌습니다. 이 파일은 **새로 만드는 DB용**입니다.
+-- 이미 운영 중인 DB에는 migrations/ 의 한 줄 SQL을 쓰세요(이 파일을 옛 DB에 다시 붙여도 열은 추가되지 않고, 새 인덱스는 'no such column'으로 안전하게 실패합니다).
 
 CREATE TABLE IF NOT EXISTS players (
   id            INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -18,6 +20,7 @@ CREATE TABLE IF NOT EXISTS players (
   best_easy     INTEGER NOT NULL DEFAULT 0, best_normal  INTEGER NOT NULL DEFAULT 0, best_hard  INTEGER NOT NULL DEFAULT 0,  -- 최고 클리어 레벨 0~10
   total_stars   INTEGER NOT NULL DEFAULT 0,         -- 전체 탭 '별 점수' = 초보 별x1 + 중수 별x2 + 고수 별x3 (최대 180, 정렬 키). 열 이름은 total_stars 유지
   total_left    INTEGER NOT NULL DEFAULT 0,         -- 남은 시간 합계: 세 난이도 단순 합(가중 없음)
+  best_score    INTEGER NOT NULL DEFAULT 0,         -- 최고점 도전 모드 최고 점수(정수, 기록 선호 순서: 별 -> 최고점 -> 남은 시간 합계 -> 먼저 달성 -> id)
   up_all        INTEGER NOT NULL DEFAULT 0,         -- 순위 점수가 마지막으로 오른 시각(초, epoch) - 동점 선착순
   up_easy       INTEGER NOT NULL DEFAULT 0, up_normal INTEGER NOT NULL DEFAULT 0, up_hard INTEGER NOT NULL DEFAULT 0,
   hidden        INTEGER NOT NULL DEFAULT 0 CHECK (hidden IN (0,1,2)),   -- 0 보임 / 1 관리자 숨김 / 2 이름 변경 요청(순위 제외)
@@ -28,11 +31,11 @@ CREATE TABLE IF NOT EXISTS players (
   UNIQUE (nick_key, tag)
 );
 
--- 순위 조회용 부분 인덱스(숨김·별 0개 제외). 정렬 키와 같은 순서 -> ORDER BY가 인덱스를 그대로 사용
-CREATE INDEX IF NOT EXISTS idx_rank_all    ON players (total_stars DESC, total_left DESC, up_all ASC,    id ASC) WHERE hidden = 0 AND total_stars > 0;
-CREATE INDEX IF NOT EXISTS idx_rank_easy   ON players (stars_easy  DESC, left_easy   DESC, up_easy ASC,   id ASC) WHERE hidden = 0 AND stars_easy  > 0;
-CREATE INDEX IF NOT EXISTS idx_rank_normal ON players (stars_normal DESC, left_normal DESC, up_normal ASC, id ASC) WHERE hidden = 0 AND stars_normal > 0;
-CREATE INDEX IF NOT EXISTS idx_rank_hard   ON players (stars_hard  DESC, left_hard   DESC, up_hard ASC,   id ASC) WHERE hidden = 0 AND stars_hard  > 0;
+-- 순위 조회용 부분 인덱스(숨김·별 0개 제외). 정렬 키와 같은 순서(별, 최고점, 남은 시간, 달성 시각, id) -> ORDER BY가 인덱스를 그대로 사용
+CREATE INDEX IF NOT EXISTS idx_rank2_all ON players (total_stars DESC, best_score DESC, total_left DESC, up_all ASC, id ASC) WHERE hidden = 0 AND total_stars > 0;
+CREATE INDEX IF NOT EXISTS idx_rank2_easy ON players (stars_easy DESC, best_score DESC, left_easy DESC, up_easy ASC, id ASC) WHERE hidden = 0 AND stars_easy > 0;
+CREATE INDEX IF NOT EXISTS idx_rank2_normal ON players (stars_normal DESC, best_score DESC, left_normal DESC, up_normal ASC, id ASC) WHERE hidden = 0 AND stars_normal > 0;
+CREATE INDEX IF NOT EXISTS idx_rank2_hard ON players (stars_hard DESC, best_score DESC, left_hard DESC, up_hard ASC, id ASC) WHERE hidden = 0 AND stars_hard > 0;
 
 -- 등록(프로필 생성) 한도·관리자 실패 횟수용: 이름 + 시간 창. 원본 IP는 저장하지 않음(IP 해시만). 오래된 행은 가끔 DELETE
 CREATE TABLE IF NOT EXISTS rate_limits ( k TEXT PRIMARY KEY, n INTEGER NOT NULL, win INTEGER NOT NULL );

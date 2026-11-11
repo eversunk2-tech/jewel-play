@@ -1582,7 +1582,7 @@ test('[EDU] 저장 크기: bestOld 30칸이 늘려도 edu 필드 상한(saveEduM
   assert.strictEqual(tooBig.stages.easy[0].bestOld, 9000, '그래도 점수 이전은 이뤄진다');
   const def = G.defaultSave();
   assert.strictEqual(def.scoreRule, 2); assert.deepStrictEqual(def.edu, {});
-  assert.deepStrictEqual(Object.keys(def).sort(), ['best', 'bestByLevel', 'bestChain', 'cutin', 'edu', 'lastScore', 'level', 'muted', 'plays', 'progress', 'scoreRule', 'stages', 'tutorialSeen']);
+  assert.deepStrictEqual(Object.keys(def).sort(), ['best', 'bestByLevel', 'bestChain', 'challenge', 'cutin', 'edu', 'lastScore', 'level', 'muted', 'plays', 'progress', 'scoreRule', 'stages', 'tutorialSeen']);      // spec §46: 'challenge' = 최고점 도전 기록(스테이지 기록과 따로, challenge.test.js 가 시험한다)
 });
 
 test('[EDU] 서버로 가는 값은 그대로다: buildSnapshot(별·left)은 교육용 마이그레이션 전후로 같다', () => {

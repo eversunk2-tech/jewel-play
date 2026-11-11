@@ -20,12 +20,16 @@ const STAR_RATIO = [0.3, 0.5];                       // 기본: >=0.3 -> 2별, >
 const STAR_RATIO_BY = { hard: [0.15, 0.3] };         // 난이도별 덮어쓰기(spec §44): 고수는 >=0.15 -> 2별, >=0.3 -> 3별
 // spec §19.2.2 서버 허용 left 상한 = 시작 시간 + 20 (Review가 실제 최대를 확인한 뒤 필요하면 완화)
 const LEFT_CAP = { easy: 150, normal: 140, hard: 120 };
+// 최고점 도전 모드(spec §46.3.5) 최고점 상한. 이 값을 넘는 정수는 정직한 점수가 아니라 보고 그 값만 무시한다(기록 안 함).
+// game.js 의 CONFIG.challenge.scoreCap 과 같아야 한다(server/test/core.test.js 가 대조). 점수 규칙·프리셋을 바꾸면 새 Plan 으로 다시 잰다(§46.3.5).
+const SCORE_CAP = 280000;
 
 const LIMITS = {
   bodyBytes: 2048,          // 요청 본문 최대
   writeIntervalSec: 3,      // 같은 pid의 쓰기 간격
   nickChangesPerDay: 2,
   regPerHour: 100,          // IP 해시당 시간당 등록 수
+  scoreWriteIntervalSec: 60, // 최고점이 오르는 요청은 마지막 쓰기로부터 이 시간 이상(spec §46.3.4). 프로필·진행 변경은 writeIntervalSec(3초)
   topMax: 50,
   adminFailMax: 5,          // 관리자 키 실패 허용 횟수
   adminFailWindowSec: 600,
@@ -87,6 +91,13 @@ function validateProgress(d) {
   return { ok: true, d: { easy: d.easy.slice(), normal: d.normal.slice(), hard: d.hard.slice() } };
 }
 
+/** 요청의 s(최고점) 검증. 0 이상의 정수만 정상(null·true·문자열·배열·소수·음수·NaN 은 progress_invalid, field 's').
+ *  성공: { ok:true, s, rejected } - rejected 는 SCORE_CAP 초과(그 값만 무시하고 나머지는 정상 처리하라는 뜻). 실패: { ok:false, code:'progress_invalid', field:'s' } */
+function validateScore(s) {
+  if (typeof s !== 'number' || !Number.isInteger(s) || s < 0) return { ok: false, code: 'progress_invalid', field: 's' };
+  return { ok: true, s: s || 0, rejected: s > SCORE_CAP };                       // s || 0 : -0 을 0 으로
+}
+
 /** 스테이지별 최대값 병합(감소 불가) */
 function mergeProgress(oldP, newD) {
   const out = {};
@@ -136,16 +147,17 @@ function computeTotals(p) {
   return t;
 }
 
-/** 보드 -> D1 열 이름 */
+/** 보드 -> D1 열 이름. score(최고점) 열은 네 보드가 같다 */
 function boardCols(board) {
-  if (board === 'all') return { stars: 'total_stars', left: 'total_left', up: 'up_all' };
+  if (board === 'all') return { stars: 'total_stars', score: 'best_score', left: 'total_left', up: 'up_all' };
   if (DIFFS.indexOf(board) < 0) return null;
-  return { stars: 'stars_' + board, left: 'left_' + board, up: 'up_' + board };
+  return { stars: 'stars_' + board, score: 'best_score', left: 'left_' + board, up: 'up_' + board };
 }
 
-/** 순위 비교 함수(SQL의 ORDER BY 와 같은 순서): 별 내림 -> 남은 시간 합 내림 -> 달성 시각 오름 -> id 오름 */
+/** 순위 비교 함수(SQL의 ORDER BY 와 같은 순서, spec §46.3.3): 별 내림 -> 최고점 내림 -> 남은 시간 합 내림 -> 달성 시각 오름 -> id 오름.
+ *  score 가 없는 행은 0점(도전 기록 없음)으로 보므로, 모두 0점이면 옛 규칙(남은 시간 -> 달성 시각 -> id)과 같다 */
 function compareRank(a, b) {
-  return (b.stars - a.stars) || (b.left - a.left) || (a.up - b.up) || (a.id - b.id);
+  return (b.stars - a.stars) || ((b.score || 0) - (a.score || 0)) || (b.left - a.left) || (a.up - b.up) || (a.id - b.id);
 }
 
 /** 한국 시간(UTC+9) 날짜 번호 */
@@ -204,7 +216,7 @@ function safeEqual(a, b) {
 }
 
 module.exports = {
-  API_VERSION, STAR_WEIGHT, MAX_TOTAL_SCORE, weightedScore, DIFFS, BOARDS, STAGES, START_TIME, STAR_RATIO, STAR_RATIO_BY, LEFT_CAP, LIMITS, EMPTY_PROG_STR, PUB_ALPHABET,
-  starRatioOf, starThresholds, starsForLeft, parseProg, serializeProg, emptyProgress, validateProgress, mergeProgress, chainViolation,
+  API_VERSION, STAR_WEIGHT, MAX_TOTAL_SCORE, weightedScore, DIFFS, BOARDS, STAGES, START_TIME, STAR_RATIO, STAR_RATIO_BY, LEFT_CAP, SCORE_CAP, LIMITS, EMPTY_PROG_STR, PUB_ALPHABET,
+  starRatioOf, starThresholds, starsForLeft, parseProg, serializeProg, emptyProgress, validateProgress, validateScore, mergeProgress, chainViolation,
   computeTotals, boardCols, compareRank, kstDay, isUuid, normalizePub, originAllowed, checkProfile, safeEqual
 };

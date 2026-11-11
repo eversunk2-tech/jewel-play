@@ -43,6 +43,17 @@ test('dist/worker.js: ES 모듈 Worker 로 읽히고, 비밀·로컬 경로가 �
     const lb = await call('GET', '/api/leaderboard?board=all');
     assert.equal(lb.json.rows[0].nick, '별빛냥');
     assert.equal((await call('GET', '/api/rank?board=all&pub=' + created.json.me.pub)).json.rank, 1);
+    // 최고점 도전 모드(spec §46): 묶음 파일에서도 s·score·scoreRejected·새 정렬(별 -> 최고점 -> …)이 동작한다
+    assert.equal(created.json.me.score, 0);
+    const scored = await call('POST', '/api/sync', { v: 1, pid: uuid(), profile: { nick: '점수왕', avatar: 4 }, d: prog([70, 40]), s: 12345 });
+    assert.equal(scored.json.me.score, 12345);
+    const tooBig = await call('POST', '/api/sync', { v: 1, pid: uuid(), profile: { nick: '큰숫자', avatar: 5 }, d: prog([70, 40]), s: 280001 });
+    assert.equal(tooBig.status, 200);
+    assert.equal(tooBig.json.scoreRejected, true);
+    assert.equal(tooBig.json.me.score, 0);
+    assert.equal((await call('POST', '/api/sync', { v: 1, pid: uuid(), profile: { nick: '틀린점수', avatar: 6 }, d: prog([70]), s: -1 })).json.error.field, 's');
+    const lb2 = await call('GET', '/api/leaderboard?board=all');
+    assert.deepEqual(lb2.json.rows.map((x) => [x.nick, x.score]).slice(0, 3), [['점수왕', 12345], ['별빛냥', 0], ['큰숫자', 0]]);
     // 닉네임 검증도 같은 결과 (같은 nickname.js / nick-words.js 가 묶여 있음)
     for (const [nick, code] of [['시발', 'nick_blocked'], ['3학년2반', 'nick_pii'], ['관리자', 'nick_reserved'], ['아아아', 'nick_repeat']]) {
       const r = await call('POST', '/api/sync', { v: 1, pid: uuid(), profile: { nick, avatar: 1 } });
