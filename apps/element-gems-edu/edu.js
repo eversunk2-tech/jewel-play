@@ -84,7 +84,7 @@
     const recent = prevFs.slice(-w);
     while (order.length < total) {
       let cand = [];
-      for (let ww = w; ww >= 0 && !cand.length; ww--) {       // 후보가 없으면 제외 칸 수를 하나씩 줄이고, 0칸이면 남은 사실 전부
+      for (let ww = Math.min(w, recent.length); ww >= 0 && !cand.length; ww--) {       // 후보가 없으면 제외 칸 수를 하나씩 줄이고, 0칸이면 남은 사실 전부(recent 보다 긴 칸 수는 결과가 같으므로 건너뜀 — 설정이 터무니없이 커도 오래 걸리지 않게)
         const block = ww > 0 ? recent.slice(-ww) : [];
         cand = keys.filter(function (k) { return rest[k].length > 0 && block.indexOf(k) < 0; });
       }
@@ -146,7 +146,7 @@
     for (let t = 0; t < tries; t++) {
       const cand = spreadOnce(keys, groups, items.length, prev, w, r);
       const b = spreadBadness(cand.fs, prev, near);
-      if (b < bestB) { bestB = b; best = cand; if (b === 0) break; }
+      if (best === null || b < bestB) { bestB = b; best = cand; if (b === 0) break; }     // best === null: 벌점이 Infinity(터무니없이 큰 spreadNear)여도 첫 순서를 반드시 쓴다
     }
     return best.order;
   }

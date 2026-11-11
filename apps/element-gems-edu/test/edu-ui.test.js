@@ -314,6 +314,18 @@ test('buildSpreadOrder ⑤ 경계 입력(사실 1개·문제 1개·f 없음·빈
   assert.ok(many < one, '12번 짜서 고르면 1번 짠 것보다 가까운 반복이 적다: ' + many + ' < ' + one);
 });
 
+test('buildSpreadOrder ⑤ 보강(Review R-G): 터무니없이 큰 설정값(spreadNear 1e200 → 벌점 Infinity, spreadMax 2e4·spreadRatio 1e9 → 예전엔 몇 초씩 걸리던 값)에서도 멈추지 않고 곧바로 순열을 돌려준다', () => {
+  const items = mkItems(17, 3);
+  const want = sortedNums(items.map((i) => i.n));
+  const t0 = Date.now();
+  [{ spreadNear: 1e200 }, { spreadNear: Number.MAX_VALUE }, { spreadMax: 2e4, spreadRatio: 1e9 }, { spreadMax: 2e4, spreadRatio: 1e9, spreadNear: 1e200 }].forEach((cfg, ci) => {
+    for (let seed = 1; seed <= 2; seed++) {
+      assert.deepStrictEqual(sortedNums(L.buildSpreadOrder(items, ['F1', 'F2'], lcg(seed), Object.assign({}, L.EDU_UI.bag, cfg))), want, 'cfg ' + ci + ' seed ' + seed);
+    }
+  });
+  assert.ok(Date.now() - t0 < 2000, '큰 설정값에서도 2초 안에 끝난다: ' + (Date.now() - t0) + 'ms');
+});
+
 test('buildSpreadOrder ⑥ drawFromBag 연결: 새 bag은 새 방식으로 순서를 만들고(같은 시드 → 같은 순서), 바퀴가 끝나면 이전 바퀴 끝과 가깝지 않게 다시 짠다', () => {
   // 새 bag: 첫 문제를 낸 뒤 bag.order 는 buildSpreadOrder 가 같은 시드로 만든 순서와 같다(첫 문제는 제자리라 순서가 바뀌지 않는다)
   for (let seed = 1; seed <= 20; seed++) {
