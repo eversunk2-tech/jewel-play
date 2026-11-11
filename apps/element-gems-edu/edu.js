@@ -26,7 +26,8 @@
   const EDU_UI = {
     storageKey: 'element-gems-edu:v1',      // game.js 와 같은 키(game.js CONFIG.edu.storageKey 가 있으면 그 값)
     chooserKey: 'eg-from-chooser',          // sessionStorage: 모드 선택 화면을 거쳐 왔다는 표시(E3)
-    bag: { recentWindow: 6, avoidFirst: 6, stageSameFact: 1 },   // 최근 6문제 같은 f 미룸 · 재섞기 때 직전 6개 앞쪽 제외 · 한 스테이지 같은 f 1번
+    bag: { recentWindow: 6, avoidFirst: 6, stageSameFact: 1,     // 최근 6문제 같은 f 미룸 · 재섞기 때 직전 6개 앞쪽 제외 · 한 스테이지 같은 f 1번
+           spreadRatio: 0.6, spreadMax: 14, spreadTries: 12, spreadNear: 10 },   // spec §48 — 한 바퀴 순서를 짤 때 같은 사실(f)이 가까이 오지 않게: 사실 수×0.6 칸(최대 14) 안에는 다시 안 내고 · 12번 짜서 가장 고른 것을 쓰며 · 10칸 안에 다시 나오면 벌점
     quiz: { answerLockMs: 500, continueLockMs: 350, nextGapMs: 0 },  // 열린 직후 0.5초 답 입력 무시 · [계속하기] 오터치 방지
     load: { timeoutMs: 15000, dir: 'edu-data/q/' },                  // 소단원 문제 파일 로드 제한 시간 · 허용 폴더
     bonus: { base: 300, mult: { easy: 0.8, normal: 1.0, hard: 1.3 } },   // 정답 보너스(기본값; game.js CONFIG.edu.bonus 가 있으면 우선)
@@ -67,6 +68,92 @@
       }
     }
     return a;
+  }
+
+  /* ---------- 한 바퀴 순서 짜기: 같은 사실이 가까이 오지 않게 (spec §48) ---------- */
+  /** 사실 키: 문제의 f (없으면 문제마다 따로 '#번호') */
+  function spreadKey(it) { return typeof it.f === 'string' && it.f ? it.f : '#' + it.n; }
+  function spreadNum(v, def) { return typeof v === 'number' && isFinite(v) ? v : def; }
+
+  /** 순서를 한 번 짠다 → { order:[문제 번호…], fs:[사실 키…] }. 한 칸씩, 최근 w개로 낸 사실을 뺀 사실 중에서 남은 문제 수에 비례해 사실을 고르고 그 사실의 남은 문제 하나를 뽑는다 */
+  function spreadOnce(keys, groups, total, prevFs, w, r) {
+    const rest = Object.create(null);
+    keys.forEach(function (k) { rest[k] = groups[k].slice(); });
+    const order = [];
+    const fs = [];
+    const recent = prevFs.slice(-w);
+    while (order.length < total) {
+      let cand = [];
+      for (let ww = w; ww >= 0 && !cand.length; ww--) {       // 후보가 없으면 제외 칸 수를 하나씩 줄이고, 0칸이면 남은 사실 전부
+        const block = ww > 0 ? recent.slice(-ww) : [];
+        cand = keys.filter(function (k) { return rest[k].length > 0 && block.indexOf(k) < 0; });
+      }
+      let sum = 0;
+      cand.forEach(function (k) { sum += rest[k].length; });
+      let x = r() * sum;
+      let pick = cand[cand.length - 1];
+      for (let i = 0; i < cand.length; i++) {
+        x -= rest[cand[i]].length;
+        if (x < 0) { pick = cand[i]; break; }
+      }
+      const arr = rest[pick];
+      order.push(arr.splice(Math.min(arr.length - 1, Math.floor(r() * arr.length)), 1)[0]);
+      fs.push(pick);
+      recent.push(pick);
+      while (recent.length > w) recent.shift();
+    }
+    return { order: order, fs: fs };
+  }
+
+  /** 같은 사실이 near 칸 안에 다시 나오면 가까울수록 크게 벌점((near-거리)²). 이전 바퀴 끝(prevFs)과의 경계도 센다 */
+  function spreadBadness(fs, prevFs, near) {
+    const seq = prevFs.concat(fs);
+    let b = 0;
+    for (let i = prevFs.length; i < seq.length; i++) {
+      for (let d = 1; d < near && i - d >= 0; d++) {
+        if (seq[i - d] === seq[i]) b += (near - d) * (near - d);
+      }
+    }
+    return b;
+  }
+
+  /**
+   * 한 바퀴(문제 전체를 한 번씩)의 출제 순서를 짠다 → items 번호의 순열. 같은 사실(f)이 가까이 다시 나오지 않게 한다(spec §48).
+   *  - w = max(1, min(spreadMax, floor(사실 수 × spreadRatio))): 최근 w개로 낸 사실은 다시 고르지 않는다(처음엔 prevTailFs 의 끝 w개)
+   *  - spreadTries 번 짜서 벌점(spreadBadness)이 가장 작은 순서를 쓴다(0이면 바로 멈춤)
+   * prevTailFs: 이전 바퀴 끝의 사실 키들(오래된 것 → 최근 순). rng: [0,1) 함수(없으면 Math.random). cfg: EDU_UI.bag 모양(없으면 EDU_UI.bag)
+   */
+  function buildSpreadOrder(items, prevTailFs, rng, cfg) {
+    if (!Array.isArray(items) || !items.length) return [];
+    const base = EDU_UI.bag;
+    const c = cfg && typeof cfg === 'object' ? cfg : base;
+    const ratio = spreadNum(c.spreadRatio, base.spreadRatio);
+    const maxW = spreadNum(c.spreadMax, base.spreadMax);
+    const tries = Math.max(1, Math.floor(spreadNum(c.spreadTries, base.spreadTries)));
+    const near = spreadNum(c.spreadNear, base.spreadNear);
+    const r = typeof rng === 'function' ? rng : Math.random;
+    const prev = Array.isArray(prevTailFs) ? prevTailFs : [];
+    const keys = [];
+    const groups = Object.create(null);
+    items.forEach(function (it) {
+      const k = spreadKey(it);
+      if (!groups[k]) { groups[k] = []; keys.push(k); }
+      groups[k].push(it.n);
+    });
+    const w = Math.max(1, Math.min(maxW, Math.floor(keys.length * ratio)));
+    let best = null;
+    let bestB = Infinity;
+    for (let t = 0; t < tries; t++) {
+      const cand = spreadOnce(keys, groups, items.length, prev, w, r);
+      const b = spreadBadness(cand.fs, prev, near);
+      if (b < bestB) { bestB = b; best = cand; if (b === 0) break; }
+    }
+    return best.order;
+  }
+
+  /** 지난 한 바퀴 순서의 끝 len 개 문제의 사실 키들(새 바퀴 순서를 짤 때 경계를 넘어 같은 사실이 가까이 오지 않게). byN 에 없는 번호는 건너뛴다 */
+  function tailFacts(order, byN, len) {
+    return order.slice(-len).filter(function (n) { return byN[n]; }).map(function (n) { return spreadKey(byN[n]); });
   }
 
   /** 문제 한 개가 쓸 수 있는 모양인가(스키마가 어긋난 문제는 건너뛴다) */
@@ -128,12 +215,12 @@
     const ns = items.map(function (it) { byN[it.n] = it; return it.n; });
     if (!Array.isArray(bag.recent)) bag.recent = [];
     if (!bagValid(bag, ns)) {
-      bag.order = shuffleAvoid(ns, opts.rng, [], 0);
+      bag.order = buildSpreadOrder(items, [], opts.rng, cfg);            // spec §48: 같은 사실이 가까이 오지 않게 순서 짜기
       bag.pos = 0;
     }
-    if (bag.pos >= bag.order.length) {                     // 한 바퀴를 다 썼다 → 다시 섞기(직전에 낸 avoidFirst 개는 앞쪽에서 제외)
+    if (bag.pos >= bag.order.length) {                     // 한 바퀴를 다 썼다 → 다시 짜기(직전에 낸 avoidFirst 개는 held 로 앞쪽에서 제외)
       const tail = bag.order.slice(-avoidFirst);
-      bag.order = shuffleAvoid(ns, opts.rng, tail, avoidFirst);
+      bag.order = buildSpreadOrder(items, tailFacts(bag.order, byN, Math.max(cfg.spreadMax, cfg.spreadNear)), opts.rng, cfg);
       bag.pos = 0;
       bag.held = tail;
     }
@@ -416,7 +503,7 @@
    * ===================================================================== */
   if (typeof module !== 'undefined' && module.exports) {
     module.exports = {
-      EDU_UI: EDU_UI, shuffle: shuffle, shuffleAvoid: shuffleAvoid, validItem: validItem, cleanItems: cleanItems, bagValid: bagValid,
+      EDU_UI: EDU_UI, shuffle: shuffle, shuffleAvoid: shuffleAvoid, buildSpreadOrder: buildSpreadOrder, validItem: validItem, cleanItems: cleanItems, bagValid: bagValid,
       drawFromBag: drawFromBag, bonusFor: bonusFor, normalizeEdu: normalizeEdu, mergeEduIntoSave: mergeEduIntoSave, readEduFromRaw: readEduFromRaw,
       readySubjects: readySubjects, gradesOf: gradesOf, termsOf: termsOf, unitsOf: unitsOf, termReady: termReady, findSub: findSub, hasAnySub: hasAnySub,
       defaultChips: defaultChips, unitLabelOf: unitLabelOf, pagesText: pagesText, questionId: questionId, statLine: statLine, summaryLine: summaryLine,

@@ -6,6 +6,7 @@ const test = require('node:test');
 const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
+const vm = require('node:vm');
 const root = path.join(__dirname, '..');
 const L = require(path.join(root, 'edu.js'));
 const CAT = require(path.join(root, 'edu-data', 'catalog.js'));
@@ -136,6 +137,256 @@ test('bag: 사실이 아주 적은 소단원(4사실×15문항)도 멈추지 않
   const got = [];
   for (let i = 0; i < 60; i++) got.push(L.drawFromBag(bag, items, { rng: lcg(2), stageF: {} }).n);
   assert.strictEqual(new Set(got).size, 60);
+});
+
+/* ---------- 한 바퀴 순서 짜기: 같은 사실이 가까이 오지 않게 (spec §48) ---------- */
+const SPREAD = () => L.EDU_UI.bag;
+const spreadW = (nFacts) => Math.max(1, Math.min(SPREAD().spreadMax, Math.floor(nFacts * SPREAD().spreadRatio)));
+const factOf = (items) => { const m = {}; items.forEach((it) => { m[it.n] = it.f; }); return m; };
+const sortedNums = (a) => a.slice().sort((x, y) => x - y);
+function loadRealUnits() {                                  // 실제 소단원 파일(edu-data/q/*.js)을 vm 으로 읽는다 → { id: { items:[…] } }
+  const dir = path.join(root, 'edu-data', 'q');
+  const out = {};
+  fs.readdirSync(dir).filter((f) => /^soc-[a-z0-9-]+\.js$/.test(f)).sort().forEach((f) => {
+    const w = {};
+    vm.runInNewContext(fs.readFileSync(path.join(dir, f), 'utf8'), { window: w });
+    Object.assign(out, w.EDU_Q);
+  });
+  return out;
+}
+/* 보통 모드 흉내: 판당 3~4문제, bag 은 판을 넘어 이어지고 stageF 는 판마다 비운다. oldStyle=true 면 예전 방식(shuffleAvoid)으로 순서를 짜 넣어 비교 기준으로 쓴다 */
+function simNormal(items, seed, total, oldStyle) {
+  const ns = items.map((i) => i.n);
+  const rng = lcg(seed);
+  const bag = newBag();
+  if (oldStyle) bag.order = L.shuffleAvoid(ns, rng, [], 0);
+  const seq = [];
+  while (seq.length < total) {
+    const stageF = {};
+    const k = rng() < 0.5 ? 3 : 4;
+    for (let i = 0; i < k && seq.length < total; i++) {
+      if (oldStyle && bag.pos >= bag.order.length) {         // 바퀴 종료 → 예전처럼 다시 섞기(직전 6개 앞쪽 제외)
+        const tail = bag.order.slice(-6);
+        bag.order = L.shuffleAvoid(ns, rng, tail, 6);
+        bag.pos = 0;
+        bag.held = tail;
+      }
+      const it = L.drawFromBag(bag, items, { rng: rng, stageF: stageF });
+      seq.push({ n: it.n, f: it.f });
+    }
+  }
+  return seq;
+}
+/* 같은 사실이 다시 나온 간격들 중 10문제 이내 비율(%) · 3문제 이내 반복 횟수 · 한 바퀴(lap 개) 안 같은 번호 반복 횟수 */
+function spreadStats(seq, lap) {
+  const last = {};
+  let repeats = 0, le10 = 0, le3 = 0, lapDup = 0;
+  seq.forEach((x, i) => {
+    if (last[x.f] != null) { const g = i - last[x.f]; repeats++; if (g <= 10) le10++; if (g <= 3) le3++; }
+    last[x.f] = i;
+  });
+  for (let s = 0; s + lap <= seq.length; s += lap) {
+    const seen = {};
+    for (let i = s; i < s + lap; i++) { if (seen[seq[i].n]) lapDup++; seen[seq[i].n] = true; }
+  }
+  return { le10: repeats ? 100 * le10 / repeats : 0, le3: le3, lapDup: lapDup };
+}
+
+test('spec §48 설정: 순서 짜기 매개변수 4개가 EDU_UI.bag 한 곳에 있고, 기존 안전망 값은 그대로다', () => {
+  assert.deepStrictEqual(Object.assign({}, L.EDU_UI.bag), { recentWindow: 6, avoidFirst: 6, stageSameFact: 1, spreadRatio: 0.6, spreadMax: 14, spreadTries: 12, spreadNear: 10 });
+});
+
+test('buildSpreadOrder ① 결과는 items 번호의 순열이다(빠지거나 겹치지 않음) — 모양·시드·이전 바퀴 꼬리 유무에 상관없이', () => {
+  const shapes = [mkItems(20, 3), mkItems(60, 1), mkItems(30, 2), mkItems(15, 4), mkItems(4, 15), mkItems(1, 60), mkItems(17, 3).concat(mkItems(3, 3).map((it, i) => ({ n: 100 + i, t: 'ox', q: 'q', a: 1, e: 'e', f: 'G' + (i % 2) })))];
+  shapes.forEach((items, si) => {
+    const want = sortedNums(items.map((i) => i.n));
+    for (let seed = 1; seed <= 30; seed++) {
+      assert.deepStrictEqual(sortedNums(L.buildSpreadOrder(items, [], lcg(seed))), want, '모양 ' + si + ' seed ' + seed);
+      assert.deepStrictEqual(sortedNums(L.buildSpreadOrder(items, ['F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7'], lcg(seed), L.EDU_UI.bag)), want, '꼬리 있음 모양 ' + si + ' seed ' + seed);
+    }
+  });
+  // 번호가 1부터 이어지지 않아도(건너뜀·큰 수) 그 번호들의 순열이다. 입력 배열은 바뀌지 않는다
+  const odd = [{ n: 7, f: 'A' }, { n: 3, f: 'A' }, { n: 99, f: 'B' }, { n: 12, f: 'C' }, { n: 5, f: 'B' }];
+  const snapshot = JSON.stringify(odd);
+  const prev = ['A', 'B'];
+  assert.deepStrictEqual(sortedNums(L.buildSpreadOrder(odd, prev, lcg(9))), [3, 5, 7, 12, 99]);
+  assert.strictEqual(JSON.stringify(odd), snapshot);
+  assert.deepStrictEqual(prev, ['A', 'B']);
+});
+
+test('buildSpreadOrder ② 같은 시드는 같은 순서를 만들고, 다른 시드는 다른 순서를 만든다', () => {
+  const items = mkItems(20, 3);
+  const a = L.buildSpreadOrder(items, ['F3'], lcg(5)).join(',');
+  assert.strictEqual(a, L.buildSpreadOrder(items, ['F3'], lcg(5)).join(','));
+  const variants = new Set();
+  for (let seed = 1; seed <= 10; seed++) variants.add(L.buildSpreadOrder(items, ['F3'], lcg(seed)).join(','));
+  assert.strictEqual(variants.size, 10, '시드 10개 → 순서 10가지');
+  // 번호 순서 그대로(1,2,3,…)나 사실별로 묶인 순서가 아니다
+  assert.notStrictEqual(a, items.map((i) => i.n).join(','));
+});
+
+test('buildSpreadOrder ③ 실제 25개 단원(보통 모드 흉내, 약 180문제, 단원마다 여러 시드): 같은 사실이 10문제 안에 다시 나오는 비율 3% 미만 · 3문제 안 반복 거의 없음 · 한 바퀴 안 같은 문제 반복 0', () => {
+  const units = loadRealUnits();
+  const ids = Object.keys(units);
+  assert.ok(ids.length >= 25, '단원 파일 25개 이상: ' + ids.length);
+  const SEEDS = 40;
+  let sumLe10 = 0, sumLe3 = 0, worstLe10 = 0, worstId = '', lapDup = 0, oldSum = 0;
+  ids.forEach((id, ui) => {
+    const items = L.cleanItems(units[id]);
+    assert.ok(items && items.length >= 40, id + ' 문제 수');
+    let le10 = 0, le3 = 0, old10 = 0;
+    for (let s = 0; s < SEEDS; s++) {
+      const st = spreadStats(simNormal(items, 7000 + s * 7919 + ui * 104729, 180, false), items.length);
+      le10 += st.le10; le3 += st.le3; lapDup += st.lapDup;
+    }
+    for (let s = 0; s < 10; s++) old10 += spreadStats(simNormal(items, 7000 + s * 7919 + ui * 104729, 180, true), items.length).le10;
+    sumLe10 += le10 / SEEDS; sumLe3 += le3 / SEEDS; oldSum += old10 / 10;
+    if (le10 / SEEDS > worstLe10) { worstLe10 = le10 / SEEDS; worstId = id; }
+  });
+  const meanLe10 = sumLe10 / ids.length;
+  const meanLe3 = sumLe3 / ids.length;
+  assert.ok(meanLe10 < 3, '10문제 안에 같은 사실이 다시 나온 비율(평균 %): ' + meanLe10.toFixed(2) + ' (기준 3 미만)');
+  assert.ok(meanLe3 < 0.05, '3문제 안 반복(180문제당 평균): ' + meanLe3.toFixed(3) + ' (기준 0.05 미만)');
+  assert.ok(worstLe10 < 10, '최악 단원 ' + worstId + ': ' + worstLe10.toFixed(2) + '% (기준 10 미만)');
+  assert.strictEqual(lapDup, 0, '한 바퀴(60문제) 안에서 같은 문제 번호가 반복되면 안 된다');
+  // 같은 지표를 예전 방식(shuffleAvoid)으로 재면 기준을 크게 넘는다 → 이 시험이 개선을 가려낸다
+  assert.ok(oldSum / ids.length > 10, '예전 방식은 10% 넘게 반복(평균): ' + (oldSum / ids.length).toFixed(1));
+});
+
+test('buildSpreadOrder ④ 바퀴 경계: 이전 바퀴 끝에 나온 사실은 새 순서의 처음 w칸 안에 다시 오지 않는다(w = 사실 수 × 0.6, 최대 14)', () => {
+  [mkItems(20, 3), mkItems(60, 1), mkItems(30, 2), mkItems(15, 4)].forEach((items, si) => {
+    const byN = factOf(items);
+    const keys = Array.from(new Set(items.map((i) => i.f)));
+    const w = spreadW(keys.length);
+    const prevs = [keys.slice(0, w), ['Z1', 'Z2', 'Z3', 'Z4', 'Z5', 'Z6'].concat(keys.slice(2, 2 + w))];   // 꼬리가 w개 / 꼬리가 w보다 긴 경우(끝 w개만 쓰인다)
+    prevs.forEach((prev, pi) => {
+      for (let seed = 1; seed <= 40; seed++) {
+        const fs = L.buildSpreadOrder(items, prev, lcg(seed)).map((n) => byN[n]);
+        for (let i = 0; i < w; i++) {
+          const block = prev.slice(Math.max(0, prev.length - (w - i)));       // 새 순서 i번째 칸 기준 "최근 w개"에 아직 남아 있는 이전 바퀴의 사실들
+          assert.ok(block.indexOf(fs[i]) === -1, '모양 ' + si + ' 꼬리 ' + pi + ' seed ' + seed + ' ' + i + '번째 칸의 사실 ' + fs[i] + ' 가 이전 바퀴 끝과 너무 가깝다');
+        }
+      }
+    });
+  });
+});
+
+test('buildSpreadOrder ④ 보강: 12번 짠 것 중 고를 때 벌점은 바퀴 경계(이전 바퀴 끝)와의 거리도 센다 — 사실 A·B·C 한 문제씩, 직전 바퀴가 A,B,C로 끝난 경우', () => {
+  // w = 1 이라 직전 한 개(C)만 막힌다. 사실이 서로 달라 바퀴 안의 벌점은 0이고, 경계 거리만 순서를 가른다: A,B,C 가 다시 같은 간격(3칸)으로 이어지는 순서가 가장 낫다.
+  const items = [{ n: 1, f: 'A' }, { n: 2, f: 'B' }, { n: 3, f: 'C' }];
+  let best = 0;
+  for (let seed = 1; seed <= 200; seed++) {
+    const got = L.buildSpreadOrder(items, ['A', 'B', 'C'], lcg(seed * 104729 + 17)).join(',');
+    if (got === '1,2,3') best++;
+  }
+  assert.ok(best >= 160, '경계 벌점이 가장 작은 순서(A,B,C)를 고른 횟수: ' + best + ' / 200 (한 번만 짜면 약 1/4)');
+});
+
+test('buildSpreadOrder ⑤ 경계 입력(사실 1개·문제 1개·f 없음·빈 목록·이상한 인자·rng 경계값)에서 깨지지 않고 순열을 돌려준다', () => {
+  assert.deepStrictEqual(L.buildSpreadOrder([], [], lcg(1)), []);
+  assert.deepStrictEqual(L.buildSpreadOrder(null, [], lcg(1)), []);
+  assert.deepStrictEqual(L.buildSpreadOrder(undefined), []);
+  assert.deepStrictEqual(L.buildSpreadOrder([{ n: 5, f: 'A' }], ['A'], lcg(1)), [5]);                    // 문제 1개(직전과 같은 사실이어도 낸다)
+  const oneFact = mkItems(1, 8);                                                                          // 사실 1개뿐 → 가까이 오지 않게 할 수 없어도 모두 낸다
+  assert.deepStrictEqual(sortedNums(L.buildSpreadOrder(oneFact, ['F1', 'F1'], lcg(2))), [1, 2, 3, 4, 5, 6, 7, 8]);
+  const noF = [];                                                                                         // f 가 없는 문제들: 문제마다 따로 센다(깨지지 않음)
+  for (let n = 1; n <= 12; n++) noF.push({ n: n, t: 'ox', q: 'q', a: 1, e: 'e' });
+  noF.push({ n: 13, f: 'A' }, { n: 14, f: 'A' }, { n: 15, f: '' });
+  const wantNoF = sortedNums(noF.map((i) => i.n));
+  for (let seed = 1; seed <= 20; seed++) assert.deepStrictEqual(sortedNums(L.buildSpreadOrder(noF, [], lcg(seed))), wantNoF);
+  // rng·꼬리·cfg 를 빼거나 이상한 값을 줘도 된다
+  const items = mkItems(20, 3);
+  const want = sortedNums(items.map((i) => i.n));
+  assert.deepStrictEqual(sortedNums(L.buildSpreadOrder(items)), want);                                    // rng 없음 → Math.random
+  [undefined, null, 'x', 5, {}].forEach((prev) => assert.deepStrictEqual(sortedNums(L.buildSpreadOrder(items, prev, lcg(3))), want));
+  [undefined, null, {}, { spreadRatio: 0 }, { spreadRatio: 100 }, { spreadMax: 0 }, { spreadTries: 0 }, { spreadTries: NaN, spreadNear: 'x' }, { spreadNear: 0 }, { spreadNear: 1000, spreadTries: 3 }].forEach((cfg, ci) => {
+    assert.deepStrictEqual(sortedNums(L.buildSpreadOrder(items, ['F1'], lcg(4), cfg)), want, 'cfg ' + ci);
+  });
+  [() => 0, () => 0.9999999999, () => 1].forEach((rng, ri) => assert.deepStrictEqual(sortedNums(L.buildSpreadOrder(items, ['F2'], rng)), want, 'rng ' + ri));
+  // 설정을 바꾸면 실제로 달라진다: 한 번만 짜는 것(spreadTries 1)보다 12번 짜서 고르는 편이 가까운 반복이 적다
+  function nearPairs(order, byN) { let c = 0; order.forEach((n, i) => { for (let d = 1; d <= 9 && i - d >= 0; d++) if (byN[order[i - d]] === byN[n]) c++; }); return c; }
+  const hard = mkItems(17, 3), byNh = factOf(hard);
+  let one = 0, many = 0;
+  for (let seed = 1; seed <= 60; seed++) {
+    one += nearPairs(L.buildSpreadOrder(hard, [], lcg(seed), { spreadRatio: 0.6, spreadMax: 14, spreadTries: 1, spreadNear: 10 }), byNh);
+    many += nearPairs(L.buildSpreadOrder(hard, [], lcg(seed), { spreadRatio: 0.6, spreadMax: 14, spreadTries: 12, spreadNear: 10 }), byNh);
+  }
+  assert.ok(many < one, '12번 짜서 고르면 1번 짠 것보다 가까운 반복이 적다: ' + many + ' < ' + one);
+});
+
+test('buildSpreadOrder ⑥ drawFromBag 연결: 새 bag은 새 방식으로 순서를 만들고(같은 시드 → 같은 순서), 바퀴가 끝나면 이전 바퀴 끝과 가깝지 않게 다시 짠다', () => {
+  // 새 bag: 첫 문제를 낸 뒤 bag.order 는 buildSpreadOrder 가 같은 시드로 만든 순서와 같다(첫 문제는 제자리라 순서가 바뀌지 않는다)
+  for (let seed = 1; seed <= 20; seed++) {
+    const items = mkItems(20, 3);
+    const bag = newBag();
+    L.drawFromBag(bag, items, { rng: lcg(seed), stageF: {} });
+    assert.deepStrictEqual(bag.order, L.buildSpreadOrder(items, [], lcg(seed), L.EDU_UI.bag), 'seed ' + seed);
+    assert.strictEqual(bag.pos, 1);
+  }
+  // 바퀴 종료 뒤: 한 바퀴(60)를 다 쓰고 한 문제 더 → 새 순서(순열), 이전 바퀴와 다른 순서, held = 지난 바퀴 끝 6개, 처음 w칸에 지난 바퀴 끝 사실이 오지 않음
+  [[20, 3], [60, 1], [30, 2], [15, 4]].forEach((shape) => {
+    for (let seed = 1; seed <= 25; seed++) {
+      const items = mkItems(shape[0], shape[1]);
+      const byN = factOf(items);
+      const w = spreadW(shape[0]);
+      const bag = newBag();
+      const rng = lcg(seed);
+      for (let i = 0; i < 60; i++) L.drawFromBag(bag, items, { rng: rng, stageF: {} });
+      const oldOrder = bag.order.slice();
+      const oldFs = oldOrder.map((n) => byN[n]);
+      L.drawFromBag(bag, items, { rng: rng, stageF: {} });
+      const tag = shape.join('x') + ' seed ' + seed;
+      assert.strictEqual(bag.pos, 1, tag);
+      assert.deepStrictEqual(sortedNums(bag.order), sortedNums(oldOrder), tag + ' 순열');
+      assert.notDeepStrictEqual(bag.order, oldOrder, tag + ' 바퀴마다 순서가 다르다');
+      assert.deepStrictEqual(bag.held, oldOrder.slice(-6), tag + ' held');
+      const fs = bag.order.map((n) => byN[n]);
+      for (let i = 0; i < w; i++) {
+        const block = oldFs.slice(oldFs.length - (w - i));
+        assert.ok(block.indexOf(fs[i]) === -1, tag + ' ' + i + '번째 칸 사실 ' + fs[i] + ' 가 지난 바퀴 끝과 가깝다');
+      }
+    }
+  });
+});
+
+test('buildSpreadOrder ⑥ 저장된 유효 bag(바퀴 도중)은 순서가 바뀌지 않고 그 바퀴가 끝날 때까지 rng 도 쓰지 않는다(옛 방식으로 만든 bag 포함)', () => {
+  const items = mkItems(20, 3);
+  const ns = items.map((i) => i.n);
+  // (a) 같은 사실이 20칸씩 떨어진 순서(pull-forward 가 일어나지 않는다) → 순서가 한 칸도 바뀌지 않는다
+  const inter = [];
+  for (let k = 0; k < 3; k++) for (let f = 0; f < 20; f++) inter.push(f * 3 + k + 1);
+  let calls = 0;
+  const spy = () => { calls++; return 0.5; };
+  const bagA = { order: inter.slice(), pos: 10, recent: [] };
+  assert.strictEqual(L.bagValid(bagA, ns), true);
+  const gotA = [];
+  for (let i = 0; i < 50; i++) gotA.push(L.drawFromBag(bagA, items, { rng: spy, stageF: {} }).n);
+  assert.deepStrictEqual(gotA, inter.slice(10), '저장된 순서 그대로 이어서 낸다');
+  assert.deepStrictEqual(bagA.order, inter);
+  assert.strictEqual(calls, 0, '바퀴 도중에는 rng 를 쓰지 않는다');
+  L.drawFromBag(bagA, items, { rng: spy, stageF: {} });                                       // 바퀴가 끝난 다음 첫 문제 → 새 방식으로 다시 짠다
+  assert.ok(calls > 0, '바퀴가 끝나면 새로 짠다');
+  assert.strictEqual(bagA.pos, 1);
+  assert.deepStrictEqual(sortedNums(bagA.order), sortedNums(ns));
+  // (b) 옛 방식(shuffleAvoid)으로 만들어 저장된 bag: 이어서 낼 때 같은 문제가 한 바퀴 안에서 반복되지 않고, 끝나는 순간까지 rng 를 쓰지 않는다
+  for (let seed = 1; seed <= 20; seed++) {
+    const old = { order: L.shuffleAvoid(ns, lcg(seed), [], 0), pos: 0, recent: [] };
+    const rng = lcg(100 + seed);
+    let used = 0;
+    const counted = () => { used++; return rng(); };
+    const got = [];
+    for (let i = 0; i < 60; i++) got.push(L.drawFromBag(old, items, { rng: counted, stageF: {} }).n);
+    assert.strictEqual(new Set(got).size, 60, 'seed ' + seed);
+    assert.strictEqual(used, 0, 'seed ' + seed + ' 옛 bag 은 바퀴 끝까지 rng 를 쓰지 않는다');
+  }
+  // 저장 → 정규화 → 이어서 낸 것도 같다(edu.pool 형식 변경 없음: order·pos·recent·held 만)
+  const fresh = newBag();
+  const rng2 = lcg(21);
+  for (let i = 0; i < 17; i++) L.drawFromBag(fresh, items, { rng: rng2, stageF: {} });
+  const restored = L.normalizeEdu(JSON.parse(JSON.stringify({ unit: 'soc-3-2-1-1', pool: { 'soc-3-2-1-1': fresh } }))).pool['soc-3-2-1-1'];
+  assert.deepStrictEqual(Object.keys(restored).sort(), ['held', 'order', 'pos', 'recent']);
+  assert.deepStrictEqual(restored.order, fresh.order);
+  assert.strictEqual(L.bagValid(restored, ns), true);
 });
 
 /* ---------- 문제 데이터 검증·강조 ---------- */

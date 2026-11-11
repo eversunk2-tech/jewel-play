@@ -34,3 +34,4 @@
    2026-11-11 spec §45(교육용 '많이' 표 재보정 2차)와 §43 일반용 표의 교육용 반영: `CONFIG.edu.many.missions` 교체(고수 가안), `CONFIG.stages.missions`('보통')를 일반용 §43 표로 동기화. §43.12에서 걸어 둔 시험 고정 6곳을 되돌렸다. 기준 태그는 메인 세션이 만든다.
    2026-11-11 §45 Review R-E(review.md §37)가 통과·결함 0·수정 0으로 끝났고, 일반용 §43·§44·§46(+4번째 칸)이 교육용에 모두 반영됐다(별 기준 §44·최고점 도전 §46은 각 Build에서, 미션 표 §43은 §45 Build에서). **이 커밋부터 기준 태그는 `base-general-v7`**(메인 세션이 이 커밋에 만든다; 태그는 로컬이며 아직 원격에 올리지 않았다).
    2026-11-11 spec §47(교육용 선물상자 문제 양 기본 선택을 '보통'으로, 교육용 전용·일반용 변경 없음) — 교육용 `game.js`(`CONFIG.edu.defaultIntensity` 'normal'·`eduIntensity()` 마지막 안전 기본값 보통), `edu.js`(`EDU_UI.intensity.default` 'normal'), `index.html`(정적 첫 상태의 라디오·`#eg-unit-amount` 글도 보통 — Review R-F §38 D2), 시험 기대값. 기준 태그 변경 없음.
+   2026-11-11 spec §48(교육용 출제 순서 개선) — `edu.js`의 `EDU_UI.bag`·`buildSpreadOrder`·`drawFromBag` 순서 만들기(교육용 전용, 일반용 변경 없음). 기준 태그 변경 없음.
