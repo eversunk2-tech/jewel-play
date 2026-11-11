@@ -259,9 +259,9 @@
       targetRound: 100,
       quiz: { maxPerAction: 3, gapMs: 400, praiseHoldMs: 700 },   // 한 행동 최대 문제 수 / 문제 사이 간격 / 칭찬 팝업을 보여 주는 시간
       // [EDU] spec §27.7(사용자 승인 2026-11-08, M3-B): 선물상자 문제 양 선택 "보통 / 많이". 위의 wild 가 "보통"(= M3-A 직후와 같다: 1.6%·최대 2·첫 행동 확정·학습 조건 없음),
-      //   아래 many 가 "많이"(기본). 선택은 저장(edu.intensity)이고 교사가 수업 전에 정하며 학생이 바꿀 수도 있다(잠금 없음).
+      //   아래 many 가 "많이". 처음 여는 사람의 기본 선택은 "보통"(spec §47, 사용자 결정 2026-11-11: 자주 멈추면 피곤할 수 있어 학습에 더 치중하고 싶을 때 "많이"를 고른다; 예전 기본은 "많이", §27.7.6). 선택은 저장(edu.intensity)이고 교사가 수업 전에 정하며 학생이 바꿀 수도 있다(잠금 없음).
       //   '많이'는 EduQuiz.ready 일 때만 쓴다(문제를 못 불러오면 ?가 없으므로 보통 표로 돌아간다). 판이 시작될 때 한 번 정하고 판 도중에는 바뀌지 않는다.
-      defaultIntensity: 'many',
+      defaultIntensity: 'normal',
       wildCap: 6,                           // 보드 위 ? 동시 최대(사용자 결정). 코드가 Math.min(6, wildCap, max)로 다시 한 번 6을 넘지 못하게 한다
       many: {
         // spawn = 새 칸마다 ? 확률 / max = 보드 위 동시 최대(≤ wildCap) / pity = 마지막 ? 등장 뒤 이만큼의 플레이어 행동(스왑·스킬)이 지나면 하나를 확정 등장 / guardGap = 학습 조건에 모자랄 때 추가 등장의 최소 간격(행동 수)
@@ -2294,7 +2294,7 @@
         if (v === 'many' || v === 'normal') return v;
       }
     } catch (e) { /* 기본값 */ }
-    return CONFIG.edu.defaultIntensity === 'normal' ? 'normal' : 'many';
+    return CONFIG.edu.defaultIntensity === 'many' ? 'many' : 'normal';
   }
 
   /** 유효 문제 양: 'many' 는 선택이 many 이고 EduQuiz.ready 일 때만, 아니면 'normal' */

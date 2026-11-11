@@ -30,7 +30,7 @@
     quiz: { answerLockMs: 500, continueLockMs: 350, nextGapMs: 0 },  // 열린 직후 0.5초 답 입력 무시 · [계속하기] 오터치 방지
     load: { timeoutMs: 15000, dir: 'edu-data/q/' },                  // 소단원 문제 파일 로드 제한 시간 · 허용 폴더
     bonus: { base: 300, mult: { easy: 0.8, normal: 1.0, hard: 1.3 } },   // 정답 보너스(기본값; game.js CONFIG.edu.bonus 가 있으면 우선)
-    intensity: { default: 'many' },         // 선물상자 문제 양 기본값(spec §27.7.6 '많이'; game.js CONFIG.edu.defaultIntensity 가 있으면 그쪽을 따른다)
+    intensity: { default: 'normal' },       // 선물상자 문제 양 기본값(spec §47 '보통' — 예전 §27.7.6 은 '많이'; game.js CONFIG.edu.defaultIntensity 가 있으면 그쪽을 따른다)
     statsKeepUnits: 200,                    // 저장하는 소단원 통계·bag 수 상한
     showPages: false                        // 교과서 쪽수 표시(사용자 결정 2026-11-08: 표시하지 않음). 다시 켜려면 true (카탈로그 pages 는 데이터로 남아 있다)
   };

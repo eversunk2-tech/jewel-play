@@ -431,7 +431,7 @@ test('③ eduMode: 선택(intensity) × 문제 준비(ready) 4조합 — many �
 
 test('③ eduMode: intensity() 가 없으면 CONFIG.edu.defaultIntensity, 이상한 값이면 기본값, EduQuiz 가 없으면 normal(문제가 없으니)', () => {
   const noFn = createEnv(1, null, { quiz: { noIntensity: true } });
-  assert.strictEqual(noFn.sandbox.ElementGemsEdu.eduMode(), 'many', '기본 many');
+  assert.strictEqual(noFn.sandbox.ElementGemsEdu.eduMode(), 'normal', '기본 normal(spec §47: 처음 여는 사람의 기본은 보통)');
   noFn.CONFIG.edu.defaultIntensity = 'normal';
   assert.strictEqual(noFn.sandbox.ElementGemsEdu.eduMode(), 'normal');
   noFn.CONFIG.edu.defaultIntensity = 'many';
@@ -508,7 +508,7 @@ test('③ [표 값] 많이 모드(M3-CAL, spec §38·§39; 중수·고수 미션
     assert.strictEqual(def.seq, gen.seq, d + ' ' + (i + 1) + ' seq');
     assert.deepStrictEqual(def.parts.map((p) => [p.k, p.color, p.colors, p.min]), gen.parts.map((p) => [p.k, p.color, p.colors, p.min]), d + ' ' + (i + 1) + ' 유형·색');
   }));
-  assert.strictEqual(G.CONFIG.edu.defaultIntensity, 'many', '기본 많이(사용자 승인)');
+  assert.strictEqual(G.CONFIG.edu.defaultIntensity, 'normal', '기본 보통(사용자 승인 2026-11-11, spec §47; 예전 기본은 많이)');
   assert.strictEqual(G.CONFIG.edu.wildCap, 6);
   if (HAS_GEN) ['normal', 'hard'].forEach((d) => m.missions[d].forEach((def, i) => def.parts.forEach((p, j) => assert.ok(p.need >= GEN.CONFIG.stages.missions[d][i].parts[j].need, '많이 표는 일반용 이상 ' + d + ' ' + (i + 1)))));
 });
@@ -1012,20 +1012,22 @@ test('refreshStages: 레벨 선택 화면이 보일 때만 문제 양을 다시 
 /* ===================================================================
  * ⑥ edu.js — 저장·검증·라디오 UI
  * =================================================================== */
-test('⑥ normalizeEdu: intensity 는 많이|보통만 받고, 없거나 잘못된 값은 기본값(많이, 둘째 인자로 바꿀 수 있다). 옛 저장(필드 없음)도 그대로 파싱된다', () => {
+test('⑥ normalizeEdu: intensity 는 많이|보통만 받고, 없거나 잘못된 값은 기본값(보통 — spec §47, 둘째 인자로 바꿀 수 있다). 옛 저장(필드 없음)도 그대로 파싱된다', () => {
   assert.strictEqual(LOGIC.normalizeEdu({ intensity: 'normal' }).intensity, 'normal');
   assert.strictEqual(LOGIC.normalizeEdu({ intensity: 'many' }).intensity, 'many');
-  [undefined, null, 'x', '', 1, 0, true, {}, [], 'MANY', 'Normal'].forEach((v) => assert.strictEqual(LOGIC.normalizeEdu({ intensity: v }).intensity, 'many', '잘못된 값 ' + JSON.stringify(v)));
-  assert.strictEqual(LOGIC.normalizeEdu({}).intensity, 'many', '필드 없음');
-  assert.strictEqual(LOGIC.normalizeEdu(null).intensity, 'many');
+  [undefined, null, 'x', '', 1, 0, true, {}, [], 'MANY', 'Normal'].forEach((v) => assert.strictEqual(LOGIC.normalizeEdu({ intensity: v }).intensity, 'normal', '잘못된 값 ' + JSON.stringify(v)));
+  assert.strictEqual(LOGIC.normalizeEdu({}).intensity, 'normal', '필드 없음');
+  assert.strictEqual(LOGIC.normalizeEdu(null).intensity, 'normal');
   assert.strictEqual(LOGIC.normalizeEdu({}, 'normal').intensity, 'normal', '기본값을 바꾸면 따라간다');
+  assert.strictEqual(LOGIC.normalizeEdu({}, 'many').intensity, 'many', '기본값을 many 로 바꿔도 따라간다(spec §47 이전 기본)');
+  assert.strictEqual(LOGIC.normalizeEdu({ intensity: 'normal' }, 'many').intensity, 'normal', '저장된 보통이 기본 many 보다 우선');
   assert.strictEqual(LOGIC.normalizeEdu({ intensity: 'many' }, 'normal').intensity, 'many', '저장된 값이 우선');
-  assert.strictEqual(LOGIC.normalizeEdu({ intensity: 'x' }, 'bogus').intensity, 'many', '기본값 자체가 이상하면 많이');
+  assert.strictEqual(LOGIC.normalizeEdu({ intensity: 'x' }, 'bogus').intensity, 'normal', '기본값 자체가 이상하면 보통(spec §47)');
   assert.strictEqual(LOGIC.normalizeIntensity('normal'), 'normal');
   const old = LOGIC.normalizeEdu({ unit: 'soc-3-2-1-1', pool: { 'soc-3-2-1-1': { order: [1, 2], pos: 1 } }, stats: { 'soc-3-2-1-1': { asked: 2, right: 1 } } });
   assert.strictEqual(old.unit, 'soc-3-2-1-1');
   assert.deepStrictEqual(old.stats['soc-3-2-1-1'], { asked: 2, right: 1 });
-  assert.strictEqual(old.intensity, 'many');
+  assert.strictEqual(old.intensity, 'normal', '옛 저장(필드 없음) = 기본 보통(spec §47)');
 });
 
 test('⑥ 저장·복원: intensity 가 저장 문자열을 왕복해도 보존되고(mergeEduIntoSave·readEduFromRaw), 다른 필드(진행·설정)는 건드리지 않는다', () => {
@@ -1037,9 +1039,10 @@ test('⑥ 저장·복원: intensity 가 저장 문자열을 왕복해도 보존�
   assert.deepStrictEqual(back.progress, { easy: 3 });
   assert.strictEqual(back.edu.intensity, 'normal');
   assert.deepStrictEqual(LOGIC.readEduFromRaw(raw), edu);
-  assert.strictEqual(LOGIC.readEduFromRaw('{"edu":{"intensity":"zzz"}}').intensity, 'many');
-  assert.strictEqual(LOGIC.readEduFromRaw('깨진 저장').intensity, 'many');
+  assert.strictEqual(LOGIC.readEduFromRaw('{"edu":{"intensity":"zzz"}}').intensity, 'normal');
+  assert.strictEqual(LOGIC.readEduFromRaw('깨진 저장').intensity, 'normal');
   assert.strictEqual(LOGIC.readEduFromRaw('', 'normal').intensity, 'normal');
+  assert.strictEqual(LOGIC.readEduFromRaw('', 'many').intensity, 'many', '기본값을 many 로 바꾸면 따라간다');
   // game.js 쪽: edu 필드는 그대로 보존(왕복 불변)
   assert.deepStrictEqual(G.cleanEduField(edu), edu);
 });
@@ -1101,9 +1104,9 @@ function browserEnv(rawSave, opt) {
 }
 const savedEdu = (be) => JSON.parse(be.store[be.KEY]).edu;
 
-test('⑥ 라디오 UI(edu.js): 처음엔 많이가 선택·tabindex 로빙, 클릭하면 즉시 저장·aria-checked·시작 화면 한 줄·refreshStages 호출, 같은 값을 다시 눌러도 저장·갱신 안 함', () => {
+test('⑥ 라디오 UI(edu.js): 처음엔 (이 시험 환경의 기본 = many 로 고정) 많이가 선택·tabindex 로빙, 클릭하면 즉시 저장·aria-checked·시작 화면 한 줄·refreshStages 호출, 같은 값을 다시 눌러도 저장·갱신 안 함', () => {
   const be = browserEnv(null);
-  assert.deepStrictEqual(be.radios(), ['false/-1', 'true/0'], '기본 많이');
+  assert.deepStrictEqual(be.radios(), ['false/-1', 'true/0'], '이 시험 환경의 기본(defaultIntensity many) 많이');
   assert.strictEqual(be.ids['eg-unit-amount'].textContent, '선물상자 문제: 많이');
   assert.strictEqual(be.ids['eg-unit-amount'].hidden, false);
   assert.strictEqual(be.sandbox.EduQuiz.intensity(), 'many');
@@ -1127,6 +1130,23 @@ test('⑥ 라디오 UI(edu.js): 처음엔 많이가 선택·tabindex 로빙, 클
   const other = new FakeEl('p');
   be.fire(be.grp, 'click', { target: other });
   assert.deepStrictEqual(be.radios(), ['false/-1', 'true/0']);
+});
+
+test('⑥ 실제 기본 선택(spec §47): 저장이 없는 새 기기는 game.js 의 실제 defaultIntensity(보통)로 열리고, 저장된 많이·보통은 그대로, 옛 저장(intensity 없음)은 보통', () => {
+  const real = G.CONFIG.edu.defaultIntensity;
+  assert.strictEqual(real, 'normal');
+  const fresh = browserEnv(null, { eduCfg: { defaultIntensity: real } });
+  assert.strictEqual(fresh.sandbox.EduQuiz.intensity(), 'normal', '새 기기 = 보통');
+  assert.deepStrictEqual(fresh.radios(), ['true/0', 'false/-1'], '보통이 선택·tabindex 0');
+  assert.strictEqual(fresh.ids['eg-unit-amount'].textContent, '선물상자 문제: 보통');
+  assert.ok(fresh.grp.children[0]._cls.has('on') && !fresh.grp.children[1]._cls.has('on'));
+  const many = browserEnv(JSON.stringify({ level: 'easy', edu: { unit: 'soc-3-2-1-1', intensity: 'many' } }), { eduCfg: { defaultIntensity: real } });
+  assert.strictEqual(many.sandbox.EduQuiz.intensity(), 'many', '저장된 많이는 그대로(바꾸지 않는다)');
+  assert.deepStrictEqual(many.radios(), ['false/-1', 'true/0']);
+  const old = browserEnv(JSON.stringify({ level: 'easy', edu: { unit: 'soc-3-2-1-1' } }), { eduCfg: { defaultIntensity: real } });
+  assert.strictEqual(old.sandbox.EduQuiz.intensity(), 'normal', '옛 저장(intensity 없음) = 보통');
+  fresh.fire(fresh.grp, 'click', { target: fresh.grp.children[1] });          // 많이를 직접 고르면
+  assert.strictEqual(savedEdu(fresh).intensity, 'many', '직접 고른 많이는 저장된다');
 });
 
 test('⑥ 라디오 키보드: ←↑ 앞·→↓ 뒤(끝에서 돌아옴)·Home/End — 옮기면서 선택하고 포커스도 따라간다. 다른 키는 무시(기본 동작 유지)', () => {
@@ -1156,7 +1176,7 @@ test('⑥ 라디오 키보드: ←↑ 앞·→↓ 뒤(끝에서 돌아옴)·Home
   assert.strictEqual(savedEdu(be).intensity, 'normal');
 });
 
-test('⑥ 저장 복원: 저장된 보통이 새로 열어도 유지되고(라디오·EduQuiz.intensity()·시작 화면 한 줄), 옛 저장(intensity 없음)은 기본 많이, 잘못된 값도 많이', () => {
+test('⑥ 저장 복원: 저장된 보통이 새로 열어도 유지되고(라디오·EduQuiz.intensity()·시작 화면 한 줄), 옛 저장(intensity 없음)·잘못된 값은 설정의 기본값(이 시험 환경은 many 로 고정, 실제 기본은 보통 — 아래 spec §47 시험)', () => {
   const be1 = browserEnv(JSON.stringify({ level: 'easy', edu: { unit: 'soc-3-2-1-1', intensity: 'normal' } }));
   assert.strictEqual(be1.sandbox.EduQuiz.intensity(), 'normal');
   assert.deepStrictEqual(be1.radios(), ['true/0', 'false/-1']);
