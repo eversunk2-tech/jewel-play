@@ -26,42 +26,6 @@ const HAS_GEN = fs.existsSync(path.join(GEN_DIR, 'game.js'));
 const GEN = HAS_GEN ? require(path.join(GEN_DIR, 'game.js')) : null;
 const GEN_SRC = HAS_GEN ? fs.readFileSync(path.join(GEN_DIR, 'game.js'), 'utf8') : '';
 const skipGen = HAS_GEN ? false : '일반용 폴더 없음';
-/* spec §43.12: 교육용 사본은 일반용 §43 표를 아직 반영하지 않았다(일반용만 먼저). "많이" 재보정·동기화가 끝나면 이 고정을 걷어내고 일반용 표를 직접 읽는 원래 단언으로 되돌린다.
- *  GEN_V36_MISSIONS = 옛 일반용 CONFIG.stages.missions(§36 M2-CAL) 값 그대로 — 지금 교육용 CONFIG.stages.missions 와 같은 값이다. 일반용 표를 직접 읽던 아래 고정 3곳
- *  ([EDU] 미션 …글자 그대로 같다 / [EDU] 미션 표 … 값·키 순서까지 같다 / [EDU] spawn=0 …똑같이 흐른다)이 이 리터럴을 쓴다. */
-const GEN_V36_MISSIONS = {
-  normal: [
-    { parts: [{ k: 'collect', color: 0, need: 21 }], seq: false },
-    { parts: [{ k: 'collect', color: 1, need: 23 }], seq: false },
-    { parts: [{ k: 'chain', min: 2, need: 10 }], seq: false },
-    { parts: [{ k: 'collectEach', colors: [0, 1, 2], need: 21 }], seq: false },
-    { parts: [{ k: 'collect', color: 2, need: 12 }, { k: 'big', min: 4, need: 3 }, { k: 'chain', min: 2, need: 4 }], seq: true },
-    { parts: [{ k: 'collect', color: 2, need: 25 }], seq: false },
-    { parts: [{ k: 'collect', color: 3, need: 29 }, { k: 'chain', min: 2, need: 9 }], seq: false },
-    { parts: [{ k: 'collectEach', colors: [0, 1, 2, 3], need: 23 }], seq: false },
-    { parts: [{ k: 'collect', color: 4, need: 28 }, { k: 'collect', color: 5, need: 16 }], seq: false },
-    { parts: [{ k: 'collect', color: 0, need: 8 }, { k: 'big', min: 4, need: 3 }, { k: 'chain', min: 2, need: 4 }, { k: 'collectEach', colors: [1, 2, 3], need: 6 }], seq: true }
-  ],
-  hard: [
-    { parts: [{ k: 'big', min: 4, need: 7 }], seq: false },
-    { parts: [{ k: 'chain', min: 2, need: 12 }], seq: false },
-    { parts: [{ k: 'collectEach', colors: [3, 4, 5], need: 16 }], seq: false },
-    { parts: [{ k: 'chain', min: 3, need: 4 }], seq: false },
-    { parts: [{ k: 'collect', color: 1, need: 4 }, { k: 'big', min: 4, need: 2 }, { k: 'chain', min: 3, need: 1 }, { k: 'big', min: 5, need: 1 }], seq: true },
-    { parts: [{ k: 'collect', color: 0, need: 23 }, { k: 'collect', color: 2, need: 15 }], seq: false },
-    { parts: [{ k: 'big', min: 4, need: 7 }, { k: 'chain', min: 3, need: 4 }], seq: false },
-    { parts: [{ k: 'collectEach', colors: [0, 1, 2, 3, 4], need: 19 }], seq: false },
-    { parts: [{ k: 'big', min: 5, need: 1 }, { k: 'collect', color: 5, need: 22 }], seq: false },
-    { parts: [{ k: 'chain', min: 3, need: 1 }, { k: 'big', min: 5, need: 1 }, { k: 'collectEach', colors: [0, 1, 2], need: 5 }, { k: 'chain', min: 4, need: 1 }], seq: true }
-  ]
-};
-/** spec §43.12 고정(소스 글자 비교용): 일반용·교육용 소스에서 §43 설명 주석 2줄과 중수·고수 표 본문(normal/hard 배열)을 같은 자리표시 한 줄로 바꾼다. 표 본문은 위 리터럴로 따로 단언한다 */
-const PIN_TABLE_NOTE = '        // (표 본문: spec §43.12 고정 — 값은 GEN_V36_MISSIONS 시험이 따로 단언)\n';
-function pinMissionTables(src) {
-  return src
-    .replace(/ *\/\/   2026-11-11 spec §43으로 다시 교체[^\n]*\n *\/\/   사람 체감은 확인하지 못했다\. 유형·색은 §27\.5 그대로, 개수·횟수만 바뀜\.\n/, '')
-    .replace(/        normal: \[\n[\s\S]*?\n        \],\n        hard: \[\n[\s\S]*?\n        \]\n/, PIN_TABLE_NOTE);
-}
 const SAVE_KEY = { edu: 'element-gems-edu:v1', gen: 'element-gems:v1' };      // 저장 키(교육용 CONFIG.edu.storageKey / 일반용)
 
 function mulberry(a) {
@@ -997,7 +961,7 @@ test('goalMet: 점수형이면 isCleared(점수, 목표) 와 같다', async () =
 
 /* ===================================================================
  * 9) M2 — 중수·고수 미션 켜기, 레벨 카드 마크업 계약, 선택 레벨 설명판 (spec §27.9 M2, §32.5.2~§32.5.4, §33, §34)
- * 미션 표 값은 §36(M2-CAL)에서 다시 보정한 값이다. 표 값을 단언하는 시험은 "표 값 고정" 한 곳뿐이고, 나머지는 표 모양(형식)과 CONFIG 에서 읽은 값으로 검사한다.
+ * 미션 표 값은 §36(M2-CAL)에서 보정했고 2026-11-11 spec §43(중수 약하게·고수 X1 기준)으로 교체됐다(교육용 "보통" 표는 spec §45로 일반용과 동기화됨). 표 값을 단언하는 시험은 "표 값 고정" 한 곳뿐이고, 나머지는 표 모양(형식)과 CONFIG 에서 읽은 값으로 검사한다.
  * =================================================================== */
 const DIFFS = ['easy', 'normal', 'hard'];
 const TABLE_LV = ['normal', 'hard'];
@@ -1044,19 +1008,19 @@ test('M2 표 모양: 중수·고수 10칸씩 모두 올바른 정의, 특별(5·
   });
 });
 
-test('M2 표 값 고정(spec §36 M2-CAL 재보정값 — 표 값을 단언하는 시험은 이것 하나뿐)', () => {
+test('M2 표 값 고정(spec §43 재보정값 — 2026-11-11 §36 M2-CAL 표를 교체함; 교육용 "보통" 표는 spec §45로 일반용과 동기화됨; 표 값을 단언하는 시험은 이것 하나뿐)', () => {
   const P = (seq, ...parts) => ({ parts, seq });
   assert.deepStrictEqual(G.CONFIG.stages.missions.normal, [
-    P(false, C(0, 21)), P(false, C(1, 23)), P(false, K(2, 10)), P(false, E([0, 1, 2], 21)),
-    P(true, C(2, 12), B(4, 3), K(2, 4)),
-    P(false, C(2, 25)), P(false, C(3, 29), K(2, 9)), P(false, E([0, 1, 2, 3], 23)), P(false, C(4, 28), C(5, 16)),
-    P(true, C(0, 8), B(4, 3), K(2, 4), E([1, 2, 3], 6))
+    P(false, C(0, 25)), P(false, C(1, 26)), P(false, K(2, 11)), P(false, E([0, 1, 2], 23)),
+    P(true, C(2, 12), B(4, 3), K(2, 5)),
+    P(false, C(2, 28)), P(false, C(3, 31), K(2, 9)), P(false, E([0, 1, 2, 3], 24)), P(false, C(4, 30), C(5, 16)),
+    P(true, C(0, 8), B(4, 3), K(2, 4), E([1, 2, 3], 7))
   ]);
   assert.deepStrictEqual(G.CONFIG.stages.missions.hard, [
-    P(false, B(4, 7)), P(false, K(2, 12)), P(false, E([3, 4, 5], 16)), P(false, K(3, 4)),
-    P(true, C(1, 4), B(4, 2), K(3, 1), B(5, 1)),
-    P(false, C(0, 23), C(2, 15)), P(false, B(4, 7), K(3, 4)), P(false, E([0, 1, 2, 3, 4], 19)), P(false, B(5, 1), C(5, 22)),
-    P(true, K(3, 1), B(5, 1), E([0, 1, 2], 5), K(4, 1))
+    P(false, B(4, 15)), P(false, K(2, 19)), P(false, E([3, 4, 5], 27)), P(false, K(3, 8)),
+    P(true, C(1, 5), B(4, 2), K(3, 2), B(5, 2)),
+    P(false, C(0, 35), C(2, 21)), P(false, B(4, 9), K(3, 7)), P(false, E([0, 1, 2, 3, 4], 25)), P(false, B(5, 2), C(5, 24)),
+    P(true, K(3, 1), B(5, 1), E([0, 1, 2], 10), K(4, 2))
   ]);
 });
 
@@ -1556,7 +1520,7 @@ function blockOf(src, a, b) {
   return src.slice(i, j);
 }
 
-test('[EDU] 미션 순수 함수(missionValid~stageDetailInfo)·CONFIG.stages 미션 키·HUD·카드·설명판 소스가 일반용과 글자 그대로 같다(주석 포함; 중수·고수 표 본문과 §43 주석만 spec §43.12 고정으로 제외 — 일반용만 먼저, 동기화가 끝나면 되돌린다)', { skip: skipGen }, () => {
+test('[EDU] 미션 순수 함수(missionValid~stageDetailInfo)·CONFIG.stages 미션 키·HUD·카드·설명판 소스가 일반용과 글자 그대로 같다(주석 포함)', { skip: skipGen }, () => {
   const blocks = [
     ['순수 함수 블록(미션 엔진·카드/설명판 글 도우미)', '/* ---------- 미션(목표) 엔진 (spec §27.3.1, M1)', '/** 레벨 N 선택 가능', 6000],
     ['CONFIG.stages 미션 키(goalType·missionMaxParts·missionMaxChips·special·rest·missions)', '// spec §27.3·§27.9 M1·M2(사용자 승인', '    // spec §26.4(사용자 승인', 3000],
@@ -1575,13 +1539,7 @@ test('[EDU] 미션 순수 함수(missionValid~stageDetailInfo)·CONFIG.stages �
     assert.ok(edu.length > minLen, name + ' 블록이 너무 짧다(표지가 어긋남): ' + edu.length);
     if (name.indexOf('순수 함수 블록') === 0) { edu = cut(edu, MD_EDU); gen = cut(gen, MD_GEN); }      // missionDef 는 아래에서 따로 확인
     edu = dropEduLines(edu);
-    // spec §43.12 고정: 일반용 표 본문·§43 설명 주석을 뺀 나머지(키·주석·정령 설정 등)가 글자 그대로 같은지 본다. 원래 단언은 pin 없이 edu === gen
-    edu = pinMissionTables(edu); gen = pinMissionTables(gen);
-    if (name.indexOf('CONFIG.stages 미션 키') === 0) {
-      assert.ok(edu.indexOf(PIN_TABLE_NOTE) !== -1 && gen.indexOf(PIN_TABLE_NOTE) !== -1, '표 본문 자리표시가 두 소스에 모두 있다(고정이 헛돌지 않는다)');
-      assert.ok(gen.indexOf('§43으로 다시 교체') === -1 && edu.indexOf('§43으로 다시 교체') === -1, '§43 설명 주석을 뺐다');
-    }
-    assert.strictEqual(edu, gen, name + ' 소스가 일반용과 다르다([EDU] 표식 줄·missionDef·표 본문 제외)');
+    assert.strictEqual(edu, gen, name + ' 소스가 일반용과 다르다([EDU] 표식 줄·missionDef 제외)');
   });
   // 순수 함수는 이름으로도 확인한다(내보내기 목록이 두 앱에서 같다). missionDef 만 [EDU] 블록이라 본문이 다르다 — 교육용 쪽은 [EDU] 표식과 많이 모드 표 읽기가 있는지 확인한다
   // M4-B(spec §27.6): 정령 특별 레벨의 순수 함수 4개도 같은 목록에 넣는다 — 정령 규칙(몇 단계가 깨어났나·깨운 정령 수)은 두 앱이 하나여야 해서 본문이 글자 그대로 같아야 한다(블록 단위 동일성은 위 첫 블록이 이미 포함하고, 이 목록은 함수별 확인이다)
@@ -1624,14 +1582,12 @@ test('[EDU] 미션 순수 함수(missionValid~stageDetailInfo)·CONFIG.stages �
   assert.ok(ra.indexOf("missionUpdate(state.mission, { t: 'action'") < ra.indexOf('await runQuizzes('), '행동 이벤트는 문제 팝업 전에 센다');
 });
 
-test('[EDU] 미션 표·특별/쉬운 구간 번호·상한이 일반용과 값·키 순서까지 같다(교육용 전용 표는 아직 없다 — M3-B 이후; missions 만 일반용 §36 표로 고정 — spec §43.12: 일반용만 먼저, 동기화가 끝나면 이 고정을 걷어내고 일반용 표를 직접 읽는 원래 단언으로 되돌린다)', { skip: skipGen }, () => {
+test('[EDU] 미션 표·특별/쉬운 구간 번호·상한이 일반용과 값·키 순서까지 같다(교육용 전용 표는 아직 없다 — M3-B 이후)', { skip: skipGen }, () => {
   const a = G.CONFIG.stages;
   const b = GEN.CONFIG.stages;
   ['goalType', 'missions', 'missionMaxParts', 'missionMaxChips', 'special', 'rest', 'count', 'star'].forEach((k) => {
-    // spec §43.12 고정: missions 만 일반용 §43 표가 아니라 옛 일반용 §36 표(GEN_V36_MISSIONS 리터럴)와 비교한다. 동기화가 끝나면 b[k] 로 되돌린다
-    const want = k === 'missions' ? GEN_V36_MISSIONS : b[k];
-    assert.deepStrictEqual(a[k], want, k);
-    assert.strictEqual(JSON.stringify(a[k]), JSON.stringify(want), k + ' 키 순서까지');
+    assert.deepStrictEqual(a[k], b[k], k);
+    assert.strictEqual(JSON.stringify(a[k]), JSON.stringify(b[k]), k + ' 키 순서까지');
   });
   assert.deepStrictEqual(a.targets, b.targets, '점수 폴백 원본 표도 같다(교육용 ×1.2 는 stageTarget 에서 파생)');
   assert.deepStrictEqual(Object.keys(a), Object.keys(b), 'CONFIG.stages 키 순서');
@@ -1644,27 +1600,27 @@ test('[EDU] 점수 목표 ×1.2 는 점수형(초보·goalType score)에만 곱�
   assert.strictEqual(G.stageTarget('normal', 1), 17900, '점수 폴백(참고값)도 ×1.2');
   G.CONFIG.stages.targets.easy.forEach((v, i) => assert.strictEqual(G.stageTarget('easy', i + 1), Math.round(v * 1.2 / 100) * 100));
   // 미션 수치: 표 그대로(×1.2 를 곱한 값이 아니다)
-  assert.strictEqual(G.CONFIG.stages.missions.normal[0].parts[0].need, 21);
-  assert.strictEqual(G.missionDescribe(G.missionDef('normal', 1)).summary, '불 보석 21개');
-  assert.strictEqual(G.missionDescribe(G.missionDef('hard', 1)).summary, '한 번에 4개 이상 7번');
-  // 실제 판: 칩의 need·aria 값은 21, 점수 폴백 참고값 state.target 은 17,900, 안내 문구는 미션
+  assert.strictEqual(G.CONFIG.stages.missions.normal[0].parts[0].need, 25);
+  assert.strictEqual(G.missionDescribe(G.missionDef('normal', 1)).summary, '불 보석 25개');
+  assert.strictEqual(G.missionDescribe(G.missionDef('hard', 1)).summary, '한 번에 4개 이상 15번');
+  // 실제 판: 칩의 need·aria 값은 25, 점수 폴백 참고값 state.target 은 17,900, 안내 문구는 미션
   const env = createEnv(100, (cfg) => { cfg.edu.targetScale = 2; });
   await startAndWait(env, 'normal', 1);
   const I = env.I;
-  assert.strictEqual(I.state.mission.parts[0].need, 21);
-  assert.strictEqual(I.el['mission-list'].children[0].getAttribute('aria-valuemax'), '21');
-  assert.strictEqual(I.el['mission-list'].children[0].querySelector('.m-num').textContent, '0 / 21');
+  assert.strictEqual(I.state.mission.parts[0].need, 25);
+  assert.strictEqual(I.el['mission-list'].children[0].getAttribute('aria-valuemax'), '25');
+  assert.strictEqual(I.el['mission-list'].children[0].querySelector('.m-num').textContent, '0 / 25');
   assert.strictEqual(I.state.target, 29800, '점수 폴백 참고값(미션 레벨에서는 화면에 쓰지 않는다)은 targetScale 을 따른다: 시험 값 14,900 × 2');
-  assert.strictEqual(I.el['count-info'].textContent, '레벨 1 · 미션: 불 보석 21개', '미션 레벨의 안내에는 점수 목표를 쓰지 않는다');
-  assert.strictEqual(I.el['pause-level'].textContent, '중수 · 레벨 1 · 미션: 불 보석 21개');
+  assert.strictEqual(I.el['count-info'].textContent, '레벨 1 · 미션: 불 보석 25개', '미션 레벨의 안내에는 점수 목표를 쓰지 않는다');
+  assert.strictEqual(I.el['pause-level'].textContent, '중수 · 레벨 1 · 미션: 불 보석 25개');
   env.dispose();
-  // 카드·설명판: 미션 레벨은 개수(21), 초보 점수 카드는 ×1.2 값, 설명판의 "목표 점수 N점"도 ×1.2
+  // 카드·설명판: 미션 레벨은 개수(25), 초보 점수 카드는 ×1.2 값, 설명판의 "목표 점수 N점"도 ×1.2
   const e2 = createEnv(101);
   const J = e2.I;
   J.save.level = 'normal';
   J.save.progress.normal = 2;
   J.renderStages();
-  assert.ok(J.el['stage-grid'].children[0].innerHTML.indexOf('<b>21</b>') !== -1);
+  assert.ok(J.el['stage-grid'].children[0].innerHTML.indexOf('<b>25</b>') !== -1);
   assert.ok(J.el['stage-grid'].children[0].innerHTML.indexOf('17,900') === -1 && J.el['stage-grid'].children[0].innerHTML.indexOf('sc-target') === -1);
   J.save.level = 'easy';
   J.save.progress.easy = 2;
@@ -1672,7 +1628,7 @@ test('[EDU] 점수 목표 ×1.2 는 점수형(초보·goalType score)에만 곱�
   assert.ok(J.el['stage-grid'].children[0].innerHTML.indexOf('<span class="sc-target">10,800</span>') !== -1, '초보 카드의 점수는 ×1.2');
   assert.strictEqual(J.el['stage-grid'].children[0].getAttribute('aria-label'), '레벨 1, 목표 10,800점, 별 0개');
   assert.strictEqual(G.stageDetailInfo('easy', 1, true).goal, '목표 점수 10,800점');
-  assert.strictEqual(G.stageDetailInfo('normal', 1, true).goal, '불 보석 21개');
+  assert.strictEqual(G.stageDetailInfo('normal', 1, true).goal, '불 보석 25개');
   assert.strictEqual(G.stageCardLabel('easy', 3, true, 1), '레벨 3, 목표 ' + G.stageTarget('easy', 3).toLocaleString('ko-KR') + '점, 별 1개');
   // goalType 을 score 로 되돌리면 중수·고수 카드·설명판은 ×1.2 점수 목표를 보인다
   const e3 = createEnv(102, scoreCfg);
@@ -1725,7 +1681,7 @@ async function playTrace(env, lv, stage, seed, nActions) {
   return out;
 }
 
-test('[EDU] spawn=0 이면 교육용 중수·고수 미션 판(레벨 1~10)이 같은 시드·같은 행동의 일반용과 똑같이 흐른다(보드·점수·시간·게이지·미션 카운터·칩 글자·난수 호출 수·클리어 시점·결과·저장 기록; 일반용 쪽 표는 §36 으로 고정 — spec §43.12: 일반용만 먼저, 동기화가 끝나면 이 고정을 걷어낸다)', { skip: skipGen }, async () => {
+test('[EDU] spawn=0 이면 교육용 중수·고수 미션 판(레벨 1~10)이 같은 시드·같은 행동의 일반용과 똑같이 흐른다(보드·점수·시간·게이지·미션 카운터·칩 글자·난수 호출 수·클리어 시점·결과·저장 기록)', { skip: skipGen }, async () => {
   let actions = 0;
   let games = 0;
   let cleared = 0;
@@ -1734,8 +1690,7 @@ test('[EDU] spawn=0 이면 교육용 중수·고수 미션 판(레벨 1~10)이 �
       for (let k = 0; k < 3; k++) {
         const seed = (lv === 'normal' ? 11 : 41) + stage + 100 * k;
         const edu = createEnv(seed * 13, null, { which: 'edu' });
-        // spec §43.12 고정: 일반용 쪽 판에도 옛 §36 표를 덮어씌워 같은 표 위에서 흐름을 비교한다(원래는 patch 없이 일반용 표 그대로, null)
-        const gen = createEnv(seed * 13, (cfg) => { cfg.stages.missions = JSON.parse(JSON.stringify(GEN_V36_MISSIONS)); }, { which: 'gen' });
+        const gen = createEnv(seed * 13, null, { which: 'gen' });
         const t1 = await playTrace(edu, lv, stage, seed, 30);
         const t2 = await playTrace(gen, lv, stage, seed, 30);
         assert.ok(t1.trace.length >= 6, lv + ' ' + stage + ': 행동 수 ' + t1.trace.length);

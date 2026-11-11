@@ -1058,6 +1058,13 @@ function easyCfg(cfg) {
   cfg.edu.many.wild.spawn = 0.06;      // 문제가 자주 나오게(학습 조건이 실제로 판을 끝내는 길이 되게)
 }
 const SEEDS = 10;
+/* spec §43·§45(2026-11-11): 중수·고수 미션 표가 M4-B 시작 시점(§36 표·M3-CAL 많이 표)에서 지금 표(보통 = 일반용 §43 표, 많이 = §45 2차 재보정 표)로 교체됐다.
+ *  이 시험은 "같은 표 위에서 규칙이 같다"를 증명하므로, 기준 소스(옛 표)의 CONFIG.stages.missions·CONFIG.edu.many.missions 에도 지금 표를 그대로 덮어씌워 나란히 돌린다(규칙 함수·단언은 그대로, 표만 같게 맞춘다). */
+const withCurrentTables = (cfg) => (C, env) => {
+  C.stages.missions = JSON.parse(JSON.stringify(G.CONFIG.stages.missions));
+  C.edu.many.missions = JSON.parse(JSON.stringify(G.CONFIG.edu.many.missions));
+  if (cfg) cfg(C, env);
+};
 const VARIANTS = [
   { name: '기본 표', cfg: null, stages: [5, 10, 3], reduce: true },
   { name: '쉬운 표(클리어·단계 이동 포함)', cfg: easyCfg, stages: [5, 10, 4], reduce: true },
@@ -1071,7 +1078,7 @@ for (const mode of ['many', 'normal']) {
       for (const lv of DIFFS) {
         for (const stage of variant.stages) {
           for (let seed = 1; seed <= SEEDS; seed++) {
-            const a = createEnv(seed * 31 + stage, variant.cfg, { script: BASE_SCRIPT, reduce: variant.reduce, quiz: { mode, answer } });
+            const a = createEnv(seed * 31 + stage, withCurrentTables(variant.cfg), { script: BASE_SCRIPT, reduce: variant.reduce, quiz: { mode, answer } });
             const b = createEnv(seed * 31 + stage, variant.cfg, { script: SCRIPT, reduce: variant.reduce, quiz: { mode, answer } });
             const ra = await playBot(a, lv, stage, seed, 100);
             const rb = await playBot(b, lv, stage, seed, 100);
