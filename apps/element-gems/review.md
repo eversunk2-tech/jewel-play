@@ -5006,3 +5006,90 @@ assert.ok(rm.includes('.gauge .fill { transition: none; }'));
 
 ### 37.8 한계
 사람 체감(느린 학생이 중수 1단계를 4.0초 기준 약 56%·고수를 거의 못 푸는 것을 어떻게 느끼는지), 실제 정답률·풀이 시간·어린이의 팝업 피로(고수 한 판 문제 12~16개), 조준 확률(가정 30/60/90%)·불·풀 조준(무작위)·자동 힌트, 실기기·iOS·Safari/Firefox는 확인하지 못했다. 시뮬레이션은 표본 변동이 800판에서 표준오차 약 1.4~1.8%p, 400판에서 약 2~2.5%p라 ±5%p 판정은 2σ 안쪽에서 읽어야 한다. 변이 시험은 교육용 `modes`·`mission`·`spirit` 3개 파일로만 돌렸다(전체 시험은 변이 없는 상태에서 통과).
+
+## 38. 교육용 선물상자 문제 양 기본 선택을 "보통"으로 바꾼 Build 검증 (spec §47, 커밋 `0a1578c`, 교육용 `game.js`·`edu.js`·`index.html`·`test/edu-ui.test.js`·`test/modes.test.js`, R-F)
+
+> **검증 대상**: 커밋 `0a1578c`(Build: 교육용 선물상자 문제 양 기본 선택을 '보통'으로). 지침 `agents/review-edu-default-normal-element-gems-edu.md`, 근거 spec §47(사용자 결정 2026-11-11: "'보통'이 처음 시작하는 사람들 기본 선택값… '많이'는 학습에 더 치중하겠다 싶을 때 직접 선택"). 지침은 `git show --stat HEAD`라고 썼지만 검증을 시작할 때 HEAD는 지침을 추가한 커밋(`cd83c03`)이었고 Build 커밋은 `HEAD~1`(`0a1578c`)이다 — 이 커밋을 대상으로 읽었다.
+> **작업 규칙 준수**: 커밋·푸시·태그·`wrangler`·서버 명령 0회. 임시 파일·복제본·스크립트는 scratchpad(`review-edu-default/`)에만 두었다. 저장소 파일은 **교육용 `index.html`·`test/modes.test.js`·`test/edu-ui.test.js`만** 최소 수정했고(38.4) 이 §38을 `review.md` 끝에 이어 붙였다. 브라우저는 별도 사용자 폴더의 헤드리스 Chrome 1개(포트 9733)와 scratchpad의 `127.0.0.1` 정적 서버 사본(`apiBase`를 비워 서버 통신 0)만 썼고, 다른 세션이 띄운 Chrome(포트 9680 등)과 사용자 Chrome·배포 주소는 건드리지 않았다. `localStorage`는 `location.origin`이 `http://127.0.0.1:874x`인지 확인한 뒤에만 비우거나 썼다. 끝나면 서버·Chrome 프로세스를 정리했다.
+> **정직한 한계**: 사람 체감(보통이 처음 이용자에게 충분히 학습이 되는지, "많이"가 피곤한지)·실기기(iOS 포함)·Safari/Firefox·소리는 확인하지 못했다. 화면은 Chrome 157 헤드리스 한 종류이고 판 플레이는 무작위 봇(수 고르기 무작위)이다. 시뮬레이션은 하지 않았다(표·규칙 불변이므로 지침대로).
+
+### 38.1 요약 — **통과(옛 기본 잔존 2곳·시험 구멍 1개를 최소 수정, 설계 변경 제안 0건, 문장 사실성 관찰 3건)**
+
+| # | 항목 | 판정 | 핵심 근거 |
+|---|---|---|---|
+| 1 | 범위 | **통과(확인함)** | Build 커밋 5개 파일(지침 목록 안). `game.js`는 3줄(주석·`defaultIntensity`·`eduIntensity()` 마지막 줄), `edu.js`는 1줄(`EDU_UI.intensity.default`). 표·`wild`·`many`·`learn`·`easyTargets`·점수·도전·정령·일반용·서버·`edu-data`·`style.css`·`ranking*.js` 무변경(38.2) |
+| 2 | 다른 곳의 'many' 기본 | **통과 + 결함 1(수정)** | JS는 `'many'` 사용처 전부가 비교·값 검증·표 선택이고 기본 역할은 위 3곳뿐. 단 **`index.html` 정적 마크업이 "많이"를 선택 상태로 두고 있었다**(D2, 수정)(38.2) |
+| 3 | 실제 화면(핵심) | **통과(확인함)** | 새 기기 "보통" 선택·"선물상자 문제: 보통"·카드 25개/15번, "많이" 즉시 저장·새로고침 유지, 저장 6종 복원, 보통 판 정상, 두 크기 넘침 없음(38.3) |
+| 4 | 시험 약화 | **통과(확인함)** | 지워진 단언 0(바뀐 단언 13줄은 모두 같은 대상의 기대값 교체), 새 단언 12줄, 'many'로 덮는 줄 유지(38.5) |
+| 5 | 변이 시험 | **통과 + 구멍 1(보강)** | 지침 5종을 포함한 12개 중 1개(M3: `eduIntensity()` 마지막 줄)만 생존 → 보강 뒤 잡힘(D1)(38.6) |
+| 6 | 영향 범위 문장 사실성 | **관찰 3건(제안)** | 핵심 문장은 맞음. `SYNC.md` 한 줄이 실제로는 없음, "많이로 굳은 기기"가 생각보다 넓음, 프로필 지우기 영향이 빠짐(38.7) |
+| 7 | 시험 실행 | **통과(확인함)** | 교육용 **599**(통과 598 + 건너뜀 1) / 일반용 **342** / 서버 **126** / 검증기 25/25·오류 0·경고 0 — 수정 전·후 모두 같음 |
+
+### 38.2 범위 · 다른 곳의 'many' (확인함)
+- `git show --stat 0a1578c`: `apps/element-gems-edu/edu.js`(+1/−1)·`game.js`(+3/−3)·`test/edu-ui.test.js`(+3/−3)·`test/modes.test.js`(+32/−14)·`apps/element-gems/spec.md`(+20). 그 밖 변경 0.
+- `git diff 0a1578c~1 0a1578c -- game.js edu.js`를 줄 단위로 읽음: `game.js` ① `CONFIG.edu` 안 `// [EDU] spec §27.7…` 주석 두 줄 문구(기본 "많이" → "보통"으로, 예전 기본 기록) ② `defaultIntensity: 'many'` → `'normal'` ③ `eduIntensity()`의 `return CONFIG.edu.defaultIntensity === 'normal' ? 'normal' : 'many'` → `=== 'many' ? 'many' : 'normal'`. `edu.js` ④ `EDU_UI.intensity.default` `'many'` → `'normal'`과 주석. **이 4곳뿐**이다.
+- `grep -n "'many'" game.js edu.js` 전수: `resolveEduMode`(`intensity === 'many' && ready`)·`eduTableMode === 'many'` 분기·`state.edu.mode === 'many'`·`normalizeIntensity`/`setIntensity`/`AMOUNT_ORDER`의 값 검증·`defaultIntensity()`(설정 값이 유효하면 그것, 아니면 `EDU_UI.intensity.default`)뿐이며 기본값 역할은 위 3곳뿐. `defaultSave`/`parseSave`/`cleanEduField`는 `edu`를 `{}`/그대로 보존만 하고 `intensity`를 만들지 않는다. `resetEdu`류 함수는 없다.
+- **D2(수정함, 낮음·잔존 옛 기본)**: `index.html`의 정적 첫 상태가 옛 기본 그대로였다 — `#eg-amt-many aria-checked="true"`, `#eg-amt-normal aria-checked="false" tabindex="-1"`, `#eg-unit-amount`(hidden) "선물상자 문제: 많이". 게다가 `test/modes.test.js` "⑥ 라디오 마크업" 시험이 이 옛 상태를 글자 그대로 고정하고 있어 Build 시험이 이를 잡지 못했다. **사용자에게 보이는 깜빡임은 없다**: 선택 화면 `#screen-edu-pick`과 시작 화면의 한 줄은 처음부터 `hidden`이고 `edu.js start()`가 `renderUnitCard() → renderIntensity()`로 라디오(`aria-checked`·`tabIndex`·`.on`)와 줄을 다시 맞춘 뒤에야 보인다(헤드리스에서 새 기기 첫 로드 직후 확인, 38.3). 그래도 새 기본과 모순되는 정적 상태라 세 곳을 "보통" 기준으로 바꾸고 시험 기대값 두 줄을 같이 고쳤다(38.4).
+
+### 38.3 실제 화면 (확인함: 헤드리스 Chrome 157, 1280×720·390×844, 로컬 사본·빈 `localStorage`)
+**(a) 저장 없는 새 기기**
+- 라디오: 보통 `aria-checked=true`·`tabindex=0`·`.on`, 많이 `false`·`-1`. `EduQuiz.intensity()` = `normal`. 시작 화면 한 줄 "선물상자 문제: 보통"(단원을 고르기 전·후 모두). 첫 로드만으로는 `element-gems-edu:v1`이 **저장되지 않음**(null) → 단원을 고른 뒤 `edu.intensity:'normal'`이 저장됨.
+- 레벨 카드·설명판: 중수 1단계 "불 보석 25개"(학습 줄 없음), 고수 1단계 "한 번에 4개 이상 15번" = "보통"(= 일반용 §43 표) 값.
+**(b) "많이"를 직접 누르면**: 즉시 저장(`edu.intensity:'many'`), 줄 "선물상자 문제: 많이", 카드·설명판이 바뀜 — 중수 1단계 "불 보석 30개 · 선물상자 문제 6개도 풀어요", 고수 1단계 "한 번에 4개 이상 18번 · 선물상자 문제 7개도 풀어요". **새로고침해도 "많이" 유지**(라디오·줄·카드 30개). 다시 "보통"을 누르면 25개로 돌아오고 새로고침해도 "보통".
+**(c) 저장 상태별 복원(처음 열었을 때, 단원 `soc-3-2-1-1`이 있는 저장은 중수 1단계 카드까지)**
+
+| 저장 상태 | 열린 모습 |
+|---|---|
+| `edu.intensity:'many'` | 라디오·줄 "많이", 중수 1단계 "불 보석 30개 / 문제 6개" — **그대로 많이** |
+| `edu`는 있는데 `intensity` 없음(옛 저장) | "보통"(25개), 열기만 하면 저장은 바뀌지 않음 |
+| `edu` 없는 저장(프로필 지우기 뒤 모양: 설정 3개만) | "보통", 단원 미선택 |
+| `intensity:'zzz'`(잘못된 값) | "보통"(25개) |
+| 깨진 JSON(`{깨짐`) | "보통", 단원 미선택(깨진 저장은 열기만으로는 고쳐 쓰지 않음) |
+| `intensity:'normal'` | "보통" |
+
+**(d) 보통 판**: 단원 하나(`soc-3-2-1-1`)를 고른 새 기기에서 중수 1단계 시작 → `state.edu.mode='normal'`, `learn=null`, 미션 칩 "불 보석 터뜨리기 0 / 25", **학습 칩 없음**. 무작위 봇 43수 동안 문제 팝업 2회(보기 누르기 → 계속하기 정상), 미션 25/25로 클리어, 콘솔 오류 0(`favicon.ico` 404만). 비교로 "많이": 같은 방식 17수에 문제 6개, 학습 칩 "0 / 6 → 6 / 6 ✓", 미션 0/30. 보통의 공급 빈도(1.6%·첫 행동 확정)가 맞는지의 통계는 이번 범위가 아니다(표·`wild` 불변).
+**(e) 화면**: 1280×720·390×844 모두 선택 화면·시작 화면 `scrollWidth == clientWidth`(가로 넘침 0). 라디오 높이 48px(터치 44px 이상), 선택은 파랑 채움 + ✓ 모양(색뿐 아니라 모양으로도 구분). 폰 세로 선택 화면은 라디오·안내 글이 화면 안에 다 들어옴. 스크린샷으로 눈으로 확인. **일반용 앱**: `.eg-amt`·`#eg-amount`·`#eg-unit-card` 0개, `window.EduQuiz` 없음, 시작 화면 그대로.
+**참고(옛 빌드 `HEAD~2` 사본)**: 새 기기 첫 로드 = "많이"·저장 null. 난이도 칸을 한 번 누르면(단원을 고르기 전에도) 저장이 `{…,"edu":{"v":1,"unit":null,"intensity":"many",…}}`로 생겼다(38.7 O2).
+
+### 38.4 수정한 것 (최소·교육용 범위)
+| # | 결함 | 수정 |
+|---|---|---|
+| D1(낮음·시험 구멍) | `eduIntensity()` 마지막 안전 기본값(spec 47.1의 세 번째 곳)을 옛 모양(`=== 'normal' ? 'normal' : 'many'`)으로 되돌려도 교육용 시험 599개가 전부 통과(변이 M3 생존) — 실제 기본값이 `'normal'`이라 옛 모양도 같은 값을 내고, 설정 값이 이상할 때만 달라지는데 그 경우를 시험이 보지 않았다 | `test/modes.test.js` "③ eduMode: intensity() 가 없으면 …"에 단언 2개 추가: `defaultIntensity = 'bogus'`와 `undefined`일 때 `eduMode()`가 `'normal'`. 보강 뒤 M3이 이 시험에서 잡힘 |
+| D2(낮음·잔존 옛 기본) | 38.2의 `index.html` 정적 첫 상태가 "많이" | `index.html` 세 곳: `#eg-amt-normal`을 `aria-checked="true"`(tabindex 속성 없음), `#eg-amt-many`를 `aria-checked="false" tabindex="-1"`, `#eg-unit-amount` 정적 글을 "선물상자 문제: 보통". `test/modes.test.js` "⑥ 라디오 마크업" 기대값 두 줄(라디오 정규식 2개)·한 줄(`#eg-unit-amount` 글) 갱신 — 단언 수·엄격함 그대로. 변이 M11·M12(둘 중 하나를 되돌림)가 이 시험에서 잡힘 |
+| D3(사소·주석) | `test/edu-ui.test.js` `normalizeEdu` 시험 3줄의 줄 끝 주석이 "기본값 'many' 가 함께 나온다"로 남아 사실과 반대 | 주석만 "기본값('normal', spec §47)이 함께 나온다"로 |
+수정 뒤 교육용 **599/598 통과+건너뜀 1**(변화 없음 — 새 시험이 아니라 기존 시험 안의 단언 추가), 일반용 342, 서버 126, 검증기 오류 0·경고 0. 수정 파일은 `git status` 기준 `index.html`·`test/modes.test.js`·`test/edu-ui.test.js` 셋뿐(커밋하지 않음, 메인 세션이 판단). 수정 뒤 화면 다시 확인: 새 기기·많이 선택·새로고침·보통 복귀 흐름이 전과 같게 동작(38.3 (a)(b) 재실행).
+
+### 38.5 시험 약화 점검 (확인함: `git diff 0a1578c~1 0a1578c -- apps/element-gems-edu/test` 전수)
+- 지워진 줄에 포함된 `assert` 13줄은 모두 **같은 대상의 기대값 교체**(`'many'`→`'normal'`, 이름·메시지 갱신)이고 지워지기만 한 단언은 0. 추가된 `assert` 25줄 = 교체 13 + 새 단언 12. 시험 개수는 `modes.test.js`의 `test(` 45개 → 46개(새 시험 1개 "⑥ 실제 기본 선택(spec §47)"), `edu-ui.test.js` 37개 그대로이고 교육용 합계는 Build 이전 598 → 599.
+- 바뀐 기대값은 새 설계에서 모두 맞음: `normalizeEdu(null|'x'|[])` 기본 `'normal'`, `eduMode()` 기본 `normal`, `G.CONFIG.edu.defaultIntensity === 'normal'`, `normalizeEdu` 잘못된 값·필드 없음·기본값 자체가 이상할 때 `'normal'`, `readEduFromRaw` 깨진 저장 `'normal'`.
+- **트리비얼해지지 않게 'many'로 덮는 줄이 함께 들어감**: `normalizeEdu({}, 'many')` → `'many'`("기본값을 many로 바꿔도 따라간다"), `normalizeEdu({intensity:'normal'}, 'many')` → `'normal'`(저장 우선), `readEduFromRaw('', 'many')` → `'many'`, 그리고 가짜 브라우저 환경(`browserEnv`)의 기본 설정이 `defaultIntensity: 'many'`로 **고정**돼 있어(기존 줄, 이번에 안 바뀜) 옛 라디오·저장 복원 시험은 "설정 값을 따른다"를 그대로 증명한다. 이름·주석에도 "이 시험 환경은 many로 고정, 실제 기본은 보통"이라 적어 둠.
+- 새 시험 "⑥ 실제 기본 선택"은 `const real = G.CONFIG.edu.defaultIntensity`(실제 `game.js`)를 읽어 `real === 'normal'`을 단언하고 그 값을 `eduCfg`로 `edu.js`에 넘겨 새 기기(라디오 `['true/0','false/-1']`·줄 "보통"·`.on`)·저장된 많이(그대로)·옛 저장(보통)·"많이"를 직접 고르면 저장됨까지 본다. 실제 브라우저에서도 같은 결과를 확인했다(38.3).
+- 남은 사소한 점: "③ eduMode…" 시험의 `noFn.CONFIG.edu.defaultIntensity = 'normal'` 줄은 새 기본과 같아 이제 값이 바뀌지 않는 줄이지만(설정을 따른다는 증명은 바로 아래 'many' 줄이 한다) 무해하다.
+
+### 38.6 변이 시험 (확인함: scratchpad `git clone --local` 복제본에서 한 번에 하나씩, 교육용 시험 전체 599개)
+| 변이 | 결과(실패한 시험) |
+|---|---|
+| M1 `CONFIG.edu.defaultIntensity` 다시 `'many'` | 잡힘 3개(`③ eduMode 기본`·`③ [표 값]`의 기본 확인·`⑥ 실제 기본 선택`) |
+| M2 `EDU_UI.intensity.default` 다시 `'many'` | 잡힘 3개(`edu-ui` `normalizeEdu` 기본·`⑥ normalizeEdu`·`⑥ 저장·복원`) |
+| M3 `eduIntensity()` 마지막 줄을 옛 모양으로 | **생존 → 보강 뒤 잡힘 1개**(`③ eduMode`) — D1 |
+| M4 `normalizeIntensity`가 저장값을 무시(우선순위 뒤집기) | 잡힘 5개(`⑥ normalizeEdu`·`⑥ 라디오 UI`·`⑥ 실제 기본 선택`·`⑥ 라디오 키보드`·`⑥ 저장 복원`) |
+| M5 `readEduFromRaw`가 항상 기본값(저장된 many를 덮어씀) | 잡힘 2개(`⑥ 실제 기본 선택`·`⑥ 저장 복원`) |
+| M6 `normalizeEdu`가 저장된 `intensity`를 버림 | 잡힘 3개 |
+| M7 `edu.js defaultIntensity()`가 설정을 무시하고 `'many'` 고정 | 잡힘 2개(`⑥ 실제 기본 선택`·`⑥ 저장 복원`) |
+| M8 `edu.js start()`가 `'many'`를 기본으로 다시 읽음 | 잡힘 2개 |
+| M9 `eduIntensity()` 폴백이 항상 `'many'` | 잡힘 20개(기본에 기대는 여러 파일) |
+| M10 `normalizeEdu`의 빈 기본을 `'many'`로 고정 | 잡힘 5개 |
+| M11 `index.html` 정적 라디오를 되돌림(보통 쪽만) | 잡힘 1개(`⑥ 라디오 마크업`) — 수정 후 |
+| M12 `index.html` 시작 화면 정적 줄을 "많이"로 | 잡힘 1개(`⑥ 라디오 마크업`) — 수정 후 |
+→ 지침의 5종(①~⑤) 중 ③(M3)만 처음에 살아 있었고 보강으로 해결. 12개 모두 잡히는 상태.
+
+### 38.7 영향 범위 문장의 사실성 (spec 47.2 — §47은 고치지 않고 제안으로만)
+- **맞음(확인함)**: "저장이 없는 새 기기·`edu.intensity`가 없는 옛 저장 = 보통, 값이 저장된 기기는 그대로"(38.3 (a)(c)). `persist()`가 `edu` 객체(정규화된 `intensity` 포함)를 게임 저장에 붙이고(`attachToSave()`는 시작 때마다 `sv.edu = edu`), 게임이 저장을 쓸 때 함께 기록된다.
+- **O1(문장이 실제와 다름·낮음)**: 47.2 끝 문장 "`SYNC.md`는 교육용 전용 변경 한 줄만 이어 붙임"은 Build 커밋에 반영되지 않았다(`git show --stat`에 `SYNC.md` 없음, `SYNC.md` 끝줄은 `2026-11-11 … §45 Review R-E` 항목이고 §47 줄이 없음). 제안: 메인 세션이 `SYNC.md`에 한 줄(spec §47: `defaultIntensity`·`EDU_UI.intensity.default`·`eduIntensity()` 마지막 줄·`index.html` 정적 첫 상태·시험, 일반용 무변경)을 이어 붙이거나 47.2 문장을 고친다.
+- **O2(크기 정보 추가 제안)**: 47.2는 "이미 '많이'로 저장된 기기는 직접 '보통'으로 바꿔야 한다"고 정직하게 적었지만 **그런 기기의 범위가 넓다.** 옛 빌드(`HEAD~2`)에서 페이지를 열기만 하면 저장이 생기지 않지만, **난이도 칸을 한 번 누르는 것만으로**(단원 선택 전에도) 게임 저장에 붙어 있던 `edu.intensity:'many'`가 기록된다(옛 사본에서 직접 확인). 즉 이 변경 전에 한 번이라도 난이도를 눌러 본 기기는 사용자가 문제 양을 건드린 적이 없어도 거의 다 "많이"로 저장돼 있다. 새 기본이 실제로 닿는 사람은 **저장이 전혀 없는 첫 방문 기기**(와 아래 O3의 지운 기기)이고 이미 해 본 사람은 그대로 "많이"다. 고르기·기본을 구분할 방법이 없어 코드를 바꾸지 않는 것이 맞고(교사가 정한 선택을 뒤집지 않기 위한 §47의 판단과 같음), 사용자에게는 "이미 접속한 기기는 대부분 그대로 많이"라고 알리는 것이 정확하다.
+- **O3(영향 한 줄 추가 제안)**: 프로필 지우기(`eraseDeviceData` → `wipeSaveRaw`)는 저장에서 설정 3개(`muted`·`cutin`·`tutorialSeen`)만 남기고 **`edu` 필드를 통째로 지운다**(`node`로 직접 확인: `{"muted":true,"cutin":false,"tutorialSeen":true}`만 남음). 그 뒤 새로고침(`ranking-ui.js`가 `location.reload()`)하면 새 기기와 같이 "보통"·단원 미선택으로 돌아온다(38.3 (c) 세 번째 줄). 예전에는 "많이"로 돌아왔으므로 "프로필을 지운 기기도 보통에서 다시 시작한다"를 47.2에 한 줄 더하면 좋다.
+
+### 38.8 제안 · 한계
+- **사용자 결정이 필요한 제안**: 없음(설계·수치·문구 방향 변경 0). 위 O1~O3은 spec/SYNC 문장 정리 제안이고 코드 변경 제안이 아니다.
+- **메인 세션 확인 요청**: 38.4의 수정 3개 파일(`index.html`·`test/modes.test.js`·`test/edu-ui.test.js`)은 작업 트리에만 있고 커밋하지 않았다. 일반용에는 해당 마크업이 없어 두 앱 동기화 영향 없음(`ranking*.js`·`style.css` 무변경).
+- 한계: 사람 체감·실기기·Safari/Firefox·소리 미확인. 화면은 Chrome 157 헤드리스 한 종류(1280×720·390×844)이고 판은 무작위 봇이다. 홍보 자료(`docs/intro/`)의 "문제 양" 설명은 §47대로 사용자가 요청할 때 고치는 것이라 이번에 보지 않았다. 배포된 서버·실제 사이트는 건드리지 않았다.

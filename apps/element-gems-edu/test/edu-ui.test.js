@@ -202,9 +202,9 @@ test('readEduFromRaw ↔ mergeEduIntoSave: 왕복해도 같다', () => {
 });
 
 test('normalizeEdu: 잘못된 값은 기본값, 값 범위는 안전하게 줄인다', () => {
-  assert.deepStrictEqual(L.normalizeEdu(null), { v: 1, unit: null, intensity: 'normal', pool: {}, stats: {} });     // spec §27.7 M3-B: 문제 양 선택(intensity)이 추가되어 기본값 'many' 가 함께 나온다
-  assert.deepStrictEqual(L.normalizeEdu('x'), { v: 1, unit: null, intensity: 'normal', pool: {}, stats: {} });     // spec §27.7 M3-B: 문제 양 선택(intensity)이 추가되어 기본값 'many' 가 함께 나온다
-  assert.deepStrictEqual(L.normalizeEdu([]), { v: 1, unit: null, intensity: 'normal', pool: {}, stats: {} });     // spec §27.7 M3-B: 문제 양 선택(intensity)이 추가되어 기본값 'many' 가 함께 나온다
+  assert.deepStrictEqual(L.normalizeEdu(null), { v: 1, unit: null, intensity: 'normal', pool: {}, stats: {} });     // spec §27.7 M3-B: 문제 양 선택(intensity)이 추가되어 기본값('normal', spec §47)이 함께 나온다
+  assert.deepStrictEqual(L.normalizeEdu('x'), { v: 1, unit: null, intensity: 'normal', pool: {}, stats: {} });     // spec §27.7 M3-B: 문제 양 선택(intensity)이 추가되어 기본값('normal', spec §47)이 함께 나온다
+  assert.deepStrictEqual(L.normalizeEdu([]), { v: 1, unit: null, intensity: 'normal', pool: {}, stats: {} });     // spec §27.7 M3-B: 문제 양 선택(intensity)이 추가되어 기본값('normal', spec §47)이 함께 나온다
   const e = L.normalizeEdu({
     unit: '../evil', pool: { 'soc-3-2-1-1': { order: [1, 2, 'x'], pos: 1 }, 'soc-3-2-1-2': { order: [1, 2, 3], pos: 99, recent: ['F1', 7, 'F2'] }, 'BAD ID': { order: [1], pos: 0 } },
     stats: { 'soc-3-2-1-1': { asked: 3, right: 9 }, 'soc-3-2-1-2': { asked: -1, right: 2 }, 'bad id': { asked: 1, right: 1 } }

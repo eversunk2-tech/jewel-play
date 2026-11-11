@@ -432,6 +432,10 @@ test('③ eduMode: 선택(intensity) × 문제 준비(ready) 4조합 — many �
 test('③ eduMode: intensity() 가 없으면 CONFIG.edu.defaultIntensity, 이상한 값이면 기본값, EduQuiz 가 없으면 normal(문제가 없으니)', () => {
   const noFn = createEnv(1, null, { quiz: { noIntensity: true } });
   assert.strictEqual(noFn.sandbox.ElementGemsEdu.eduMode(), 'normal', '기본 normal(spec §47: 처음 여는 사람의 기본은 보통)');
+  noFn.CONFIG.edu.defaultIntensity = 'bogus';        // 설정 값 자체가 이상하면 eduIntensity() 의 마지막 안전 기본값 = 보통(spec §47; Review R-F 가 이 줄이 시험에 안 잡히는 구멍을 찾아 보강)
+  assert.strictEqual(noFn.sandbox.ElementGemsEdu.eduMode(), 'normal', '설정 기본값이 이상하면 보통(마지막 안전 기본값)');
+  noFn.CONFIG.edu.defaultIntensity = undefined;
+  assert.strictEqual(noFn.sandbox.ElementGemsEdu.eduMode(), 'normal', '설정 기본값이 없어도 보통(마지막 안전 기본값)');
   noFn.CONFIG.edu.defaultIntensity = 'normal';
   assert.strictEqual(noFn.sandbox.ElementGemsEdu.eduMode(), 'normal');
   noFn.CONFIG.edu.defaultIntensity = 'many';
@@ -1212,13 +1216,13 @@ test('⑥ 단원 불러오기가 끝나면 refreshStages 가 불린다(저장된
 
 test('⑥ 라디오 마크업(index.html·edu.css): radiogroup + 라디오 둘(aria-checked·tabindex)·설명·안내 줄·확정 줄 아래, 터치 타깃 44px 이상, CSS 는 edu.css 끝 M3-B 블록 하나', () => {
   assert.match(HTML, /<div id="eg-amount" class="eg-amount" role="radiogroup" aria-labelledby="eg-amount-label" aria-describedby="eg-amount-desc">/);
-  assert.match(HTML, /<button id="eg-amt-normal" class="eg-amt" type="button" role="radio" aria-checked="false" tabindex="-1" data-v="normal">보통<\/button>/);
-  assert.match(HTML, /<button id="eg-amt-many" class="eg-amt" type="button" role="radio" aria-checked="true" data-v="many">많이<\/button>/);
+  assert.match(HTML, /<button id="eg-amt-normal" class="eg-amt" type="button" role="radio" aria-checked="true" data-v="normal">보통<\/button>/);       // 정적 첫 상태 = 기본 보통(spec §47; edu.js 가 열 때 저장값대로 다시 맞춘다)
+  assert.match(HTML, /<button id="eg-amt-many" class="eg-amt" type="button" role="radio" aria-checked="false" tabindex="-1" data-v="many">많이<\/button>/);
   assert.ok(HTML.includes('<p id="eg-amount-desc" class="eg-amount-desc">많이: 한 판에 선물상자 문제를 6~12개쯤 풀어요 · 보통: 3~4개쯤</p>'));
   assert.ok(HTML.includes('<span id="eg-amount-label" class="eg-amount-label">선물상자 문제 양</span>'));
   assert.match(HTML, /<p id="eg-amount-note" class="eg-amount-note" hidden><\/p>/);
   assert.ok(HTML.indexOf('id="eg-pick-ok"') < HTML.indexOf('id="eg-amount"') && HTML.indexOf('id="eg-amount"') < HTML.indexOf('<!-- 게임 화면 -->'), '확정 줄 아래, 선택 화면 안');
-  assert.match(HTML, /<p class="eg-unit-top"><span class="eg-ribbon">교육용<\/span><span class="eg-unit-cap">학습 단원<\/span><span id="eg-unit-amount" class="eg-unit-amount" hidden>선물상자 문제: 많이<\/span><\/p>/);
+  assert.match(HTML, /<p class="eg-unit-top"><span class="eg-ribbon">교육용<\/span><span class="eg-unit-cap">학습 단원<\/span><span id="eg-unit-amount" class="eg-unit-amount" hidden>선물상자 문제: 보통<\/span><\/p>/);
   // 44px 이상(기본 규칙과 휴대폰 가로 규칙 모두)
   const min = (re) => { const m = re.exec(CSS); assert.ok(m, String(re)); return parseInt(m[1], 10); };
   assert.ok(min(/\.eg-amt \{[^}]*min-height: (\d+)px/) >= 44, '.eg-amt 기본 규칙 44px 이상');
