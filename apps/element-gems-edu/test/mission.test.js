@@ -569,7 +569,7 @@ test('미션 달성이 클리어를 정한다: 점수가 목표에 한참 못 �
   assert.strictEqual(env.doc.getElementById('end-title').textContent, 'STAGE CLEAR!');
   assert.match(env.doc.getElementById('end-target').textContent, /^미션 모두 달성 · 남은 시간 /);
   const left = G.leftFromTime(I.state.timeLeft);
-  const stars = G.starsFor(left, I.state.startTime);
+  const stars = G.starsFor(left, I.state.startTime, 'normal');
   const rec = I.save.stages.normal[0];
   assert.deepStrictEqual({ stars: rec.stars, left: rec.left, best: rec.best }, { stars, left, best: I.state.score }, '별·남은 시간은 점수형과 같은 식, best 는 도달 점수 그대로');
   assert.strictEqual(I.save.progress.normal, 9, '이미 열려 있던 진행도는 줄지 않는다');
@@ -1475,7 +1475,7 @@ test('M2 중수·고수 한 판(기본 표 레벨 1): 미션 칩이 켜지고, �
     assert.strictEqual(env.doc.getElementById('end-title').textContent, 'STAGE CLEAR!');
     assert.match(env.doc.getElementById('end-target').textContent, /^미션 모두 달성 · 남은 시간 /);
     const left = G.leftFromTime(I.state.timeLeft);
-    const stars = G.starsFor(left, I.state.startTime);
+    const stars = G.starsFor(left, I.state.startTime, lv);
     const rec = I.save.stages[lv][0];
     assert.deepStrictEqual({ stars: rec.stars, left: rec.left, best: rec.best }, { stars, left, best: I.state.score }, lv + ': 별·남은 시간은 점수형과 같은 식, best 는 도달 점수');
     assert.ok(I.state.score < I.state.target, '점수 목표에는 못 미친 채로 클리어(미션형은 점수를 보지 않는다)');
@@ -1920,7 +1920,7 @@ test('[EDU] 미션을 끝낸 바로 그 행동에 ? 문제가 따라오면: 문�
     assert.strictEqual(ended[0].cleared, true);
     const left = G.leftFromTime(st.timeLeft);
     const rec = I.save.stages.normal[0];
-    assert.deepStrictEqual({ stars: rec.stars, left: rec.left }, { stars: G.starsFor(left, st.startTime), left });
+    assert.deepStrictEqual({ stars: rec.stars, left: rec.left }, { stars: G.starsFor(left, st.startTime, 'normal'), left });
     assert.strictEqual(rec.best, st.score, 'best 는 도달 점수(정답 보너스 포함)');
     assert.ok(env.store[SAVE_KEY.edu], '교육용 저장 키에 기록');
     assert.strictEqual(env.store[SAVE_KEY.gen], undefined, '일반용 저장 키는 건드리지 않는다');

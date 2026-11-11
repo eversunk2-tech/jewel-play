@@ -812,7 +812,30 @@ function baselineSource() {
   } catch (e) { return null; }
 }
 const BASE_SRC = baselineSource();
-const BASE_SCRIPT = BASE_SRC ? compile(BASE_SRC, 'general/game.js@' + BASE_COMMIT) : null;
+/* spec §44(2026-11-11): 별 기준이 난이도별로 바뀌었다(고수 ★★ 15%·★★★ 30%). ④는 "별 기준 말고는 규칙이 같다"를 증명하므로,
+ *  같은 시드 봇 판을 돌릴 기준 소스에도 같은 별 기준 변경(CONFIG.stages.starBy·starRatioOf·starsFor·leftFloorForStars·호출 두 곳)을 입혀 나란히 돌린다(규칙 함수·단언은 그대로).
+ *  입히는 본문은 지금 소스에서 가져온다 — 새 별 본문 자체는 아래 소스 수준 시험과 game.test.js 가 따로 고정한다. 바꿀 자리가 기준 소스에 정확히 한 곳씩 없으면 즉시 실패한다. */
+function fnBodyOf(src, head) {
+  const i = src.indexOf(head);
+  assert.ok(i >= 0, '못 찾음: ' + head);
+  let depth = 0; let j = src.indexOf('{', i);
+  for (; j < src.length; j++) { if (src[j] === '{') depth++; else if (src[j] === '}') { depth--; if (depth === 0) break; } }
+  return src.slice(i, j + 1);
+}
+function withStar44(src) {
+  let out = src;
+  const swap = (from, to) => { assert.strictEqual(out.split(from).length, 2, '기준 소스에 정확히 한 곳이어야 한다: ' + from.slice(0, 60)); out = out.replace(from, () => to); };
+  const starBy = SRC.split('\n').find((l) => /^\s*starBy:/.test(l));
+  const star = out.split('\n').find((l) => /^\s*star: \[0\.3, 0\.5\],/.test(l));
+  assert.ok(starBy && star, 'starBy / star 줄');
+  swap(star, star + '\n' + starBy);
+  swap(fnBodyOf(out, 'function starsFor('), fnBodyOf(SRC, 'function starRatioOf(') + '\n\n  ' + fnBodyOf(SRC, 'function starsFor('));
+  swap(fnBodyOf(out, 'function leftFloorForStars('), fnBodyOf(SRC, 'function leftFloorForStars('));
+  swap('starsFor(left, state.startTime)', 'starsFor(left, state.startTime, lv)');
+  swap('starsFor(left, startTimeOf(k))', 'starsFor(left, startTimeOf(k), k)');
+  return out;
+}
+const BASE_SCRIPT = BASE_SRC ? compile(withStar44(BASE_SRC), 'general/game.js@' + BASE_COMMIT + '+§44') : null;
 const skipBase = BASE_SRC ? false : 'M4 시작 시점의 game.js 를 구하지 못해 건너뜀(git 커밋 ' + BASE_COMMIT + ' 또는 EG_BASELINE_GAME_JS 필요)';
 
 /** 결정적인 봇 한 판: 시드 seed 로 보석이 나오고, 봇은 자기 난수(시드 seed+7)로 유효한 수를 고르고(70%) 아니면 첫 유효한 수, 게이지가 찬 비조준 스킬(물·번개·어둠·빛)을 가끔 쓴다.
@@ -909,13 +932,27 @@ test('④ 규칙 불변(소스 수준): 규칙 함수·점수·판정·별 계�
     return src.slice(start, j + 1);
   };
   ['function awardGroup(', 'async function cascade(', 'async function removeSkillCells(', 'function awardSkillBonus(', 'function goalMet(', 'function stageTarget(', 'function missionUpdate(', 'function missionCount(', 'function missionDone(',
-    'function missionProgress(', 'function starsFor(', 'function isCleared(', 'function applyStageResult(', 'function leftFromTime(', 'function startTimeOf(', 'function addScore(', 'function touchCombo(', 'function baseScore(', 'function comboMult(', 'function waveMult(', 'function skillPoints(', 'function timeBonusFor(', 'function pickRefillTypes(', 'function planRefill('].forEach((h) => {
+    'function missionProgress(', 'function isCleared(', 'function applyStageResult(', 'function leftFromTime(', 'function startTimeOf(', 'function addScore(', 'function touchCombo(', 'function baseScore(', 'function comboMult(', 'function waveMult(', 'function skillPoints(', 'function timeBonusFor(', 'function pickRefillTypes(', 'function planRefill('].forEach((h) => {
     const a = SRC.indexOf(h) >= 0 ? body(SRC, h) : null;
     const b = BASE_SRC.indexOf(h) >= 0 ? body(BASE_SRC, h) : null;
     assert.strictEqual(a, b, h + ' 본문이 변경 전과 같다');
   });
-  // 별·서버로 가는 값 계산 두 줄과 판정 줄
-  ['const stars = cleared ? starsFor(left, state.startTime) : 0;', 'const left = cleared ? leftFromTime(state.timeLeft) : 0;', 'const cleared = goalMet();'].forEach((l) => assert.ok(SRC.indexOf(l) !== -1 && BASE_SRC.indexOf(l) !== -1, l));
+  // 별·서버로 가는 값 계산 두 줄과 판정 줄 (별 줄은 spec §44 로 의도적으로 바뀌어 아래에서 따로 고정한다)
+  ['const left = cleared ? leftFromTime(state.timeLeft) : 0;', 'const cleared = goalMet();'].forEach((l) => assert.ok(SRC.indexOf(l) !== -1 && BASE_SRC.indexOf(l) !== -1, l));
+  // spec §44(2026-11-11): `function starsFor(` 본문과 판 종료의 별 호출 줄은 고수 별 기준 때문에 의도적으로 바뀌었다. 옛 본문과 비교하지 않고 새 본문·새 줄을 글자 그대로 고정한다.
+  assert.strictEqual(body(SRC, 'function starsFor('), [
+    'function starsFor(timeLeft, startTime, diff) {',
+    '    const ratio = timeLeft / startTime;',
+    '    const r = starRatioOf(diff);',
+    '    if (ratio >= r[1] - 1e-9) return 3;',
+    '    if (ratio >= r[0] - 1e-9) return 2;',
+    '    return 1;',
+    '  }'].join('\n'), '새 starsFor 본문(spec §44)');
+  assert.ok(SRC.indexOf('const stars = cleared ? starsFor(left, state.startTime, lv) : 0;') !== -1, '판 종료의 새 별 계산 줄(현재 난이도 lv 를 넘긴다)');
+  assert.ok(SRC.indexOf('const stars = cleared ? starsFor(left, state.startTime) : 0;') === -1, '난이도 없는 옛 호출 줄은 없다');
+  assert.ok(BASE_SRC.indexOf('const stars = cleared ? starsFor(left, state.startTime) : 0;') !== -1, '기준 소스에는 옛 줄이 있었다');
+  assert.strictEqual(SRC.split('starsFor(').length - 1, 3, 'starsFor( 는 정의 1 + 호출 2(판 종료·저장 불러오기)뿐이다');
+  assert.ok(SRC.indexOf('stars = Math.max(stars, starsFor(left, startTimeOf(k), k));') !== -1, '저장 불러오기의 새 별 올림 줄(난이도 k 를 넘긴다)');
   // 지금 소스에서 정령 줄을 지우면 규칙은 같다: runAction 의 새 줄은 updateSpirit 호출 하나뿐
   const diffLines = SRC.split('\n').filter((l) => /updateSpirit\(\)/.test(l) && !/function updateSpirit/.test(l));
   assert.strictEqual(diffLines.length, 1, 'updateSpirit 호출은 runAction 한 곳');

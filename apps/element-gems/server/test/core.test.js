@@ -12,6 +12,8 @@ test('서버 상수가 game.js 의 CONFIG 와 일치한다 (시작 시간·별 �
     assert.equal(game.CONFIG.stages.targets[d].length, core.STAGES, d + ' 스테이지 수');
   }
   assert.deepEqual(core.STAR_RATIO, game.CONFIG.stages.star);
+  assert.deepEqual(core.STAR_RATIO_BY, game.CONFIG.stages.starBy);      // spec §44: 난이도별 덮어쓰기도 같아야 한다
+  for (const d of core.DIFFS) assert.deepEqual(core.starRatioOf(d), game.starRatioOf(d), d + ' 별 비율');
   assert.equal(game.CONFIG.stages.count, core.STAGES);
 });
 
@@ -19,13 +21,13 @@ test('starsForLeft 는 game.js 의 starsFor 와 모든 정수 left 에서 같다
   for (const d of core.DIFFS) {
     const start = game.CONFIG.difficulty[d].time.start;
     for (let left = 0; left <= core.LEFT_CAP[d]; left++) {
-      assert.equal(core.starsForLeft(d, left), game.starsFor(left, start), d + ' left=' + left);
+      assert.equal(core.starsForLeft(d, left), game.starsFor(left, start, d), d + ' left=' + left);
     }
   }
 });
 
-test('별 임계값 경계 ±1 (초보 39/65, 중수 36/60, 고수 30/50)', () => {
-  const table = { easy: [39, 65], normal: [36, 60], hard: [30, 50] };
+test('별 임계값 경계 ±1 (초보 39/65, 중수 36/60, 고수 15/30 — 고수는 spec §44로 낮춤)', () => {
+  const table = { easy: [39, 65], normal: [36, 60], hard: [15, 30] };
   for (const d of core.DIFFS) {
     const [two, three] = table[d];
     assert.deepEqual(core.starThresholds(d), { two: two, three: three });
@@ -36,6 +38,20 @@ test('별 임계값 경계 ±1 (초보 39/65, 중수 36/60, 고수 30/50)', () =
     assert.equal(core.starsForLeft(d, 0), 1);
     assert.equal(core.starsForLeft(d, -1), 0);
   }
+});
+
+test('starRatioOf (spec §44): 고수만 15%·30%, 초보·중수·모르는 난이도는 기본 30%·50%, 정수 임계값 고수 15/30', () => {
+  assert.deepEqual(core.STAR_RATIO, [0.3, 0.5]);
+  assert.deepEqual(core.STAR_RATIO_BY, { hard: [0.15, 0.3] });
+  assert.deepEqual(core.starRatioOf('hard'), [0.15, 0.3]);
+  for (const d of ['easy', 'normal', 'zzz', undefined, null, '__proto__', 'constructor']) assert.deepEqual(core.starRatioOf(d), [0.3, 0.5], String(d));
+  assert.deepEqual(core.starThresholds('hard'), { two: 15, three: 30 });
+  assert.deepEqual(core.starThresholds('normal'), { two: 36, three: 60 });
+  assert.deepEqual(core.starThresholds('easy'), { two: 39, three: 65 });
+  // 경계: 고수 14->★, 15->★★, 29->★★, 30->★★★ (옛 기준에서 ★★이던 left 35 는 ★★★, 옛 ★★★ 50 은 그대로 ★★★)
+  assert.deepEqual([14, 15, 29, 30, 35, 50].map((l) => core.starsForLeft('hard', l)), [1, 2, 2, 3, 3, 3]);
+  // 중수 left 40 은 ★★ 그대로(★★★은 60초 필요)
+  assert.equal(core.starsForLeft('normal', 40), 2);
 });
 
 test('validateProgress: 정상/범위 밖/소수/문자열/길이/키 누락/여분 키', () => {
@@ -92,12 +108,12 @@ test('합계: 별·남은 시간·최고 레벨', () => {
   p.easy[1] = 40;      // 2별
   p.easy[2] = 0;       // 1별
   p.normal[0] = 60;    // 3별
-  p.hard[0] = 29;      // 1별
+  p.hard[0] = 29;      // 2별 (고수는 15초 이상부터 2별 — spec §44. 옛 기준에서는 1별)
   const t = core.computeTotals(p);
-  assert.deepEqual(t.stars, { easy: 6, normal: 3, hard: 1 });
+  assert.deepEqual(t.stars, { easy: 6, normal: 3, hard: 2 });
   assert.deepEqual(t.left, { easy: 110, normal: 60, hard: 29 });
   assert.deepEqual(t.best, { easy: 3, normal: 1, hard: 1 });
-  assert.equal(t.totalStars, 6 + 3 * 2 + 1 * 3, '별 점수 = 초보x1 + 중수x2 + 고수x3');
+  assert.equal(t.totalStars, 6 + 3 * 2 + 2 * 3, '별 점수 = 초보x1 + 중수x2 + 고수x3');
   assert.equal(t.totalLeft, 199, '남은 시간 합계는 가중 없는 단순 합');
   // 전부 3별 + 상한 = 최대 180점 (별 90개)
   const full = { easy: new Array(10).fill(150), normal: new Array(10).fill(140), hard: new Array(10).fill(120) };

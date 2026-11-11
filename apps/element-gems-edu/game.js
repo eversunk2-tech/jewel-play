@@ -103,6 +103,7 @@
     stages: {
       count: 10,
       star: [0.3, 0.5],                   // 클리어 시 남은 시간 비율 >= 0.3 -> ★★, >= 0.5 -> ★★★
+      starBy: { hard: [0.15, 0.3] },       // 난이도별 덮어쓰기. 없으면 star. 서버 core.js의 STAR_RATIO_BY와 같아야 한다. spec §44
       // spec §28 B1(사용자 승인 2026-11-08): 점수 규모가 약 ×3 이 되는 새 점수 규칙(강 R4)에 맞춘 목표 점수.
       //   초보 = spec §31.3 표(사용자 결정 "1단계 9000": 일반용 9,000 … 15,200, §28.7.1 값은 대체됨). 교육용은 CONFIG.edu.targetScale(x1.2)이 곱해져 파생된다.
       //   중수·고수 표는 §28.7.5 근사(§25.6 값 × 3.3 / × 3.2) — 폴백·롤백용이다. §27 M2 가 중수·고수를 미션으로 바꾸면 점수 목표가 아니라 기록 점수가 된다.
@@ -1059,10 +1060,18 @@
     // [/EDU]
   }
 
-  function starsFor(timeLeft, startTime) {
+  /** 난이도 diff의 별 기준 [★★ 비율, ★★★ 비율]. CONFIG.stages.starBy[diff]가 올바른 모양이면 그것, 아니면 기본 CONFIG.stages.star (spec §44) */
+  function starRatioOf(diff) {
+    const r = CONFIG.stages.starBy && CONFIG.stages.starBy[diff];
+    if (Array.isArray(r) && r.length === 2 && typeof r[0] === 'number' && typeof r[1] === 'number' && r[0] > 0 && r[0] < r[1] && r[1] <= 1) return r;
+    return CONFIG.stages.star;
+  }
+
+  function starsFor(timeLeft, startTime, diff) {
     const ratio = timeLeft / startTime;
-    if (ratio >= CONFIG.stages.star[1] - 1e-9) return 3;
-    if (ratio >= CONFIG.stages.star[0] - 1e-9) return 2;
+    const r = starRatioOf(diff);
+    if (ratio >= r[1] - 1e-9) return 3;
+    if (ratio >= r[0] - 1e-9) return 2;
     return 1;
   }
 
@@ -1338,11 +1347,12 @@
     return Math.max(0, Math.floor(timeLeft + 1e-6));
   }
 
-  /** 별 개수로 추정한 남은 시간 하한(정수 초). ★★★ >= 50%, ★★ >= 30%, ★ -> 0 (spec §19.2.4 마이그레이션) */
+  /** 별 개수로 추정한 남은 시간 하한(정수 초). ★★★/★★ 는 난이도별 별 기준 starRatioOf(diff)(초보·중수 50%·30%, 고수 30%·15%), ★ -> 0 (spec §19.2.4 마이그레이션, §44) */
   function leftFloorForStars(diff, stars) {
     const s = startTimeOf(diff);
-    if (stars >= 3) return Math.ceil(s * CONFIG.stages.star[1] - 1e-9);
-    if (stars === 2) return Math.ceil(s * CONFIG.stages.star[0] - 1e-9);
+    const r = starRatioOf(diff);
+    if (stars >= 3) return Math.ceil(s * r[1] - 1e-9);
+    if (stars === 2) return Math.ceil(s * r[0] - 1e-9);
     return 0;
   }
 
@@ -1396,7 +1406,7 @@
           if (stars >= 1) {
             // 별 <-> 남은 시간 일치: left가 없거나 낮으면 별에서 하한을 추정(옛 저장 마이그레이션), 별이 낮으면 left에서 올린다
             left = Math.max(left, leftFloorForStars(k, stars));
-            stars = Math.max(stars, starsFor(left, startTimeOf(k)));
+            stars = Math.max(stars, starsFor(left, startTimeOf(k), k));
           } else {
             left = 0;
           }
@@ -1462,7 +1472,7 @@
       fireCells: fireCells, grassCells: grassCells, baseScore: baseScore, chainMult: chainMult,
       timeBonusFor: timeBonusFor, applyDifficulty: applyDifficulty, skillDesc: skillDesc,
       comboMult: comboMult, waveMult: waveMult, skillPoints: skillPoints, comboNext: comboNext,
-      fmtTime: fmtTime, fmtDur: fmtDur, stageTarget: stageTarget, starsFor: starsFor, isCleared: isCleared,
+      fmtTime: fmtTime, fmtDur: fmtDur, stageTarget: stageTarget, starsFor: starsFor, starRatioOf: starRatioOf, isCleared: isCleared,
       stageUnlocked: stageUnlocked, applyStageResult: applyStageResult, parseSave: parseSave, leftFromTime: leftFromTime, leftFloorForStars: leftFloorForStars, defaultSave: defaultSave, gaugeGain: gaugeGain, praiseLevel: praiseLevel, listMoves: listMoves,
       pickTrack: pickTrack,
       boardGrade: boardGrade, boardParams: boardParams, completes: completes, fillStructured: fillStructured,
@@ -4017,7 +4027,7 @@
     const stage = state.stage;
     const cleared = stageDone();     // [EDU] 목표 + 학습 조건(없으면 goalMet() 과 같다)
     const left = cleared ? leftFromTime(state.timeLeft) : 0;     // 정수 초(내림). 임계값이 정수라 별 결과는 기존과 같다
-    const stars = cleared ? starsFor(left, state.startTime) : 0;
+    const stars = cleared ? starsFor(left, state.startTime, lv) : 0;
     const res = applyStageResult(save, lv, stage, state.score, cleared, stars, left);
     save.plays += 1;
     save.lastScore = state.score;

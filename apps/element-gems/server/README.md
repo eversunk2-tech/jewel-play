@@ -21,6 +21,7 @@
 | `.dev.vars.example` | 로컬 시험용 변수 예시(가짜 값). 복사해서 `.dev.vars`로 쓰고 `.dev.vars`는 커밋하지 않음 |
 | `tools/print-wordlist.js` | 금칙어 목록을 풀어서 보기(검수용) |
 | `tools/encode-word.js` | 목록에 넣을 base64 만들기 |
+| `tools/recompute-stars.js` | 별 기준이 바뀐 뒤 기존 행의 별 열을 다시 계산해 UPDATE SQL만 출력(읽기 전용 입력, 아래 "별 기준과 기존 행 다시 계산") |
 | `test/*.test.js` | `node:test` 자동 시험. `nick-vectors.js`는 닉네임 시험 벡터 |
 | `../nickname.js`, `../nick-words.js` | 닉네임 검증 모듈과 금칙어 목록. **클라이언트와 서버가 같은 파일**을 씀 |
 
@@ -74,6 +75,25 @@ curl localhost:8787/__mock/state
 - DB 열 `total_stars`는 이름을 유지하되 **가중 점수**를 저장합니다. `me.stars.all`, `board=all` 목록·`/api/rank`의 `stars`가 가중 점수이고, `me.stars.easy/normal/hard`와 난이도 탭은 별 개수(0~30)입니다.
 - 정렬: 점수 → 남은 시간 합계(세 난이도 단순 합) → 먼저 달성 → id.
 - 이상치 점검 SQL 예: `SELECT id, nick, tag, total_stars, total_left FROM players WHERE total_stars = 180 AND total_left >= 1300 ORDER BY total_left DESC;` (기준값은 운영하며 조정)
+
+## 별 기준과 기존 행 다시 계산 (spec §44)
+
+- 별은 서버가 진행 기록의 남은 시간(`left`)으로 다시 계산합니다. 기준은 `src/core.js`의 `STAR_RATIO`(기본 ★★ 30% · ★★★ 50%)와 난이도별 덮어쓰기 `STAR_RATIO_BY`(**고수만 ★★ 15% · ★★★ 30%**)이고, 클라이언트 `game.js`의 `CONFIG.stages.star`·`starBy`와 같아야 합니다(`test/core.test.js`가 대조). 시작 시간·`LEFT_CAP`·`STAR_WEIGHT`·API 모양은 그대로입니다.
+- 서버는 쓰기 때(기록이 좋아질 때만) 별 열을 계산하므로, 재배포 뒤에도 **기존 행의 `stars_hard`·`total_stars`는 그 사람이 다음에 기록을 개선하기 전까지 옛 값**입니다. 서버 동기화 응답의 "내 별"은 새 기준으로 나오지만 순위 계산은 DB의 `stars_*`·`total_stars` 열을 쓰므로, 기존 고수 행은 기록을 개선하기 전까지 화면의 내 별과 순위표의 별·순위가 어긋날 수 있습니다. 그래서 **서버 재배포 직후 아래 다시 계산을 한 번 돌리기를 권장**합니다. 별은 내려가지 않고 올라가기만 합니다.
+- **배포 순서: ① Worker(서버) 먼저 → ② 사이트(GitHub Pages) 나중.** 서버가 먼저 새 기준으로 계산하면 옛 클라이언트가 보낸 `left`도 새 기준으로 매겨져 어긋나는 시간이 없습니다.
+- 기존 행 다시 계산(**서버 재배포 직후 한 번 돌리기를 권장**, 운영자가 직접 실행. 도구 자체는 입력 파일을 읽어 SQL 텍스트만 만들고 네트워크·wrangler를 부르지 않습니다):
+
+```
+# 1) 서버 재배포 뒤, 행을 JSON으로 내보내기 (숨김 행도 포함하려고 WHERE 없이)
+npx wrangler d1 execute element-gems-db --remote --json \
+  --command "SELECT id, prog_easy, prog_normal, prog_hard, stars_easy, stars_normal, stars_hard, total_stars FROM players" > rows.json
+# 2) 바뀌는 행만 UPDATE 로 만들기 (stderr 에 "바뀐 행 N개 / 전체 M개")
+node apps/element-gems/server/tools/recompute-stars.js rows.json --out fix.sql
+# 3) fix.sql 을 눈으로 확인한 뒤 적용
+npx wrangler d1 execute element-gems-db --remote --file=fix.sql
+```
+
+  입력은 행 배열 / `[{ results: [...] }]` / `{ results: [...] }` 모양을 모두 읽습니다. 출력 UPDATE는 `stars_easy·stars_normal·stars_hard·total_stars` 네 열만 바꾸고(`up_*`·`last_write_at`·`hidden`·`left_*` 등은 건드리지 않음), 별 값은 모두 정수로 검사한 숫자만 넣습니다. 검사에 실패한 행(진행 문자열 형식 오류, 숫자·쉼표·`-` 밖의 문자 등)은 건너뛰고 stderr에 알립니다. 각 UPDATE의 `WHERE`에는 `id`와 함께 `AND prog_easy='…' AND prog_normal='…' AND prog_hard='…'`(내보낸 행의 진행 문자열 그대로)가 붙으므로, **내보내기와 적용 사이에 사람이 기록을 올렸다면 조건이 안 맞아 그 행은 자동으로 건너뜁니다**(서버가 이미 새 기준으로 계산했으니 옛 별로 덮어쓰지 않습니다). 그렇게 건너뛴 행이 있을 수 있으므로, 적용 뒤에 같은 순서(내보내기→변환)를 한 번 더 돌려 "바뀐 행 0개"가 나오는지 확인하세요. `rows.json`·`fix.sql`에는 진행 기록이 들어 있으니 커밋하지 않습니다.
 
 ## 환경 변수
 

@@ -1128,7 +1128,7 @@ test('game.js 소스: 점수 식이 CONFIG 한 곳에서 오고(옛 skillCell �
   code.split('\n').filter((l) => /maxStep\s*=|setChain\(/.test(l)).forEach((l) => assert.ok(!/combo/i.test(l), 'maxStep·setChain 계산에 콤보가 끼지 않는다: ' + l.trim()));
   assert.ok(code.split('\n').filter((l) => /maxStep\s*=|setChain\(/.test(l)).length >= 3);
   // 서버·랭킹으로 가는 별 계산은 그대로
-  assert.ok(/const stars = cleared \? starsFor\(left, state\.startTime\) : 0;/.test(code));
+  assert.ok(/const stars = cleared \? starsFor\(left, state\.startTime, lv\) : 0;/.test(code));      // spec §44: 현재 난이도 lv 를 넘긴다
   assert.ok(/const left = cleared \? leftFromTime\(state\.timeLeft\) : 0;/.test(code));
 });
 

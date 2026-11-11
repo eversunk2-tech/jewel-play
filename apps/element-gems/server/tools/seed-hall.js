@@ -14,7 +14,7 @@ const crypto = require('node:crypto');
 const core = require(path.join(__dirname, '..', 'src', 'core.js'));
 const Nick = require(path.join(__dirname, '..', '..', 'nickname.js'));
 
-// 스테이지별 남은 시간(정수 초), 미플레이 -1. 별: 초보 65 이상 3★ / 39 이상 2★ / 그 아래 1★. 중수 60/36, 고수 50/30.
+// 스테이지별 남은 시간(정수 초), 미플레이 -1. 별: 초보 65 이상 3★ / 39 이상 2★ / 그 아래 1★. 중수 60/36, 고수 30/15 (spec §44).
 const E = (arr) => arr.concat(Array(10 - arr.length).fill(-1));
 const N = E([]);
 const RIVALS = [

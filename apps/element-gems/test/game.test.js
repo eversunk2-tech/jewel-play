@@ -60,23 +60,104 @@ test('기존 규칙 회귀: 점수·게이지·시간 표기·목표 표', () =>
   assert.strictEqual(G.stageUnlocked(9, 10), true);
 });
 
-test('starsFor: 임계값(초보 39/65, 중수 36/60, 고수 30/50)이 정수 초이고 내림해도 결과가 같다', () => {
-  const cases = { easy: [130, 39, 65], normal: [120, 36, 60], hard: [100, 30, 50] };
+test('starsFor: 임계값(초보 39/65, 중수 36/60, 고수 15/30 — 고수는 spec §44)이 정수 초이고 내림해도 결과가 같다', () => {
+  const cases = { easy: [130, 39, 65], normal: [120, 36, 60], hard: [100, 15, 30] };
   Object.keys(cases).forEach((k) => {
     const [start, two, three] = cases[k];
     assert.strictEqual(G.CONFIG.difficulty[k].time.start, start);
-    assert.strictEqual(G.starsFor(three, start), 3);
-    assert.strictEqual(G.starsFor(three - 1, start), 2);
-    assert.strictEqual(G.starsFor(two, start), 2);
-    assert.strictEqual(G.starsFor(two - 1, start), 1);
+    assert.strictEqual(G.starsFor(three, start, k), 3);
+    assert.strictEqual(G.starsFor(three - 1, start, k), 2);
+    assert.strictEqual(G.starsFor(two, start, k), 2);
+    assert.strictEqual(G.starsFor(two - 1, start, k), 1);
     // 0.1초 단위 전수: 내림한 정수 left 로 계산한 별이 소수 시간으로 계산한 별과 같다
     for (let t = 0; t <= start + 20; t += 0.1) {
-      assert.strictEqual(G.starsFor(G.leftFromTime(t), start), G.starsFor(t, start), k + ' t=' + t.toFixed(1));
+      assert.strictEqual(G.starsFor(G.leftFromTime(t), start, k), G.starsFor(t, start, k), k + ' t=' + t.toFixed(1));
     }
     assert.strictEqual(G.leftFloorForStars(k, 3), three);
     assert.strictEqual(G.leftFloorForStars(k, 2), two);
     assert.strictEqual(G.leftFloorForStars(k, 1), 0);
   });
+});
+
+/* ---- spec §44(2026-11-11): 고수만 별 기준을 낮춘다(★★ 15% · ★★★ 30%). 초보·중수는 그대로(★★ 30% · ★★★ 50%) ---- */
+test('§44 starsFor: 고수 정수 임계값 경계 14→★ · 15→★★ · 29→★★ · 30→★★★, 초보(39/65)·중수(36/60)는 그대로', () => {
+  const at = (k, left) => G.starsFor(left, G.CONFIG.difficulty[k].time.start, k);
+  assert.deepStrictEqual([14, 15, 29, 30, 31].map((l) => at('hard', l)), [1, 2, 2, 3, 3]);
+  assert.deepStrictEqual([38, 39, 64, 65].map((l) => at('easy', l)), [1, 2, 2, 3]);
+  assert.deepStrictEqual([35, 36, 59, 60].map((l) => at('normal', l)), [1, 2, 2, 3]);
+  assert.deepStrictEqual(G.CONFIG.stages.star, [0.3, 0.5], '기본 star 는 그대로');
+  assert.deepStrictEqual(G.CONFIG.stages.starBy, { hard: [0.15, 0.3] });
+  assert.deepStrictEqual(G.starRatioOf('hard'), [0.15, 0.3]);
+  assert.deepStrictEqual(G.starRatioOf('easy'), [0.3, 0.5]);
+  assert.deepStrictEqual(G.starRatioOf('normal'), [0.3, 0.5]);
+  assert.strictEqual(at('hard', 35), 3, '옛 기준에서 ★★이던 고수 left 35 는 ★★★');
+  assert.strictEqual(at('hard', 50), 3, '옛 기준에서 ★★★이던 고수 left 50 은 그대로 ★★★');
+});
+
+test('§44 starsFor: diff 를 생략하면 기본 비율(0.3/0.5)을 쓴다 (기존 호출 호환), 모르는 난이도도 기본', () => {
+  assert.deepStrictEqual([29, 30, 49, 50].map((l) => G.starsFor(l, 100)), [1, 2, 2, 3]);
+  assert.deepStrictEqual([29, 30, 49, 50].map((l) => G.starsFor(l, 100, undefined)), [1, 2, 2, 3]);
+  assert.deepStrictEqual([29, 30, 49, 50].map((l) => G.starsFor(l, 100, 'zzz')), [1, 2, 2, 3]);
+  assert.deepStrictEqual([29, 30, 49, 50].map((l) => G.starsFor(l, 100, '__proto__')), [1, 2, 2, 3]);
+  assert.deepStrictEqual([14, 15, 29, 30].map((l) => G.starsFor(l, 100, 'hard')), [1, 2, 2, 3]);
+});
+
+test('§44 starBy 가 없거나 모양이 틀리면 기본 star 로 폴백한다 (starRatioOf·starsFor·leftFloorForStars)', () => {
+  const st = G.CONFIG.stages;
+  const saved = st.starBy;
+  try {
+    const bads = [undefined, null, {}, { hard: null }, { hard: [0.15] }, { hard: [0.15, 0.3, 0.5] }, { hard: '0.15,0.3' }, { hard: [0, 0.3] }, { hard: [0.3, 0.15] },
+      { hard: [0.3, 0.3] }, { hard: [0.15, 1.5] }, { hard: ['0.15', '0.3'] }, { hard: [NaN, 0.3] }, { hard: [-0.1, 0.3] }, { hard: { 0: 0.15, 1: 0.3, length: 2 } }];
+    for (const bad of bads) {
+      st.starBy = bad;
+      const tag = JSON.stringify(bad);
+      assert.deepStrictEqual(G.starRatioOf('hard'), [0.3, 0.5], tag);
+      assert.strictEqual(G.starsFor(30, 100, 'hard'), 2, tag);
+      assert.strictEqual(G.starsFor(29, 100, 'hard'), 1, tag);
+      assert.strictEqual(G.starsFor(50, 100, 'hard'), 3, tag);
+      assert.strictEqual(G.leftFloorForStars('hard', 3), 50, tag);
+      assert.strictEqual(G.leftFloorForStars('hard', 2), 30, tag);
+    }
+    st.starBy = { hard: [0.15, 1] };                 // 0 < [0] < [1] <= 1 이면 유효
+    assert.deepStrictEqual(G.starRatioOf('hard'), [0.15, 1]);
+    assert.strictEqual(G.starsFor(100, 100, 'hard'), 3);
+    assert.strictEqual(G.starsFor(99, 100, 'hard'), 2);
+  } finally {
+    st.starBy = saved;
+  }
+  assert.deepStrictEqual(G.starRatioOf('hard'), [0.15, 0.3], '시험 뒤 원래 값으로 돌아왔다');
+});
+
+function loadedStage(diff, stars, left) {
+  const sv = G.defaultSave();
+  sv.stages[diff][0] = { best: 1000, stars: stars, left: left };
+  const e = G.parseSave(JSON.stringify(sv)).stages[diff][0];
+  return { stars: e.stars, left: e.left };
+}
+
+test('§44 저장 불러오기 별 올림: 기준이 낮아져도 left 는 그대로이고 별은 올라가기만 한다', () => {
+  assert.deepStrictEqual(loadedStage('hard', 2, 35), { stars: 3, left: 35 }, '고수 left 35 ★★ -> ★★★');
+  assert.deepStrictEqual(loadedStage('hard', 3, 55), { stars: 3, left: 55 }, '고수 left 55 ★★★ 은 그대로');
+  assert.deepStrictEqual(loadedStage('normal', 2, 40), { stars: 2, left: 40 }, '중수 left 40 ★★ 은 그대로(★★★ 은 60초 필요)');
+  assert.deepStrictEqual(loadedStage('easy', 2, 50), { stars: 2, left: 50 }, '초보 left 50 ★★ 은 그대로(★★★ 은 65초 필요)');
+  assert.deepStrictEqual(loadedStage('hard', 1, 20), { stars: 2, left: 20 }, '고수 left 20 ★ -> ★★(15초 이상)');
+  assert.deepStrictEqual(loadedStage('hard', 1, 10), { stars: 1, left: 10 }, '고수 left 10 ★ 은 그대로');
+  assert.deepStrictEqual(loadedStage('hard', 3, 0), { stars: 3, left: 30 }, '별만 있고 left 가 없는 옛 저장: left 는 별의 하한(고수 ★★★ = 30초)');
+  assert.deepStrictEqual(loadedStage('hard', 2, 0), { stars: 2, left: 15 }, '고수 ★★ 하한 15초');
+});
+
+test('§44 별이 내려가지 않는다: 저장된 별 >= 불러온 별, 저장된 left <= 불러온 left (세 난이도 × 별 1~3 × left 0~150)', () => {
+  assert.deepStrictEqual(loadedStage('hard', 3, 40), { stars: 3, left: 40 }, '고수 저장 ★★★ left 40 은 ★★★ 유지(새 ★★★ 은 30초 이상)');
+  for (const diff of ['easy', 'normal', 'hard']) {
+    for (let stars = 1; stars <= 3; stars++) {
+      for (let left = 0; left <= 150; left++) {
+        const r = loadedStage(diff, stars, left);
+        assert.ok(r.stars >= stars, diff + ' ★' + stars + ' left=' + left + ' -> ★' + r.stars);
+        assert.ok(r.left >= left, diff + ' ★' + stars + ' left=' + left + ' -> left ' + r.left);
+        assert.ok(r.stars >= G.starsFor(r.left, G.CONFIG.difficulty[diff].time.start, diff), diff + ' ★' + stars + ' left=' + left + ': 불러온 별은 불러온 left 로 계산한 별 이상');
+      }
+    }
+  }
 });
 
 test('leftFromTime: 정수 초 내림 + 부동소수점 오차 방어', () => {

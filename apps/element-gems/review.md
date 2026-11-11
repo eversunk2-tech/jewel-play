@@ -4242,3 +4242,158 @@ assert.ok(rm.includes('.gauge .fill { transition: none; }'));
 - 표준오차(칸당 약 1.1~2.5%p) 때문에 ±5%p는 칸별로 통계적으로 구별되는 차이가 아니다. 120칸 중 1칸(−6.2)·경계 2칸은 표본 오차 범위로 본다. 판 수(X1·B 800·X2·A·H·B′ 600 등)는 지침대로다.
 - 이 Review의 시험 변조 실험(M0~M12·R0~R4)은 scratchpad 사본에서만 했다. HEAD의 옛 `spirit.test.js`가 새 표에서 실패한다는 확인도 사본에서 했다.
 - 산출물(scratchpad `/private/tmp/claude-501/-Users-sungchul-Desktop-play2-jewel-play/a531f417-6e12-4899-8faf-38c202023dbb/scratchpad/review-mission-raise/`): `cmp-tables.js`·`cmp-literal.js`(표·리터럴 비교), `mutate.js`·`mutate2.js`(시험 변조), `sim/`(`build-tables.json`·`run-all.sh`·`analyze.js`·`analysis.md`·`out/`·`logs/`), `web/`·`web-old/`(화면 확인용 사본).
+
+
+## 33. 고수 별 기준 난이도별(★★ 15% · ★★★ 30%) 검증 (spec §44, 일반용·교육용 `game.js`·서버 `core.js`·운영 도구·시험, R-S44)
+
+> **검증 대상**: 미커밋 작업 트리. Build가 `agents/build-star-ratio-hard-element-gems.md`와 spec §44(사용자 승인 2026-11-11: 고수만 ★★ ≥ 15% · ★★★ ≥ 30%, 초보·중수 ★★ ≥ 30% · ★★★ ≥ 50% 불변)에 따라 `CONFIG.stages.starBy`·`starRatioOf`·`starsFor(…, diff)`·`leftFloorForStars`·호출 2곳(두 앱), 서버 `STAR_RATIO_BY`·`starRatioOf`·`starThresholds`, 새 운영 도구 `server/tools/recompute-stars.js`, 시험 갱신·추가를 했다.
+> **작업 규칙 준수**: 커밋·푸시·태그·`wrangler`·배포 명령 0회. 프로젝트 폴더에서 바꾼 파일은 이 `review.md`(끝에 추가)뿐이다(시작·끝의 `git status --short` 같음, `.claude/launch.json`은 11-10 생성분). 임시 파일·시험용 복사본·시뮬레이션은 모두 scratchpad `review-star-ratio/`에만 두었다. 브라우저는 모든 호출에 `tabId`를 명시하고 `127.0.0.1:8791`(scratchpad 사본, `apiBase` 비움)만 열었으며 서버·탭은 정리했다.
+> **정직한 한계**: 사람 체감·사람의 별 분포는 확인하지 못했다. 시뮬레이션은 봇 가정(조준 90%·일정한 수당 생각 시간)에 의존하고 자동 힌트·불/풀 조준(무작위)은 모델에 없다. 소리·실기기·배포 서버(Worker) 동작은 확인하지 못했다(운영 도구는 입력 JSON을 직접 만들어 시험했을 뿐 D1에 대해 돌려 보지 않았다).
+
+### 33.1 요약 — **통과** (오류 0 · **수정 0건**, 관찰·제안 있음)
+- **한 줄**: 바뀐 것은 지침이 허용한 파일뿐이고, 별 기준 외의 규칙(미션 표·목표·시간·점수·저장 구조·API·`STAR_WEIGHT`·`LEFT_CAP`·`START_TIME`)은 한 글자도 안 바뀌었다. 두 앱·서버가 모든 정수 `left`에서 같은 별을 내고, 초보·중수는 HEAD와 별이 달라지는 `left`가 0개다. 시험은 단언을 약화하지 않았고, 실제 게임 코드를 돌린 7,500판에서 게임이 저장 기록에 쓴 별은 새 기준 계산과 **0건 불일치**다.
+
+| # | 항목 | 판정 | 핵심 근거 |
+|---|---|---|---|
+| 1 | 범위 | **통과(확인함)** | 바뀐 추적 파일 15개 + 새 파일 2개(`recompute-stars.js`·`recompute.test.js`)가 전부 지침 목록 안. `docs/`·`spec.md`·`CLAUDE.md` 0바이트 변경. 불변 값은 `CONFIG`를 HEAD본과 비교해 `stages.starBy` 외 동일. 33.2 |
+| 2 | 두 앱 `game.js` 동일성·코드 정확성 | **통과(확인함)** | 바뀐 28줄이 두 파일에서 글자 그대로 같음. `starsFor(`는 정의 1 + 호출 2. `starRatioOf`는 `'__proto__'`·`'constructor'`·`undefined`·`null`·숫자 등 16종에서 기본 비율로 폴백. 33.2 |
+| 3 | 서버 `core.js`·`dist/worker.js` | **통과(확인함)** | `build.js --check` "같습니다". 서버 `starsForLeft` = 두 앱 `starsFor` 413개 `left`(세 난이도) 전부 같음. 초보 39/65·중수 36/60 불변, 고수 30/50 → 15/30. 33.3 |
+| 4 | 저장 올림만·내림 없음 | **통과(확인함)** | 실제 `parseSave`로 12개 사례 + 2,718개 전수 스윕에서 내림 0. 옛 형식(left 없음)도 정상. 33.4 |
+| 5 | 운영 도구 | **통과(확인함, 관찰 3)** | 직접 만든 12행 입력(변경·무변경·잘못된 값·SQL 인젝션)으로 바뀐 행만 UPDATE, 숫자 외 문자 0, 손계산과 일치. 입력 3종·`--out`·종료 코드 확인. 33.5 |
+| 6 | 시험을 약화하지 않았는가 | **통과(확인함)** | `git diff` 전수, assert 줄 수 전 파일에서 줄지 않음·skip 추가 0. `spirit.test.js` 변이 12개 + `game.test.js` 변이 6개 시험. 33.6 |
+| 7 | 전체 시험 | **통과(확인함)** | 일반용 284 / 교육용 565(통과 564 + 건너뜀 1) / 서버 77 / 검증기 오류 0·경고 0. 33.7 |
+| 8 | 소규모 시뮬레이션 | **통과(칸 1개 경계)** | 새 시드 61,000,000~, X1 L1/4/9 ★★★ 52.0/40.0/49.3%(§43.15 53/38/56). L9만 −6.7%p(±6 밖)이나 §43.15 시드로 다시 돌린 값은 52.8(−3.2)·두 표본 합 51.6(−4.4). B 1~9단계 합 8.7%(기준 9.4). 33.8 |
+| 9 | 화면·문구 | **통과(확인함, 강제 종료 방식)** | 별 기준을 설명하는 글 화면에 없음. 고수 결과·레벨 선택 화면에서 별 표시 확인. 33.9 |
+| 10 | 낡은 문구 | **제안(수정 안 함)** | `seed-hall.js:17`·`CLAUDE.md:83`·`PRD.md:84` 등 5곳. 33.10 |
+
+### 33.2 범위·코드 정확성 (확인함)
+- `git status --short` / `git diff HEAD --name-only`: 일반용·교육용 `game.js`, 두 앱 `test/{game,score,mission,spirit}.test.js`, 교육용 `tools/SYNC.md`, 서버 `src/core.js`·`dist/worker.js`·`README.md`·`test/core.test.js`(수정 15개), 새 파일 `tools/recompute-stars.js`·`test/recompute.test.js`. 목록 밖 변경 없음. `docs/`·`spec.md`·`CLAUDE.md`·`PRD.md` 변경 0.
+- **불변 값**: scratchpad `review-star-ratio/cmp.js`·인라인 `node -e`로 HEAD본(`git show HEAD:…`)과 `require` 비교 — 일반용·교육용 `JSON.stringify(CONFIG)`가 `stages.starBy`를 뺀 나머지 전부 같음(`missions`·`targets`·`difficulty[*].time` 포함). 순수 함수 내보내기는 `starRatioOf`만 추가, 제거 0. 서버 `STAR_WEIGHT`·`MAX_TOTAL_SCORE`·`START_TIME`·`LEFT_CAP`·`LIMITS`·`STAGES`·`API_VERSION`·`STAR_RATIO` 모두 HEAD와 같고 내보내기는 `STAR_RATIO_BY`·`starRatioOf`만 추가. `game.js` diff를 전부 읽음: 바뀐 곳은 `starBy` 한 줄, `starRatioOf`·`starsFor`, `leftFloorForStars` 주석·본문, 저장 불러오기 별 올림 호출(`k` 전달), 내보내기, 판 종료 호출(`lv` 전달)뿐이다. 저장 데이터 구조·키는 `defaultSave()` 키 목록이 HEAD와 같다.
+- **두 앱 동일성**: `git diff HEAD -U0`의 바뀐 줄 28줄이 일반용·교육용에서 `diff` 같음. `starRatioOf`·`starsFor`·`leftFloorForStars` 함수 본문을 코드로 뽑아 비교해 둘 다 같음. 교육용에 `// [EDU]` 표식 없음. `grep -n "starsFor(" apps/element-gems/game.js apps/element-gems-edu/game.js` = 각 3곳(정의 1 + 호출 2: 저장 불러오기 `starsFor(left, startTimeOf(k), k)`, 판 종료 `starsFor(left, state.startTime, lv)`). `starsFor`·`leftFloorForStars`를 쓰는 다른 파일(`edu.js`·`ranking*.js`)은 없다.
+- `ratio >= r - 1e-9` 방식 유지(`r[1]`·`r[0]`로만 바뀜). `starRatioOf('__proto__')`·`'constructor'`·`'toString'`·`'hasOwnProperty'`·`'valueOf'`·`undefined`·`null`·`0`·`1`·`{}`·`[]`·`'hard '`·`'HARD'`·`'prototype'`·`Symbol` → 일반용·교육용·서버 모두 `[0.3, 0.5]`, 던짐 0. `Object.prototype.hard = [0.01, 0.02]`로 오염시켜도 `easy`·모르는 난이도는 기본(고수만 `starBy.hard` 자체값을 쓴다).
+
+### 33.3 서버·일치 전수 (확인함)
+- `node apps/element-gems/server/build.js --check` → "OK: dist/worker.js 가 원본과 같습니다." `dist/worker.js` diff는 `core.js` diff를 그대로 옮긴 15줄 추가·6줄 삭제뿐이다.
+- scratchpad `cmp.js`: 세 난이도 × 정수 `left` 0~`LEFT_CAP`(150/140/120 = 413개)에서 서버 `starsForLeft`, 일반용 `starsFor(left, start, d)`, 교육용 `starsFor(left, start, d)`가 모두 같음(불일치 0). 소수 시간(0.05초 단위)에서도 `leftFromTime` 내림 뒤 별 = 소수 시간 별(불일치 0). 시작 시간 세 값도 서버·두 앱 같음.
+- **HEAD 대비 별이 달라지는 `left`**: 초보 0개, 중수 0개, 고수 35개(`left` 15~29의 ★→★★ 15개 + 30~49의 ★★→★★★ 20개). 정수 임계값 새 = 초보 39/65 · 중수 36/60 · 고수 15/30, 옛 = 39/65 · 36/60 · 30/50.
+
+### 33.4 저장 올림만·내림 없음 (확인함)
+실제 `G.parseSave(JSON.stringify(save))`로(두 앱 같은 결과):
+| 난이도·저장 | 불러온 뒤(별/left) | 판정 |
+|---|---|---|
+| 고수 ★★ left 35 | ★★★ / 35 | 올림(기대대로) |
+| 고수 ★★★ left 55 | ★★★ / 55 | 유지 |
+| 고수 ★★★ left 40 | ★★★ / 40 | 유지(내려가지 않음) |
+| 고수 ★ left 20 | ★★ / 20 | 올림(15초 이상) |
+| 고수 ★ left 10 · ★ left 14 | ★ 그대로 | 유지 |
+| 중수 ★★ left 40 | ★★ / 40 | 유지(★★★은 60초 필요) |
+| 초보 ★★ left 64 · ★★★ left 65 | ★★ · ★★★ | 불변 |
+| 옛 형식(left 없음) 고수 ★★★ · ★★ · ★ | ★★★/30 · ★★/15 · ★/0 | 하한 = 난이도별(`leftFloorForStars` 고수 30·15, 중수 60·36, 초보 65·39) |
+- 세 난이도 × 별 1~3 × `left` 0~150 × (left 있음/없음) = 2,718건 전수에서 **별이 내려가거나 `left`가 줄어든 경우 0**. 판 종료 쪽도 `applyStageResult`로 고수 left 35 → ★★★·left 35 기록, 이어서 더 나쁜 판(left 20)을 해도 ★★★·35 유지. (`parseSave`의 `Math.max(stars, …)`는 직전 줄의 `left = max(left, leftFloor)` 때문에 구조적으로 거의 잉여다 — 변이 M10 참고.)
+
+### 33.5 운영 도구 `recompute-stars.js` (확인함)
+직접 만든 12행 입력(scratchpad `rc/mk.js`; 바뀌는 행 4, 안 바뀌는 행 1, 형식 오류 prog, 문자열 `id` `"104; DROP TABLE players;--"`, 별 열에 `"3'; DROP TABLE players;--"`, 안전하지 않은 정수 id `2**53`, 음수 별, prog 문자열에 `' ; DROP`, 여분 열 `nick:"x'; DROP …"`·`pub:"'); --"`, 중복 id):
+- 출력은 **바뀐 행에 대한 UPDATE 5줄**(중복 id 101이 두 번 나옴 — 같은 값이라 무해)뿐이고 안 바뀐 행(102)은 없다. 모든 줄이 `^UPDATE players SET stars_easy=\d+, stars_normal=\d+, stars_hard=\d+, total_stars=\d+ WHERE id=\d+;$`에 맞고 `[A-Za-z0-9_=, ;]` 밖의 문자는 0. 다른 열(`up_*`·`last_write_at`·`hidden`·`left_*`·`nick`)은 SQL에 없다. 형식 오류 6행은 건너뛰고 stderr에 이유만 알린다(악성 문자열은 stderr에도 안 찍힘: id가 안전한 정수일 때만 `(id=…)`).
+- **손계산 일치**: 행 101 = 초보 66·39·38 → ★3+★2+★1 = 6, 중수 60·36·35 → 3+2+1 = 6, 고수 30·29·15·14 → 3+2+2+1 = 8 → 합계 6 + 6×2 + 8×3 = **42**(도구 `stars_easy=6, stars_normal=6, stars_hard=8, total_stars=42`). 행 106 = 초보 66(★3) + 고수 40(★★★ 3) → 3 + 9 = **12**(도구 12). 행 108 = 초보 3 + 고수 20(★★ 2) → 3 + 6 = **9**(도구 9). `core.computeTotals`(초보×1 + 중수×2 + 고수×3)와 같은 규칙.
+- 입력 모양 3종(`[…]`, `[{results:[…]}]`, `{results:[…]}`)과 둘로 나눈 `[{results},{results}]` 모두 **바이트 같은 SQL**. `--out out.sql` = stdout과 같은 5줄, stdout 비어 있음. 종료 코드: 파일 없음·인자 없음·모양 모름 = 2, 빈 배열 = 0("바뀐 행 0개 / 전체 0개"). 소스 `grep`: 네트워크·`child_process`·`wrangler`·`process.env` 호출 없음(`require`는 `node:fs`·`node:path`·`core.js`뿐), 쓰기는 `--out` 한 곳.
+- `server/README.md`: 배포 순서(① Worker 먼저 → ② 사이트 나중), 내보내기 → 도구 → 눈으로 확인 → 적용 3단계, 입력 모양, 건너뜀 규칙, "내보내기와 적용 사이 새 기록" 주의가 코드와 맞다. 기존 문단 삭제 0.
+- **관찰**(제안은 33.11): O2 UPDATE에 `prog_*` 조건이 없어 내보내기~적용 사이에 사람이 기록을 올리면 옛 별로 덮어쓸 수 있음(README가 "한 번 더 돌려 0개 확인"으로 안내). O3 `--out` 경로를 못 쓰면 스택 추적 + 종료 코드 1(다른 오류는 2) — 데이터 손상 없음, 겉모양만. O4 도구는 `up_*`를 안 건드리므로 도구로 별이 오른 행은 옛 `up_all`을 유지하고, 서버에 직접 기록을 보내 오른 행은 `up_all = 지금`(worker.js:434)이 된다 — 동점 선착순 기준이 두 집단에서 달라지지만 영향은 동점 처리에 한정.
+
+### 33.6 시험을 약화하지 않았는가 (확인함)
+- `git diff HEAD -- '*.test.js'`를 전수로 읽음. **지워진 줄은 전부 같은 자리에서 새 기대값으로 대체**되었다(고수 30/50 → 15/30, `starsFor(…)` 호출에 난이도 인자 추가, 정규식에 `, lv`, 기준 소스에 §44 입히기, 서버 `hard` 별 1 → 2). 삭제만 된 단언 0.
+| 파일 | assert 줄 수(전→후) | 시험 수(전→후) | skip 줄 수 |
+|---|---|---|---|
+| 일반용 `game.test.js` | 100 → 137 | 12 → 17 | 0 → 0 |
+| 일반용 `score.test.js` | 297 → 297 | 28 → 28 | 0 → 0 |
+| 일반용 `mission.test.js` | 409 → 409 | 48 → 48 | 0 → 0 |
+| 일반용 `spirit.test.js` | 313 → 322 | 27 → 27 | 4 → 4 |
+| 교육용 `game.test.js` | 100 → 137 | 12 → 17 | 0 → 0 |
+| 교육용 `score.test.js` | 445 → 445 | 47 → 47 | 7 → 7 |
+| 교육용 `mission.test.js` | 532 → 532 | 60 → 60 | 5 → 5 |
+| 교육용 `spirit.test.js` | 325 → 333 | 28 → 28 | 11 → 11 |
+| 서버 `core.test.js` | 89 → 100 | 13 → 14 | 0 → 0 |
+- 두 앱 `game.test.js`의 바뀐 줄은 글자 그대로 같다(`diff` 같음). 새 시험 5개: 경계 14/15/29/30(고수)·초보 38/39/64/65·중수 35/36/59/60, `diff` 생략·`'zzz'`·`'__proto__'` 기본 비율, `starBy` 15종 잘못된 모양 폴백, 저장 불러오기 별 올림 8건, 내림 없음 전수(3×3×151).
+- 값이 바뀐 곳(파일:행, 이전 → 이후): 일반용·교육용 `game.test.js:63~64` 이름·`cases.hard` `[100,30,50]` → `[100,15,30]`(+ `starsFor` 호출 4곳·전수 1곳에 `k` 인자); `score.test.js`(일반용 1123·교육용 1131) 정규식 `starsFor\(left, state\.startTime\)` → `…, lv\)`; `mission.test.js`(일반용 520·1424·교육용 572·1478·1923 부근) `G.starsFor(left, startTime)` → `…, 'normal'` 또는 `lv`; 서버 `core.test.js` 15~16(`STAR_RATIO_BY` 대조 추가)·24(`starsFor(left, start, d)`)·30(`hard` `[30,50]` → `[15,30]`)·111~113(`p.hard[0] = 29` 기대 `hard: 1` → `2`, `totalStars` `6+3*2+1*3` → `6+3*2+2*3`).
+- **ⓓ `core.test.js:111~116`**: 고수 `left` 29는 새 기준에서 15 ≤ 29 < 30이라 ★★이다. 기대값 `hard: 2`·합계 6 + 6 + 6 = 18은 맞다(계산 직접 확인, `left`·`best`·`totalLeft` 기대는 그대로).
+- **ⓐ `spirit.test.js` 목록 변경**: 일반용 ④·교육용 ⑪의 "M4(M4-B) 시작 시점과 같음" 목록에서 빠진 것은 정확히 `'function starsFor('`와 판 종료 `const stars = cleared ? starsFor(left, state.startTime) : 0;` 줄 두 가지뿐이다(나머지 함수 목록·줄 목록·`runAction` 비교 등은 그대로).
+- **ⓑ 새 본문·새 줄 고정**: `bodyOf(SRC, 'function starsFor(')`를 7줄 리터럴과 `strictEqual`, 판 종료의 새 줄·옛 줄 없음·기준 소스에는 옛 줄 있음, `starsFor(` 개수 3, 저장 불러오기의 새 `Math.max(stars, starsFor(left, startTimeOf(k), k))` 줄을 단언한다.
+- **ⓒ `withStar44(BASE_SRC)`** — 기준 소스(M4 시작 시점)에 `starBy` 줄·`starRatioOf`+`starsFor` 본문·`leftFloorForStars` 본문·호출 2곳을 **현재 소스에서 가져와** 입힌 뒤 같은 시드 봇 판을 나란히 돌린다. 바꿀 자리가 기준 소스에 정확히 한 곳이 아니면 즉시 실패한다. 순환 우려를 변이로 시험했다(scratchpad `mutate.js`: 저장소 `game.js`를 한 곳만 바꾼 사본 + `EG_BASELINE_GAME_JS`로 M4 기준 소스를 따로 줌 → `spirit.test.js`; `mutate2.js`: `game.test.js`·`score.test.js`).
+| 변이(현재 소스 사본) | 어느 시험이 잡았나 |
+|---|---|
+| M1 `chainMult` +0.5(점수 규칙, 소스 목록 안) | `spirit` ④ 동작 비교 3개 **실패** |
+| M2 `gaugeGain` +1(점수·게이지, 소스 목록 밖) | `spirit` ④ 동작 비교 3개 **실패**(소스 목록에 없는 규칙도 동작 비교가 잡음) |
+| M5 판 종료 호출에서 `lv` 제거 | `spirit` ④ 소스 수준 **실패** + `score.test.js` 소스 정규식 **실패**(확인함) |
+| M6 저장 불러오기 호출에서 `k` 제거 | `spirit` ④ 소스 수준 **실패** + `game.test.js` 저장 불러오기 시험 2개 **실패** |
+| M7 `starsFor` 안 `>=` → `>` | `spirit` ④ 소스 수준 **실패** |
+| M3 기본 `star` 0.3 → 0.35 | `spirit` 통과(봇 판에서 left가 30~35% 구간에 안 닿음) → `game.test.js` **12개 실패** |
+| M4 `starBy.hard` 15% → 20% | `spirit` 통과(기준 소스에 현재 `starBy` 줄을 입히므로 같음) → `game.test.js` **6개 실패** |
+| M9 `leftFloorForStars`가 `starBy` 대신 `star` 사용 | `game.test.js` **4개 실패** |
+| M11·M12 `starRatioOf`의 `r[0] < r[1]`·`r[1] <= 1` 검사 제거 | `game.test.js` 폴백 시험 **실패** |
+| M10 `parseSave`의 `Math.max(stars, …)` → 덮어쓰기 | 모든 시험 통과 = **동등 변이**(`left`를 먼저 별 하한으로 올리므로 `starsFor(left) >= stars`가 항상 성립) |
+→ **의견**: 입히는 본문을 현재 소스에서 가져오는 순환 때문에 `spirit` ④ 동작 비교는 **별 기준 숫자·`starRatioOf` 본문 자체는 못 잡는다**(M3·M4). 그러나 그 몫은 `game.test.js`(숫자·폴백·불러오기)와 서버 `core.test.js`(대조)와 `spirit`의 `starsFor` 본문 리터럴이 따로 맡고 있고, 별 기준 외의 규칙 차이는 순환 없이 잡힌다(M1·M2). 숨겨지는 것은 없다. (M3·M4 사본에서 `style.css` 콤보 칩 시험 1개가 함께 실패한 것은 사본에 교육용 폴더가 없어서이며 변이와 무관.) 한 칸의 개선 여지는 33.11 O6.
+
+### 33.7 전체 시험 (확인함, Node 24 글롭, 순차 실행)
+| 명령 | 결과 |
+|---|---|
+| `node --test apps/element-gems/test/*.test.js` | tests 284 · pass 284 · fail 0 · skipped 0 (기대 284) |
+| `node --test apps/element-gems-edu/test/*.test.js` | tests 565 · pass 564 · fail 0 · skipped 1(원문 학습지 폴더 없음, 기존 건너뜀) (기대 565 중 564 + 건너뜀 1) |
+| `node --test apps/element-gems/server/test/*.test.js` | tests 77 · pass 77 · fail 0 (기대 77; `recompute.test.js` 11개 + `core.test.js` +1 포함) |
+| `node apps/element-gems-edu/tools/validate-edu-data.js` | 소단원 25개 통과 25 / 경고 0 / 오류 0, 종료 코드 0 |
+| `node apps/element-gems/server/build.js --check` | OK |
+(시험 수 변화: 일반용 279 → 284(+5), 교육용 560 → 565(+5), 서버 65 → 77(+12). CLAUDE.md의 "현재 기준값" 문구는 메인 세션이 갱신하면 된다.)
+
+### 33.8 소규모 시뮬레이션 — 게임이 기록한 별로 (확인함)
+- **방법**: Plan 하네스(`plan-mission-raise2/work/` 복사본)의 `SNAP`을 **지금 작업 트리의 `apps/element-gems/game.js` 사본**으로 바꿨다(`cmp`로 바이트 같음 확인). 하네스는 별을 `G.starsFor(left, startTime)`(난이도 인자 없음)로 따로 계산하므로 **그대로 쓰면 새 기준이 안 쓰인다** — `sim.js` 사본에서 게임이 판 끝(`finishStage` → `applyStageResult`)에 저장 기록에 쓴 별(`I.save.stages[lv][stage-1].stars`)을 읽도록 바꾸고(`st`), 난이도별 직접 계산(`stc`)·기본 비율 계산(`sto`)을 함께 기록했다. 고수 표는 `CONFIG.stages.missions.hard`(= Plan `tables-hard-rec.json`, `deepStrictEqual` 같음). 워커 8개, 한 번에 한 작업, 총 7,500판·오류 0.
+- **게임 기록 별 = 직접 계산(`stc`)**: 클리어한 모든 판에서 **불일치 0건**. 게임 기록 별 ≠ 옛 기준(`sto`)인 판은 L1 X1 400판 중 255, … 등으로 많아 새 기준이 실제로 쓰임(= 판 종료 호출이 `lv`를 넘김)을 행동으로도 확인했다.
+- **새 시드 61,000,000~, X1·B, 셀당 400판**(전체 판 중 %, 괄호는 §43.15 15%/30% 행):
+| 셀 | 클리어 % | ★★★ 전체 % (표준오차) | ★★ 이상 전체 % | §43.15 ★★★ | 차이 |
+|---|---|---|---|---|---|
+| L1 X1 | 91.0 | **52.0** (2.5) | 77.3 | 53 | −1.0 |
+| L4 X1 | 79.5 | **40.0** (2.4) | 61.8 | 38 | +2.0 |
+| L9 X1 | 78.0 | **49.3** (2.5) | 68.3 | 56 | **−6.7** |
+| L1 B | 55.5 | 13.5 (1.7) | 30.8 | (B 레벨별 값 없음) | – |
+| L4 B | 48.3 | 12.5 (1.7) | 27.0 | – | – |
+| L9 B | 51.5 | 17.3 (1.9) | 33.8 | – | – |
+- **L9 X1 −6.7%p**(±6 지침 경계 밖, 표본 자체 표준오차의 2.7배): 원인 가리기를 위해 §43.15 원자료와 같은 시드 구간 31,000,000~으로 X1 L1·4·9를 **800판**씩 다시 돌렸다 — 옛 기준(30/50) ★★★ **14.3 / 11.8 / 21.1**(§43.15 현행 표 13 / 12 / 22와 소수점 1자리 안)로 **하네스가 옛 값을 재현**하고, 새 기준 ★★★ **53.4 / 40.6 / 52.8**(§43.15 53 / 38 / 56: +0.4 / +2.6 / −3.2). 61M과 31M을 합친 L9 X1(1,200판)은 **51.6**(−4.4). → 코드 문제가 아니라 표본 변동으로 판단한다(코드·하네스 차이였다면 옛 기준 재현이 어긋났을 것).
+- **B 1~9단계 전부(61M, 레벨당 300판, 2,700판)**: ★★★ 전체 **8.7%**(§43.15 B 평균 9.4, −0.7), ★★ 이상 22.1%, 같은 판의 옛 기준 ★★★ 1.4%(§43.15 현행 1.2). 레벨별 ★★★(%): 12.0 / 0.0 / 5.7 / 12.7 / 17.0 / 4.3 / 8.3 / 1.3 / 16.7.
+- 한계: 봇이다. **사람의 별 분포는 확인하지 못했다**. B의 2단계는 ★★★ 0%(클리어 34%·★★ 이상 6%)라 같은 기준에서도 사실상 ★★★이 안 나오는 칸이다(기준을 낮춘 효과의 한계, 수치 변경은 제안 O7).
+
+### 33.9 화면·문구 (확인함, 한계 있음)
+- `grep -rn "남은 시간" apps/element-gems/index.html apps/element-gems/game.js apps/element-gems-edu/index.html apps/element-gems-edu/game.js apps/element-gems-edu/edu.js`: 별 기준(비율·퍼센트·"몇 초 이상이면 ★★★")을 설명하는 글은 **화면에 없다**(걸린 것은 aria-label "남은 시간", 결과 줄 `… 달성 · 남은 시간 N`, 순위표 동점 규칙 문구, 주석뿐). `grep "50%\|30%\|절반\|퍼센트"`도 화면 문구 0. 그래서 문구 수정은 없고 필요도 없다.
+- **고수 결과·레벨 선택 화면** — scratchpad 사본(`web/`, `apiBase` 비움 + 내부 상태를 `window.__EGT_I`로 노출하는 한 줄 추가)을 `serve-preview.js`로 `127.0.0.1:8791`에 올리고, 새 탭에서 `location.origin` 확인 뒤 **시작한 판을 점수 목표 1·점수 5,000·남은 시간 N으로 만들어 `finishStage()`를 부르는 방식**(실제로 미션을 깬 판이 아님)으로 결과 화면의 별 표시와 저장 기록을 읽었다:
+| 난이도·남은 시간 | 결과 화면 별(aria) | 저장 |
+|---|---|---|
+| 고수 40 | ★★★ (별 3개) — 스크린샷으로 눈 확인 | stars 3, left 40 |
+| 고수 30 · 29.5(=29) | ★★★ · ★★☆ | 3/30 · 2/29 |
+| 고수 20 · 10 | ★★☆ · ★☆☆ | 2/20 · 1/10 |
+| 중수 40 · 60 | ★★☆ · ★★★ | 2/40 · 3/60 |
+| 초보 50 | ★★☆ | 2/50 |
+  옛 기준에서 ★★이던 고수 left 35가 저장 불러오기 후 레벨 선택 카드에서 ★★★로 보이는 것도 눈으로 확인했다(고수 레벨 1 `★2/35` → ★★★, 2 `★3/55` ★★★, 3 `★1/20` → ★★☆, 4 `★1/10` ★☆☆, 5 옛 형식 `★3` ★★★; 중수 `★2/40` 불변). 한계: 강제 종료 방식·내 사본이므로 **실제 플레이로 고수 판을 깬 결과 화면은 못 봤다**(실제 코드 경로 `finishStage` 자체는 시뮬레이션 7,500판이 거쳤다). 오디오·터치·실기기는 확인하지 못했다. 서버·탭·`serve-preview` 프로세스는 정리했다.
+
+### 33.10 낡은 문구 (제안, 수정하지 않음)
+`grep -rn "50/30\|30/50\|STAR_RATIO\|0\.3, 0\.5\|고수 30" apps docs PRD.md CLAUDE.md …`로 찾은 것(추가·`review.md`·`spec.md` 과거 기록 제외):
+| 위치 | 현재 문구 | 상태 |
+|---|---|---|
+| `apps/element-gems/server/tools/seed-hall.js:17` | "…중수 60/36, 고수 50/30." | **낡음**(고수 30/15). 도구는 `core.computeTotals`로 계산하므로 동작 영향 없음, 주석만 |
+| `CLAUDE.md:83` | "…별 기준 30/50%를 고정해 씀" | **낡음**(고수 15/30%). 메인 세션 문서 |
+| `PRD.md:84` | "클리어 시 남은 시간 ≥ 시작 시간의 50% → ★★★, ≥ 30% → ★★" | **낡음**(고수는 30%·15%) |
+| `apps/*/game.js:105` `star:` 주석 | "…>= 0.3 -> ★★, >= 0.5 -> ★★★" | 기본값 설명으로는 맞음(다음 줄 `starBy`가 있음). 원하면 "(기본값)"만 덧붙임 |
+| `apps/element-gems/server/test/recompute.test.js:15` | "옛 기준(고수 30/50)" | **의도된 옛 값**(서버 재배포 전 열을 흉내) |
+| `docs/STATUS.md:278`(§14.10 E) | "…방안 제안 대기" | 진행 기록(메인 세션이 §44 완료로 갱신) |
+(`docs/intro/` 홍보 자료에는 별 기준 문구가 걸리지 않았다.) `server/README.md`·`spec.md` §19.2 등 서버 문서는 §44 문단이 추가돼 있어 모순 없음.
+
+### 33.11 관찰·제안 (수정 안 함)
+- **O1 (정보)** 서버 재배포 전후: `worker.js`의 동기화 응답 `me.stars`는 `computeTotals(prog)` 즉 **새 기준**으로 나가지만, 순위 계산은 DB의 `total_stars` 열을 쓴다(`worker.js:236`). 기록이 개선돼 쓰기가 일어나기 전의 기존 고수 행은 DB 열이 옛 값이라 **자기 별 표시와 순위 계산 기준이 잠시 다를 수 있다**(코드를 읽어 확인, 실행하지 않음). README는 재계산을 "선택"이라 하는데 **배포 직후 한 번 돌리는 쪽을 권한다**(결정은 운영자).
+- **O2 (낮음)** `recompute-stars.js`의 UPDATE에 `AND prog_easy='…' AND prog_normal='…' AND prog_hard='…'`를 덧붙이면(값은 엄격 정규식 `^(?:-1|0|[1-9]\d{0,5})$`을 통과한 숫자·쉼표·`-`뿐) 내보내기~적용 사이에 기록이 바뀐 행은 자동으로 건너뛴다. 현재는 README의 "한 번 더 돌려 0개 확인"에 의존한다. "숫자만 SQL에" 원칙과의 균형은 메인 세션 판단.
+- **O3 (아주 낮음)** `--out`을 쓸 수 없는 경로면 스택 추적 + 종료 코드 1(다른 오류는 2). `try/catch`로 같은 메시지·종료 코드 2로 맞출 수 있다.
+- **O4 (정보)** 도구는 `up_*`를 안 건드린다(지침대로). 도구로 별이 오른 행과 서버에 직접 쓰기로 오른 행의 `up_all`(동점 선착순)이 달라지는 점은 알고 쓰면 된다.
+- **O5 (제안)** 위 33.10의 낡은 문구 3곳(`seed-hall.js:17`·`CLAUDE.md:83`·`PRD.md:84`)과 CLAUDE.md "현재 기준값"(일반용 284·교육용 565·서버 77)은 메인 세션이 갱신.
+- **O6 (낮음, 시험 보강)** `spirit` ④·⑪의 동작 비교는 별 기준 숫자를 못 본다(33.6 M3·M4). `game.test.js`·`core.test.js`가 맡으므로 필요 없지만, 한 번에 "고수 left 15~49 구간에서 판 종료가 기록하는 별"을 실제 `finishStage`로 확인하는 **행동 시험이 없다**(현재는 `score.test.js` 정규식·`spirit` 소스 줄·`mission.test.js`의 `lv` 비교가 그 몫이며, 미션 시험은 `left`가 높아 어느 기준에서도 ★★★이라 `lv` 누락을 못 잡는다). 이번 Review의 시뮬레이션 7,500판이 이 경로를 확인했으므로 결함은 아니다.
+- **O7 (수치 제안, 변경 아님)** 고수 B는 1~9단계 평균 ★★★ 8.7%이고 2·6·8단계는 5% 아래다(0.0 / 4.3 / 1.3). 사람의 분포는 확인되지 않았다. 15%·30%(사용자 승인)는 그대로 두고, 체감 피드백이 모이면 §43.15의 15%/25%·10%/20% 행을 후보로 다시 논의할 수 있다.
+
+### 33.12 수정한 것
+없음(명백한 결함 0건). 프로젝트 폴더에서 바꾼 파일은 이 `review.md`(§33 추가)뿐이다. 낡은 문구는 위 제안으로만 남겼다.
+
+### 33.13 한계와 산출물
+- **확인하지 못한 것**: 사람의 별 분포·체감, 실제 플레이로 깬 고수 결과 화면(강제 종료 방식으로 대체), 터치·실기기·오디오, 배포 Worker·D1에 대한 운영 도구 실행(가짜 입력만), 교육용 화면(교육용 `game.js`는 일반용과 같은 본문이라 함수·저장 불러오기는 두 앱에서 확인, 화면 촬영은 일반용 사본만).
+- scratchpad(`/private/tmp/claude-501/-Users-sungchul-Desktop-play2-jewel-play/a531f417-6e12-4899-8faf-38c202023dbb/scratchpad/review-star-ratio/`): `cmp.js`(서버·두 앱·HEAD 비교), `load.js`(저장 불러오기), `mutate.js`·`mutate2.js`(변이 시험, 사본 `mut1/`), `rc/`(운영 도구 입력 JSON·`mk.js`), `sim/`(하네스 사본 `work/sim.js`·`run-star.js`·`run-star2.js`, `out-star*.json`, `star-run*.log`), `web/`(화면 확인용 사본), `t-*.log`(시험 출력).

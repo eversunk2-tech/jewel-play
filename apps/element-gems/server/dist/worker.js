@@ -589,9 +589,10 @@ __mods['core'] = function (module, exports, require) {
   const STAR_WEIGHT = { easy: 1, normal: 2, hard: 3 };
   const MAX_TOTAL_SCORE = 180;
 
-  // game.js 의 CONFIG.difficulty[*].time.start / CONFIG.stages.star 와 같아야 한다(server/test/core.test.js 가 대조).
+  // game.js 의 CONFIG.difficulty[*].time.start / CONFIG.stages.star / CONFIG.stages.starBy 와 같아야 한다(server/test/core.test.js 가 대조).
   const START_TIME = { easy: 130, normal: 120, hard: 100 };
-  const STAR_RATIO = [0.3, 0.5];                       // >=0.3 -> 2별, >=0.5 -> 3별
+  const STAR_RATIO = [0.3, 0.5];                       // 기본: >=0.3 -> 2별, >=0.5 -> 3별
+  const STAR_RATIO_BY = { hard: [0.15, 0.3] };         // 난이도별 덮어쓰기(spec §44): 고수는 >=0.15 -> 2별, >=0.3 -> 3별
   // spec §19.2.2 서버 허용 left 상한 = 시작 시간 + 20 (Review가 실제 최대를 확인한 뒤 필요하면 완화)
   const LEFT_CAP = { easy: 150, normal: 140, hard: 120 };
 
@@ -609,10 +610,18 @@ __mods['core'] = function (module, exports, require) {
 
   const EMPTY_PROG_STR = '-1,-1,-1,-1,-1,-1,-1,-1,-1,-1';
 
-  /** 별 계산용 정수 임계값. game.js의 starsFor(timeLeft/startTime >= 0.5 -> 3, >= 0.3 -> 2, else 1)와 같은 결과 */
+  /** 난이도 diff의 별 기준 [2별 비율, 3별 비율]. STAR_RATIO_BY[diff]가 올바른 모양이면 그것, 아니면 기본 STAR_RATIO. game.js의 starRatioOf와 같은 규칙 */
+  function starRatioOf(diff) {
+    const r = STAR_RATIO_BY[diff];
+    if (Array.isArray(r) && r.length === 2 && typeof r[0] === 'number' && typeof r[1] === 'number' && r[0] > 0 && r[0] < r[1] && r[1] <= 1) return r;
+    return STAR_RATIO;
+  }
+
+  /** 별 계산용 정수 임계값. game.js의 starsFor(timeLeft/startTime, …, diff)(난이도별 비율 이상이면 3 / 2, else 1)와 같은 결과 */
   function starThresholds(diff) {
     const s = START_TIME[diff];
-    return { three: Math.ceil(s * STAR_RATIO[1] - 1e-9), two: Math.ceil(s * STAR_RATIO[0] - 1e-9) };
+    const r = starRatioOf(diff);
+    return { three: Math.ceil(s * r[1] - 1e-9), two: Math.ceil(s * r[0] - 1e-9) };
   }
 
   /** left(정수 초, >=0 = 클리어) -> 별 1~3. 미클리어(-1)면 0 */
@@ -770,8 +779,8 @@ __mods['core'] = function (module, exports, require) {
   }
 
   module.exports = {
-    API_VERSION, STAR_WEIGHT, MAX_TOTAL_SCORE, weightedScore, DIFFS, BOARDS, STAGES, START_TIME, STAR_RATIO, LEFT_CAP, LIMITS, EMPTY_PROG_STR, PUB_ALPHABET,
-    starThresholds, starsForLeft, parseProg, serializeProg, emptyProgress, validateProgress, mergeProgress, chainViolation,
+    API_VERSION, STAR_WEIGHT, MAX_TOTAL_SCORE, weightedScore, DIFFS, BOARDS, STAGES, START_TIME, STAR_RATIO, STAR_RATIO_BY, LEFT_CAP, LIMITS, EMPTY_PROG_STR, PUB_ALPHABET,
+    starRatioOf, starThresholds, starsForLeft, parseProg, serializeProg, emptyProgress, validateProgress, mergeProgress, chainViolation,
     computeTotals, boardCols, compareRank, kstDay, isUuid, normalizePub, originAllowed, checkProfile, safeEqual
   };
 };
