@@ -446,3 +446,51 @@ test('s 오류·상한·간격 경로에서도 pid·IP·닉네임이 로그에 �
   assert.ok(!all.includes(pid) && !all.includes('203.0.113.5') && !all.includes('비밀닉'), all);
   for (const x of texts) assert.ok(!x.includes(pid), '응답에 pid');
 });
+
+/* ---------------------------------------------------------------- 동시 요청 (Review R-S §34 P1) */
+
+/** 같은 pid 행을 읽는 SELECT 만 결과를 "받는 쪽"에서 ms 늦춘다(쿼리는 바로 실행해 그 시점의 값을 읽고, 응답이 늦게 도착하는 D1 왕복을 흉내) */
+function delayPidRead(t, ms) {
+  const orig = t.env.DB.prepare.bind(t.env.DB);
+  const wrap = (st) => ({
+    bind: (...p) => wrap(st.bind(...p)),
+    first: async (...a) => { const r = await st.first(...a); await new Promise((res) => setTimeout(res, ms)); return r; },
+    all: (...a) => st.all(...a),
+    run: (...a) => st.run(...a)
+  });
+  t.env.DB.prepare = (sql) => (/^SELECT \* FROM players WHERE pid_hash/.test(sql) ? wrap(orig(sql)) : orig(sql));
+}
+
+test('동시 요청: 저장값 1000 에서 s:9000 과 s:8000 이 겹쳐도(둘 다 1000 을 읽음) 최종 저장값은 9000 이다 - UPDATE 가 best_score=MAX(best_score, ?) 로 병합', async () => {
+  const t = makeEnv();
+  const a = await register(t, '별빛냥', prog([70]), 1000);
+  t.advance(120);                                                    // 60초 간격 통과
+  delayPidRead(t, 30);
+  const [rA, rB] = await Promise.all([
+    sync(t, { pid: a.pid, d: prog([70]), s: 9000 }),                 // 먼저 쓴다
+    sync(t, { pid: a.pid, d: prog([70]), s: 8000 })                  // 둘 다 저장값 1000 을 읽었으므로 이 요청도 "점수가 오른다"고 보고 뒤에 쓴다
+  ]);
+  assert.equal(rA.status, 200, rA.text);
+  assert.equal(rB.status, 200, rB.text);
+  assert.equal(rA.json.me.score, 9000);
+  assert.equal(row(t).best_score, 9000, '낮은 점수(8000)가 높은 점수(9000)를 덮으면 안 된다');
+  // 낮은 쪽이 먼저 쓰고 높은 쪽이 나중에 써도 높은 값이 남는다
+  t.advance(120);
+  const [rC, rD] = await Promise.all([
+    sync(t, { pid: a.pid, d: prog([70]), s: 12000 }),
+    sync(t, { pid: a.pid, d: prog([70]), s: 15000 })
+  ]);
+  assert.equal(rC.status, 200);
+  assert.equal(rD.status, 200);
+  assert.equal(row(t).best_score, 15000);
+  // SQL 이 실제로 MAX 병합이다(Worker 가 낮은 값을 계산해 보내도 저장값은 내려가지 않는다)
+  const direct = t.DB.db.prepare('UPDATE players SET best_score=MAX(best_score, ?) WHERE id = ?').run(1, row(t).id);
+  assert.equal(Number(direct.changes), 1);
+  assert.equal(row(t).best_score, 15000);
+});
+
+test('동시 요청: 소스의 UPDATE 문이 best_score 를 MAX 로 병합한다(단순 대입으로 되돌리면 안 된다)', () => {
+  const src = require('node:fs').readFileSync(require('node:path').join(__dirname, '..', 'src', 'worker.js'), 'utf8');
+  assert.ok(/best_score=MAX\(best_score, \?\)/.test(src), 'UPDATE_SQL 에 best_score=MAX(best_score, ?) 가 있어야 한다');
+  assert.ok(!/UPDATE players SET[^;]*[ ,]best_score=\?/.test(src.replace(/\n/g, ' ')), 'UPDATE 에 best_score=? 단순 대입이 남아 있으면 안 된다');
+});

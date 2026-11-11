@@ -271,10 +271,12 @@ const INSERT_SQL =
   ' stars_easy, stars_normal, stars_hard, left_easy, left_normal, left_hard, best_easy, best_normal, best_hard,' +
   ' total_stars, total_left, best_score, up_all, up_easy, up_normal, up_hard, hidden, nick_changes, nick_day, created_at, last_write_at)' +
   ' VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)';
+// best_score 는 SQL 에서도 MAX 로 병합한다(spec §46.3.4): 같은 pid 의 두 요청이 읽기-쓰기 사이에 겹쳐도 낮은 점수가 높은 점수를 덮지 못한다.
+// prog_*·stars_* 등 나머지 열은 Worker 가 읽은 값으로 병합해 절댓값으로 쓰므로 같은 겹침에서는 뒤 요청이 덮을 수 있다(README 한계).
 const UPDATE_SQL =
   'UPDATE players SET nick=?, nick_key=?, tag=?, avatar=?, prog_easy=?, prog_normal=?, prog_hard=?,' +
   ' stars_easy=?, stars_normal=?, stars_hard=?, left_easy=?, left_normal=?, left_hard=?, best_easy=?, best_normal=?, best_hard=?,' +
-  ' total_stars=?, total_left=?, best_score=?, up_all=?, up_easy=?, up_normal=?, up_hard=?, hidden=?, nick_changes=?, nick_day=?, last_write_at=?' +
+  ' total_stars=?, total_left=?, best_score=MAX(best_score, ?), up_all=?, up_easy=?, up_normal=?, up_hard=?, hidden=?, nick_changes=?, nick_day=?, last_write_at=?' +
   ' WHERE id = ?';
 
 function progStrings(p) { return DIFFS.map((d) => core.serializeProg(p[d])); }

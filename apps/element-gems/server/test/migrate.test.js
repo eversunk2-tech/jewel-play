@@ -311,3 +311,63 @@ test('파일 일관성: 한 줄 SQL 3개에 "--" 주석이 없고 정말 한 줄
   const check = read(path.join(MIG, 'check.sql'));
   assert.ok(!check.split('\n').some((l) => /^\s*(UPDATE|DELETE|DROP|ALTER|INSERT)\b/i.test(l)));
 });
+
+test('README 의 SQL: 최고점 도전 모드 절의 모든 SELECT/UPDATE 글이 migrations/check.sql·ops.sql 과 글자가 같고, 마이그레이션된 DB 에서 실제로 실행(또는 문법 확인)된다 - D1 콘솔 안내를 따라 하는 사용자가 틀린 SQL 을 보지 않게', () => {
+  const readme = read(path.join(SERVER, 'README.md'));
+  const secStart = readme.indexOf('## 최고점 도전 모드');
+  const secEnd = readme.indexOf('\n## ', secStart + 5);
+  assert.ok(secStart > 0 && secEnd > secStart);
+  const norm = (x) => x.replace(/\s+/g, ' ').replace(/;\s*$/, '').trim();
+  // 허용 목록: check.sql·ops.sql 의 문장(주석 처리된 조치용 UPDATE 포함)
+  const allowed = new Set();
+  for (const f of ['check.sql', 'ops.sql']) {
+    for (const line of read(path.join(MIG, f)).split('\n')) {
+      const m = line.match(/^\s*(?:--\s*)?((?:SELECT|UPDATE)\b.*)$/);
+      if (m && /;\s*$/.test(m[1])) allowed.add(norm(m[1]));
+    }
+  }
+  assert.ok(allowed.size >= 12, '허용 문장 수 ' + allowed.size);
+  const spansOf = (text) => [...text.matchAll(/`([^`\n]+)`/g)].map((m) => m[1]).filter((t) => /^(SELECT|UPDATE)\s/.test(t) && t.length > 15);
+  const inSection = spansOf(readme.slice(secStart, secEnd));
+  assert.ok(inSection.length >= 12, 'README 절의 SQL 수 ' + inSection.length);
+  for (const sql of inSection) assert.ok(allowed.has(norm(sql)), 'README 의 SQL 이 check.sql/ops.sql 에 없다: ' + sql.slice(0, 100));
+  // check.sql 의 SELECT 8개가 모두 README 에 있다(①-0·①-1 확인·①-2 확인·순위·②·④ 확인) - 사용자가 README 만 보고 따라 할 수 있다
+  const inReadme = new Set(inSection.map(norm));
+  const checkSelects = read(path.join(MIG, 'check.sql')).split('\n').filter((l) => /^SELECT\b/.test(l)).map(norm);
+  assert.equal(checkSelects.length, 8);
+  const notInReadme = checkSelects.filter((q) => !inReadme.has(q));
+  assert.equal(notInReadme.length, 1, 'README 에 없는 check.sql 쿼리는 점수 분포(운영 점검용) 하나뿐이어야 한다: ' + notInReadme.map((q) => q.slice(0, 40)).join(' | '));
+  assert.match(notInReadme[0], /CASE WHEN best_score = 0/);
+  // 실행: SELECT 는 마이그레이션된 DB 에서 실행, UPDATE(조치)는 문법만(prepare) 확인
+  for (const sql of spansOf(readme)) {
+    const st = S.db.prepare(sql.replace(/;\s*$/, ''));
+    if (/^SELECT/.test(sql)) {
+      const params = (sql.match(/\?/g) || []).length;
+      st.all(...new Array(params).fill(1));
+    }
+  }
+  // 한 줄 파일은 README 가 말하는 대로 "붙여 넣는 한 줄 전체"가 곧 파일 내용이다
+  for (const f of ['migrate-1a-alter.oneline.sql', 'migrate-1b-indexes.oneline.sql', 'migrate-3-drop-old-indexes.oneline.sql']) {
+    assert.ok(readme.includes('`' + f + '`'), 'README 에 ' + f + ' 안내가 있다');
+  }
+  // README 가 말하는 정상 결과: ①-1 확인은 점수있는사람 0·최고점 0 (여기서는 점수를 넣었으므로 새 DB 로 따로 확인), 인덱스 확인은 8행 -> 삭제 뒤 4행
+  const fresh = new DatabaseSync(':memory:');
+  fresh.exec(OLD_SCHEMA);
+  insertOld(fresh, makePlayers(40));
+  fresh.exec(m1a);
+  const q1 = checkSelects[1];
+  assert.deepEqual({ ...fresh.prepare(q1).get() }, { 전체: 40, 점수있는사람: 0, 최고점: 0 });
+  const q2 = checkSelects[2];
+  fresh.exec(m1b);
+  assert.equal(fresh.prepare(q2).all().length, 8);
+  assert.equal(fresh.prepare(checkSelects[7]).get().새_인덱스, 4);
+  fresh.exec(m3);
+  assert.deepEqual(fresh.prepare(q2).all().map((r) => r.name), ['idx_rank2_all', 'idx_rank2_easy', 'idx_rank2_hard', 'idx_rank2_normal']);
+  const empty = new DatabaseSync(':memory:');
+  empty.exec(OLD_SCHEMA);
+  empty.exec(m1a);
+  const e = { ...empty.prepare(q1).get() };
+  assert.equal(e.전체, 0);
+  assert.ok(e.점수있는사람 === null || e.점수있는사람 === 0, '선수가 없으면 SUM 이 NULL 일 수 있다(README 에 적음)');
+  assert.ok(readme.includes('빈 칸'), 'README 가 선수 0명일 때 SUM 이 빈 칸으로 보일 수 있다고 알린다');
+});

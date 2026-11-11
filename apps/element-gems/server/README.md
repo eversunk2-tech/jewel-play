@@ -91,15 +91,17 @@ curl localhost:8787/__mock/state
 |---|---|
 | 형식 | 0 이상의 정수. 아니면(음수·소수·문자열·`null`·`true`·배열·객체) 400 `progress_invalid`, field `s`. 이때 `d`·프로필도 저장하지 않는다 |
 | 상한 | `SCORE_CAP` = **280,000**(클라이언트 `CONFIG.challenge.scoreCap`과 같아야 하며 `test/core.test.js`가 대조한다). 상한을 넘는 정수는 **그 값만 무시**하고 나머지(`d`·프로필)는 정상 처리하며 응답에 `scoreRejected: true`를 싣는다 |
-| 병합 | `best_score = max(저장값, s)`(감소 불가, 오프라인 재전송·두 기기에 안전). 오르지 않으면 쓰기 없음(`changed:false`, 읽기 1회) |
+| 병합 | `best_score = max(저장값, s)`(감소 불가, 오프라인 재전송·두 기기에 안전). 오르지 않으면 쓰기 없음(`changed:false`, 읽기 1회). UPDATE 문도 `best_score=MAX(best_score, ?)`로 병합하므로, 같은 pid의 두 요청이 읽기와 쓰기 사이에 겹쳐도(예: 저장값 1000에서 `s:9000`과 `s:8000`이 동시에 도착) 낮은 점수가 높은 점수를 덮지 못한다(시험으로 재현·확인). 단 이때 낮은 쪽 요청의 응답 `me.score`는 그 요청이 읽은 값 기준이라 저장값보다 낮게 보일 수 있다 |
 | 쓰기 간격 | 최고점이 **오르는** 요청은 마지막 쓰기로부터 **60초 이상**(`LIMITS.scoreWriteIntervalSec`), 아니면 429 `rate_limited` + `Retry-After`(남은 초). 진행·프로필만 바뀌는 요청은 기존 3초 규칙 그대로. `d`와 `s`가 같이 오르는 요청이 60초 전이면 `d`도 저장되지 않는다(클라이언트가 나중에 같은 내용을 다시 보낸다) |
 | 응답 | `me.score`(저장된 최고점, 도전 기록이 없으면 0), 순위표 행 `score`, `/api/rank`의 `score`, 관리자 검색 행 `score` |
 | 호환 | `API_VERSION`은 1 그대로, 새 오류 코드 없음. 옛 클라이언트(`s` 없음)는 점수에 영향을 주지 않는다. 새 클라이언트가 옛 Worker를 만나도 `d`가 항상 함께 가므로 400이 없고, 응답에 `me.score`가 없으니 다음에 다시 보낸다 |
 
+겹침 한계: 최고점(`best_score`)과 달리 진행(`prog_*`)·별·남은 시간 열은 Worker가 읽은 값으로 병합한 절댓값을 쓰므로, 같은 pid의 두 요청이 읽기와 쓰기 사이에 겹치면 뒤에 쓴 요청이 앞 요청의 진행 일부를 덮을 수 있다(최고점 도전 모드 이전부터 있던 한계로, 한 기기는 요청을 한 줄로 보내고 쓰기 간격 규칙이 있어 드물다. 클라이언트가 다음 제출에서 자기 기록 전체를 최댓값 병합으로 다시 보내므로 보통 곧 복구되지만 이 작업에서 실제 클라이언트로 확인하지는 못했다).
+
 위조 한계: 서버는 점수를 재현·검증하지 못한다. 허용하는 위험은 "같은 별 수 묶음 안에서의 최고점 위조"이며, 상한·사후 점검 SQL(`migrations/ops.sql`)·숨김으로 대응한다. **점수만 0으로 되돌리는 조치는 소용없다**(위조자 기기에 값이 남아 있어 다음 제출에서 최댓값 병합으로 되돌아온다) — 위조가 의심되면 `UPDATE players SET hidden = 1 WHERE id = ?`(spec §19.4.6)로 숨긴다. 점수 규칙·시간·프리셋을 바꾸면 상한을 새로 재고(새 Plan·승인), 서버 `SCORE_CAP`과 `CONFIG.challenge.scoreCap`을 함께 바꿔 Worker를 재배포하고 `UPDATE players SET best_score = 0`으로 점수를 초기화해야 한다. 환경 변수·비밀키는 **변하지 않는다**(`ALLOWED_ORIGINS` 등 기존 그대로).
 
 ### 무료 한도 (spec §46.3.6, §19.4.7 표를 갱신)
-확인한 무료 한도는 §19.4.7이 2026-11-07 문서에서 확인한 값이다(이번 작업에서 문서를 다시 열어 확인하지 못했다): Workers 100,000 요청/일, D1 읽은 행 5,000,000/일, 쓴 행 100,000/일(인덱스 갱신 포함으로 센다고 보수적으로 가정). 최고점이 오르는 제출 1회 = 표 1행 + 갱신되는 부분 인덱스 4행 = **5행**(보수적), 최악 가정(인덱스 갱신을 삭제+삽입 2행씩) **9행**. 그 밖의 가정은 §19.4.7 그대로(첫 날 최대 500명, 스테이지 제출 6회/인, 조회 6회/인, 생성 500, 변경 100). 한도 초과 시 `db_unavailable` 503, 클라이언트는 점수를 이 기기에 두고 백오프로 재시도하며 게임은 영향 없음.
+확인한 무료 한도는 §19.4.7이 2026-11-07 문서에서 확인한 값이다(이번 작업에서 문서를 다시 열어 확인하지 못했다): Workers 100,000 요청/일, D1 읽은 행 5,000,000/일, 쓴 행 100,000/일(인덱스 갱신 포함으로 센다고 보수적으로 가정). 최고점이 오르는 제출 1회 = 표 1행 + 갱신되는 부분 인덱스 4행 = **5행**(보수적), 최악 가정(인덱스 갱신을 삭제+삽입 2행씩) **9행**. 그 밖의 가정은 §19.4.7 그대로(첫 날 최대 500명, 스테이지 제출 6회/인, 조회 6회/인, 생성 500, 변경 100). 한도 초과 시 `db_unavailable` 503, 클라이언트는 점수를 이 기기에 두고 백오프로 재시도하며 게임은 영향 없음. **마이그레이션 ①-2 뒤 ④ 전까지(옛 인덱스 4개와 새 인덱스 4개가 함께 있는 며칠)는 점수가 오르는 쓰기 1회가 인덱스 8개를 모두 갱신하므로 5행이 아니라 최대 9행(표 1행 + 인덱스 8행)에 가깝다** — 표의 "최악 9행" 열이 이 경우를 덮고(묶음 기준 500명 46%·1,000명 91%), ④로 옛 인덱스를 지우면 5행으로 돌아간다. 이 기간에는 사용량(D1 Metrics)을 평소보다 자주 본다.
 
 | 인원 | 사람당 하루 최고점 개선 | 제출 방식(하루 제출 횟수) | 요청/일 | 쓴 행/일, 새 제출 5행(한도 대비) | 쓴 행/일, 최악 9행 가정(한도 대비) | 읽은 행/일 |
 |---|---|---|---|---|---|---|
@@ -127,19 +129,41 @@ curl localhost:8787/__mock/state
 
 | 순서 | 어디서 | 할 일 | 확인 |
 |---|---|---|---|
-| **① D1** | 대시보드 → D1 SQL database → `element-gems-db` → Console | ⓐ `migrations/check.sql` 첫 쿼리(`SELECT sql FROM sqlite_master WHERE type='table' AND name='players'`)로 `best_score`가 **아직 없는지** 확인 → ⓑ `migrate-1a-alter.oneline.sql` **한 줄**을 붙여 넣고 Execute(**한 번만**; 두 번째는 "duplicate column name" 오류) → ⓒ `migrate-1b-indexes.oneline.sql`(네 문장이 한 줄) 붙여 넣고 Execute(여러 번 해도 안전) | ⓐ 정의에 `best_score INTEGER NOT NULL DEFAULT 0` ⓑ `SELECT COUNT(*), SUM(best_score>0) FROM players` → 점수있는사람 0 ⓒ `idx_rank%` 인덱스 8행 |
+| **① D1** | 대시보드 → D1 SQL database → `element-gems-db` → Console | 아래 "①의 세부 단계"(①-0 → ①-1 → ①-2)를 순서대로. **쿼리는 한 번에 하나만** 붙여 넣고 Execute | 세부 단계 표의 "정상 결과" 칸과 같음 |
 | **② Worker** | 대시보드 → Workers & Pages → `element-gems-ranking` → Edit code | 기존 코드를 지우고 새 `dist/worker.js` 전체를 붙여 넣고 Deploy | 브라우저에서 `…/api/health`가 `ok`, `…/api/leaderboard?board=all`의 행에 `score` 키가 보임 |
 | **③ 사이트** | 메인 세션이 푸시(GitHub Pages) — 푸시 전에 사용자에게 확인 | 푸시 → Pages 빌드 확인 → 핵심 파일 200·새 문구 확인(10분 캐시 → 강력 새로고침) | 도전 한 판 → 기록 → 나가기 → 명예의 전당에 최고점 표시 |
-| **④ 정리(며칠 뒤)** | D1 Console | 문제가 없을 때 `migrate-3-drop-old-indexes.oneline.sql` Execute(옛 인덱스 4개 삭제) | `idx_rank2_*` 4개만 남음 |
+| **④ 정리(며칠 뒤)** | D1 Console | 문제가 없을 때만: 먼저 아래 ④ 확인 쿼리로 새 인덱스 4개가 있는지 본 뒤, `migrate-3-drop-old-indexes.oneline.sql` 한 줄 전체를 붙여 넣고 Execute(옛 인덱스 4개 삭제) | 아래 "④의 세부 단계"의 "정상 결과" 칸과 같음 |
 
-- **D1 콘솔에는 주석(`--`)이 있는 파일을 붙여 넣지 않는다.** 콘솔이 줄바꿈을 지워 `--` 주석이 뒤의 문장을 삼킨 전례가 있어, 붙여 넣는 SQL은 **주석 없는 한 줄 파일**(`*.oneline.sql`)이다(시험이 `--` 없음을 확인한다). 읽기용 `migrate.sql`은 설명용이다. 확인 쿼리(`check.sql`)는 한 번에 하나씩 실행한다.
-- **순서를 어기면**: ② 먼저(열이 없는데 새 Worker): `/api/sync`의 쓰기와 순위표·내 순위가 500 `server_error`(변경 없는 제출과 `/api/health`는 통과), **게임·로컬 기록은 정상이고 데이터 손실 없음** — ①을 하면 바로 복구(`test/compat.test.js`가 확인). ③ 먼저(사이트가 Worker보다 먼저): 새 클라이언트가 `s`를 보내도 옛 Worker는 무시하고 `d`는 정상 처리(나중에 다시 보냄), 순위표 문구만 새 것이고 서버 정렬은 옛 것인 짧은 불일치. ①만 하고 ②를 안 한 상태는 옛 Worker가 새 열을 무시하며 정상 동작한다.
+**①의 세부 단계** (D1 Console에서 위에서 아래로 한 줄씩. 붙여 넣는 글은 아래 칸의 SQL 또는 `migrations/`의 한 줄 파일 전체이며, 확인 쿼리는 `migrations/check.sql`과 글자가 같다)
+
+| 단계 | 하는 일 | 붙여 넣을 것 | 정상 결과 |
+|---|---|---|---|
+| ①-0 | 실행 전 확인: `best_score` 열이 **아직 없는지** | `SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'players';` | 나온 글(표 정의) 안에 `best_score`가 **없다**. 이미 있으면 ①-1은 건너뛰고(①-1은 한 번만) ①-1 확인으로 간다 |
+| ①-1 | 열 추가 (**한 번만**) | `migrate-1a-alter.oneline.sql` 파일의 한 줄 전체 | 오류 없이 끝남. **`duplicate column name: best_score` 오류가 나면 이미 열이 있다는 뜻이라 데이터에 해가 없다.** 다시 하지 말고 그대로 ①-1 확인으로 넘어가면 된다 |
+| ①-1 확인 | 열이 생겼고 모두 0점인지 | `SELECT COUNT(*) AS 전체, SUM(best_score > 0) AS 점수있는사람, MAX(best_score) AS 최고점 FROM players;` | `점수있는사람` 0, `최고점` 0 (선수가 한 명도 없으면 0 대신 빈 칸으로 보일 수 있다). 열이 없으면 `no such column: best_score` 오류 |
+| ①-2 | 새 인덱스 4개 (여러 번 해도 안전) | `migrate-1b-indexes.oneline.sql` 파일의 한 줄 전체(문장 4개가 한 줄에 들어 있다) | 오류 없이 끝남 |
+| ①-2 확인 | 인덱스가 늘었는지 | `SELECT name FROM sqlite_master WHERE type = 'index' AND name LIKE 'idx_rank%' ORDER BY name;` | **8행**: 옛 `idx_rank_all`·`idx_rank_easy`·`idx_rank_normal`·`idx_rank_hard` 4개 + 새 `idx_rank2_all`·`idx_rank2_easy`·`idx_rank2_normal`·`idx_rank2_hard` 4개 |
+| ①-2 확인 (선택) | 순위가 안 바뀌었는지 | `SELECT nick, tag, total_stars, best_score, total_left FROM players WHERE hidden = 0 AND total_stars > 0 ORDER BY total_stars DESC, best_score DESC, total_left DESC, up_all ASC, id ASC LIMIT 5;` | 모두 0점이라 마이그레이션 전 순위표 위쪽 5명과 같은 순서 |
+
+**②의 확인 (선택, 사이트에서 누군가 도전 모드를 한 뒤)**: 점수가 서버에 올라갔는지 `SELECT COUNT(*) AS 점수있는사람 FROM players WHERE best_score > 0;` (점수 있는 사람 수), `SELECT id, nick, tag, total_stars, best_score, datetime(last_write_at, 'unixepoch', '+9 hours') AS 마지막쓰기 FROM players WHERE best_score > 0 ORDER BY best_score DESC LIMIT 10;` (점수 상위 10명).
+
+**④의 세부 단계** (며칠 문제가 없을 때만)
+
+| 단계 | 하는 일 | 붙여 넣을 것 | 정상 결과 |
+|---|---|---|---|
+| ④-0 | 지워도 되는지 확인: 새 인덱스 4개가 있는지 | `SELECT COUNT(*) AS 새_인덱스 FROM sqlite_master WHERE type = 'index' AND name IN ('idx_rank2_all', 'idx_rank2_easy', 'idx_rank2_normal', 'idx_rank2_hard');` | `새_인덱스` **4** (4가 아니면 ①-2를 다시 하고 ④는 미룬다) |
+| ④-1 | 옛 인덱스 4개 삭제 | `migrate-3-drop-old-indexes.oneline.sql` 파일의 한 줄 전체 | 오류 없이 끝남 (여러 번 해도 안전) |
+| ④-1 확인 | 새 인덱스만 남았는지 | `SELECT name FROM sqlite_master WHERE type = 'index' AND name LIKE 'idx_rank%' ORDER BY name;` | **4행**: `idx_rank2_all`·`idx_rank2_easy`·`idx_rank2_normal`·`idx_rank2_hard` |
+
+**무엇을 복사하나**: 마이그레이션은 `*.oneline.sql` 파일의 내용 **한 줄 전체**(주석이 없다)를 복사한다. 확인 쿼리는 `check.sql`(또는 위 표)에서 **`SELECT`로 시작하는 줄 하나만** 복사한다 — `--`로 시작하는 줄은 설명이므로 복사하지 않고, `migrate.sql`·`ops.sql` 같은 읽기용 파일은 통째로 붙여 넣지 않는다. 한 번에 쿼리 하나씩 붙여 넣고 Execute한 뒤 결과를 보고 다음으로 간다. 이유: 콘솔이 줄바꿈을 지워 `-- 설명 SELECT …`가 통째로 주석이 되어 뒤의 문장을 삼킨 전례가 있다(한 줄 파일에 `--`가 없는지는 시험이 확인한다. 콘솔이 지금도 그런지는 D1에서 이번에 다시 확인하지 못했다).
+
+- **순서를 어기면**: ② 먼저(①을 하기 전에 새 Worker를 올림, 열이 없음): `/api/sync`의 쓰기와 순위표·내 순위가 500 `server_error`(변경 없는 제출과 `/api/health`는 통과), **게임·로컬 기록은 정상이고 데이터 손실 없음** — ①을 하면 바로 복구(`test/compat.test.js`가 확인). ③ 먼저(사이트가 Worker보다 먼저): 새 클라이언트가 `s`를 보내도 옛 Worker는 무시하고 `d`는 정상 처리(나중에 다시 보냄), 순위표 문구만 새 것이고 서버 정렬은 옛 것인 짧은 불일치. ①만 하고 ②를 안 한 상태는 옛 Worker가 새 열을 무시하며 정상 동작한다.
 - **되돌리기(롤백)**: 사이트는 해당 커밋을 `git revert` 후 푸시, Worker는 백업한 이전 `dist/worker.js`를 Edit code로 되돌려 붙여 넣는다. **마이그레이션된 DB에서도 옛 Worker는 정상 동작**한다(새 열 무시, 옛 인덱스가 남아 있는 동안은 빠르고, 지운 뒤에도 정렬 단계만 생길 뿐 결과는 맞다; 단 옛 Worker는 최고점을 모르므로 순위 순서에서 점수를 무시한다). 열·인덱스는 그대로 둬도 무해하다(`DROP COLUMN`은 인덱스를 먼저 지워야 하고 D1에서의 지원은 확인하지 못했다).
-- ①ⓐ 전에 D1 백업이 필요한지는 판단 불가(이 작업은 열 추가·인덱스 생성뿐이라 데이터를 지우지 않는다). 새 `schema.sql`을 옛 DB에 다시 붙여도 `CREATE INDEX … best_score`가 "no such column"으로 **안전하게 실패**한다(테이블은 건드리지 않음, 시험으로 확인).
+- ①-0 전에 D1 백업이 필요한지는 판단 불가(이 작업은 열 추가·인덱스 생성뿐이라 데이터를 지우지 않는다). 새 `schema.sql`을 옛 DB에 다시 붙여도 `CREATE INDEX … best_score`가 "no such column"으로 **안전하게 실패**한다(테이블은 건드리지 않음, 시험으로 확인).
 - **D1 콘솔에서 이 SQL을 직접 실행해 보지는 못했다**: 로컬 SQLite 3.53.4(Node 24 `node:sqlite`)에서만 검증했다. D1이 `ALTER TABLE ADD COLUMN`·`CREATE INDEX IF NOT EXISTS`·`DROP INDEX IF EXISTS`를 지원한다는 문서 내용과 콘솔의 한 줄 다중 문장 동작은 이 작업에서 다시 확인하지 못했다.
 
 ### 운영 점검 SQL (`migrations/ops.sql`, 읽기 전용 — D1 콘솔에서 한 번에 하나씩)
-- 점검선 120,000점 이상(사람이 닿기 어려운 값, 점수 측정에서 사람이 닿을 만한 가장 빠른 봇의 최댓값 119,385을 올림): `SELECT id, nick, tag, total_stars, best_score, datetime(last_write_at,'unixepoch','+9 hours') AS 마지막쓰기 FROM players WHERE best_score >= 120000 ORDER BY best_score DESC LIMIT 20;`
+- 점검선 120,000점 이상(사람이 닿기 어려운 값, 점수 측정에서 사람이 닿을 만한 가장 빠른 봇의 최댓값 119,385을 올림): `SELECT id, nick, tag, total_stars, best_score, datetime(last_write_at, 'unixepoch', '+9 hours') AS 마지막쓰기 FROM players WHERE best_score >= 120000 ORDER BY best_score DESC LIMIT 20;`
 - 별이 거의 없는데 점수만 높은 사람(위조 후보), 점수가 똑같은 사람 3명 이상(복사 후보), 점수 구간별 사람 수: `ops.sql` 2)~4).
 - 조치(spec §19.4.6): 순위에서 숨기기 `UPDATE players SET hidden = 1 WHERE id = ?` / 이름 바꾸게 하기 `hidden = 2` / 복구 `hidden = 0`. **점수만 0으로 되돌리는 것은 소용없다.**
 - `tools/recompute-stars.js`·`tools/seed-hall.js`는 영향이 없다(별 열만 갱신 / 라이벌은 점수 0).
