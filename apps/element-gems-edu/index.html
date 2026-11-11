@@ -130,11 +130,11 @@
         <button class="level-btn lv-easy" type="button" role="radio" aria-checked="false" data-level="easy" tabindex="-1">초보</button>
         <button class="level-btn lv-normal on" type="button" role="radio" aria-checked="true" data-level="normal">중수</button>
         <button class="level-btn lv-hard" type="button" role="radio" aria-checked="false" data-level="hard" tabindex="-1">고수</button>
+        <!-- 최고점 도전 모드 (spec §46.10): 난이도 줄의 4번째 칸. 고르면 [시작]이 [도전 시작]으로 바뀐다(game.js). 선택 전에는 다른 칸과 같고 가는 구분선만 있다 -->
+        <button class="level-btn lv-challenge" type="button" role="radio" aria-checked="false" data-level="challenge" tabindex="-1" aria-label="최고점 도전 모드">최고점<br>도전 모드</button>
       </div>
       <p id="level-desc" class="level-desc">기본 규칙. 균형 잡힌 2분 승부!</p>
       <button id="btn-start" class="btn primary big" type="button">시작</button>
-      <!-- 최고점 도전 (spec §46): 목표·레벨이 없는 2분 점수 놀이. 부제와 추천 딱지는 game.js 가 저장 기록에서 채운다. 아이콘은 장식(SVG, 글자 이모지 아님) -->
-      <button id="btn-challenge" class="btn chal-btn" type="button"><span class="chal-ic" aria-hidden="true"><svg viewBox="0 0 32 32" width="28" height="28" focusable="false"><path d="M12 4h8" fill="none" stroke="#0b5f78" stroke-width="3" stroke-linecap="round"/><circle cx="16" cy="18" r="11" fill="#fff" stroke="#0b5f78" stroke-width="3"/><path d="M16 11v7l4.5 3" fill="none" stroke="#0b5f78" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="chal-txt"><b class="chal-t">최고점 도전</b><small id="chal-sub" class="chal-s">2분 동안 최고 점수에 도전!</small></span><i id="chal-badge" class="chal-badge" hidden>추천</i></button>
       </div>
       <button id="btn-hall" class="btn hall" type="button" hidden><span class="st" aria-hidden="true">&#9733;</span>명예의 전당<span class="hall-sub">별 챔피언 순위 보기</span></button>
       </div>
@@ -150,7 +150,7 @@
         <li><b>게이지</b> 색마다 게이지가 따로 차고, 가득 차면 버튼이 반짝여요.</li>
         <li><b>스킬</b> 게이지 버튼을 눌러 원소 스킬을 쓰세요.</li>
         <li><b>콤보</b> 쉬지 않고 계속 맞추면 콤보! 점수 배수가 올라가요(최대 ×3).</li>
-        <li class="rule-chal"><b>최고점 도전</b> 2분 동안 점수를 최대한 모아요. 별이 같을 때 최고점이 높은 사람이 위에 올라요.</li>
+        <li class="rule-chal"><b>최고점 도전 모드</b> 2분 동안 점수를 최대한 모아요. 별이 같을 때 최고점이 높은 사람이 위에 올라요.</li>
       </ul>
       <p id="tutorial" class="tutorial" hidden>처음이시군요! 불과 풀 스킬은 버튼을 누른 뒤 보드의 칸을 한 번 더 눌러 조준해요.</p>
       </div>

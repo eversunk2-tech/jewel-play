@@ -784,9 +784,15 @@
         disable(c.code);
         return { ok: false, disabled: true };
       }
-      // retry / rate: 실패 횟수를 올리고 백오프 뒤 다시
-      sync.fails += 1;
-      const delay = Math.max(c.kind === 'rate' ? c.retryAfterMs || gapMs : 0, backoffMs(sync.fails, cfg.retryMs));
+      // retry(네트워크·5xx·모르는 오류): 실패 횟수를 올리고 백오프(5초 -> ... -> 15분 상한) 뒤 다시.
+      // rate(429): 서버가 알려 준 Retry-After(없으면 쓰기 간격 gapMs)만 기다린다 — 실패 횟수 백오프를 섞지 않고 횟수도 올리지 않는다(서버를 다시 켠 직후의 429 로 그 접속이 최대 15분을 기다리지 않게, Review R-C 후속).
+      let delay;
+      if (c.kind === 'rate') {
+        delay = c.retryAfterMs || gapMs;
+      } else {
+        sync.fails += 1;
+        delay = backoffMs(sync.fails, cfg.retryMs);
+      }
       sync.nextTryAt = now() + delay;
       saveSync();
       schedule(delay);

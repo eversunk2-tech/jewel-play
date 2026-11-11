@@ -590,8 +590,18 @@
     const line = mk('span', 'sl', String(n));                  // 첫 줄: ★ + 숫자(+ "점"). 별 모양은 CSS 가 .sl 앞에 붙인다
     if (board === 'all') line.appendChild(mk('small', 'pt', '점'));
     sc.appendChild(line);
-    sc.appendChild(mk('small', 'bs', R.bestText(best)));       // 둘째 줄: 최고점
+    sc.appendChild(bestEl(best));                              // 둘째 줄: 최고점
     return sc;
+  }
+
+  /** 작은 "최고점 N"(없으면 "최고점 —"). 글은 R.bestText 와 같다. 폭 340px 이하에서만 CSS 가 "점"(.bj)을 감춰 "최고 N"으로 줄인다(닉네임 자리를 지키려고, 스크린리더는 줄의 aria-label 을 읽는다) */
+  function bestEl(best) {
+    const bs = mk('small', 'bs');
+    const text = R.bestText(best);                             // '최고점 21,450' | '최고점 —'
+    bs.appendChild(document.createTextNode(text.slice(0, 2)));
+    bs.appendChild(mk('i', 'bj', text.slice(2, 3)));
+    bs.appendChild(document.createTextNode(text.slice(3)));
+    return bs;
   }
 
   function renderRows(rows, board) {

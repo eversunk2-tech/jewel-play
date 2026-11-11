@@ -140,18 +140,18 @@ test('defaultSave: challenge 필드가 하나 더 있고 나머지 키는 그대
   assert.deepStrictEqual(Object.keys(sv).sort(), ['best', 'bestByLevel', 'bestChain', 'challenge', 'cutin', 'lastScore', 'level', 'muted', 'plays', 'progress', 'scoreRule', 'stages', 'tutorialSeen']);
 });
 
-test('challengeStartInfo: 기록 없음 · 기록 있음 · 모두 깼지만 첫 도전(추천 딱지)', () => {
+test('challengeStartInfo(spec §46.10): 4번째 칸이 켜졌을 때 설명 줄 글 — 기록 없음("아직 기록이 없어요") · 기록 있음("내 최고 N점", 점수만 bold). 별도 버튼의 "추천" 딱지·부제는 없다', () => {
+  const LEAD = '최고점 도전 모드 · 단계 없이 바로 2분! ';
   const sv = G.defaultSave();
-  assert.deepStrictEqual(G.challengeStartInfo(sv), { sub: '2분 동안 최고 점수에 도전!', badge: false, state: 'new' });
-  sv.progress = { easy: 10, normal: 10, hard: 9 };
-  assert.strictEqual(G.challengeStartInfo(sv).badge, false, '한 난이도라도 덜 깼으면 추천 없음');
-  sv.progress.hard = 10;
-  assert.deepStrictEqual(G.challengeStartInfo(sv), { sub: '모두 깼다면 도전해 봐요!', badge: true, state: 'recommend' });
+  assert.deepStrictEqual(G.challengeStartInfo(sv), { pre: LEAD + '아직 기록이 없어요', bold: '', text: LEAD + '아직 기록이 없어요', state: 'new' });
+  sv.progress = { easy: 10, normal: 10, hard: 10 };
+  assert.deepStrictEqual(G.challengeStartInfo(sv), { pre: LEAD + '아직 기록이 없어요', bold: '', text: LEAD + '아직 기록이 없어요', state: 'new' }, '세 난이도를 모두 깨도 추천 딱지·다른 문구가 없다(별도 버튼이 없어졌다)');
   G.applyChallengeResult(sv, 0);
-  assert.strictEqual(G.challengeStartInfo(sv).badge, false, '도전을 한 번이라도 했으면 딱지는 사라진다(plays 로 판단)');
+  assert.strictEqual(G.challengeStartInfo(sv).state, 'new', '점수 0 은 기록이 아니다');
   G.applyChallengeResult(sv, 12340);
-  assert.deepStrictEqual(G.challengeStartInfo(sv), { sub: '내 최고 12,340점', badge: false, state: 'best' });
+  assert.deepStrictEqual(G.challengeStartInfo(sv), { pre: LEAD + '내 최고 ', bold: '12,340점', text: LEAD + '내 최고 12,340점', state: 'best' });
   assert.strictEqual(G.challengeStartInfo(null).state, 'new', 'null 이어도 안전');
+  ['badge', 'sub'].forEach((k) => assert.ok(!(k in G.challengeStartInfo(sv)), k + ' 는 없다'));
 });
 
 test('challengeHudInfo: 처음(첫 기록에 도전!) · 쫓는 중(내 최고 · 신기록까지) · 넘음(★ 신기록!)', () => {
@@ -183,7 +183,7 @@ test('challengeResultInfo: 첫 기록 · 새 기록(+차이) · 못 넘음(남�
  * ② 실제 판 흐름 — 가짜 DOM + 가상 시계로 game.js 를 그대로 실행
  * =================================================================== */
 const HOOK_TAIL = "  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);";
-const HOOK = "  if (typeof globalThis !== 'undefined' && globalThis.__EG_TEST__) { globalThis.__EG_TEST__.internals = { state: state, save: save, el: el, hud: hud, CONFIG: CONFIG, startStage: startStage, handleTap: handleTap, trySwap: trySwap, onGauge: onGauge, goStages: goStages, typeGrid: typeGrid, setGemType: setGemType, listMoves: listMoves, goalMet: goalMet, pauseGame: pauseGame, resumeGame: resumeGame, finishStage: finishStage, startChallenge: startChallenge, leaveChallenge: leaveChallenge, openChallenge: openChallenge, restartStage: restartStage, renderStart: renderStart, writeSave: writeSave, openConfirm: openConfirm }; }\n";
+const HOOK = "  if (typeof globalThis !== 'undefined' && globalThis.__EG_TEST__) { globalThis.__EG_TEST__.internals = { state: state, save: save, el: el, hud: hud, CONFIG: CONFIG, startStage: startStage, handleTap: handleTap, trySwap: trySwap, onGauge: onGauge, goStages: goStages, typeGrid: typeGrid, setGemType: setGemType, listMoves: listMoves, goalMet: goalMet, pauseGame: pauseGame, resumeGame: resumeGame, finishStage: finishStage, startChallenge: startChallenge, leaveChallenge: leaveChallenge, openChallenge: openChallenge, restartStage: restartStage, renderStart: renderStart, writeSave: writeSave, openConfirm: openConfirm, selectLevel: selectLevel, onStartClick: onStartClick }; }\n";
 assert.ok(SRC.indexOf(HOOK_TAIL) !== -1, 'game.js 끝부분을 찾지 못함');
 const SCRIPT = new vm.Script(SRC.replace(HOOK_TAIL, HOOK + HOOK_TAIL), { filename: 'general/game.js' });
 
@@ -251,13 +251,19 @@ function createEnv(seed, cfgPatch, opts) {
     console, __EG_TEST__: {}, module: { exports: {} }, document: doc,
     setTimeout: env.timers.setTimeout, clearTimeout: env.timers.clearTimeout,
     localStorage: { getItem: (k) => (k in store ? store[k] : null), setItem: (k, v) => { store[k] = String(v); } },
-    matchMedia: () => ({ matches: true }),                  // prefers-reduced-motion: reduce → 입자(난수) 없음
+    matchMedia: () => ({ matches: !o.motion }),             // 기본: prefers-reduced-motion: reduce → 입자(난수) 없음. opts.motion = true 면 움직임 줄이기가 꺼진 기기(배경 이동 시험용)
     Image: class { set src(v) { env.timers.setTimeout(() => { if (this.onload) this.onload(); }, 0); } },
     __rand: () => { env.rnd++; return rand(); },
     __forced: []
   };
   sandbox.window = sandbox;
   sandbox.requestAnimationFrame = (cb) => env.timers.setTimeout(() => cb(env._now), 150);
+  if (o.chips) {                                              // 시작 화면 난이도 줄의 네 칸(spec §46.10). index.html 의 .level-btn 네 개를 흉내 낸다(init 보다 먼저 있어야 click 이 이어진다)
+    const ls = doc.getElementById('level-select');
+    env.chips = ['easy', 'normal', 'hard', 'challenge'].map((lv) => { const c = new FakeEl('button'); c.dataset.level = lv; c.tabIndex = -1; c.setAttribute('aria-checked', 'false'); return c; });
+    ls.querySelectorAll = () => env.chips;
+    ls.querySelector = (sel) => { const m = /data-level="(\w+)"/.exec(sel); return m ? env.chips.find((c) => c.dataset.level === m[1]) || null : null; };
+  }
   vm.createContext(sandbox);
   vm.runInContext('Math.random = function () { return __forced.length ? __forced.shift() : __rand(); };', sandbox);
   SCRIPT.runInContext(sandbox);
@@ -561,14 +567,19 @@ test('다시 시작(일시정지·리셋 확인): 도전을 새로 시작한다(
 
 test('[돌아가기]·[명예의 전당 보기]: 결과 화면을 닫고 시작 화면으로 간다(후자는 openHall 이벤트를 낸다)', async () => {
   const env = createEnv(17);
+  env.I.selectLevel('challenge');                              // 시작 화면 난이도 줄의 4번째 칸(spec §46.10)
   await startChal(env);
   env.I.state.score = 1234;
   env.I.finishStage();
+  const renders = env.events.filter((e) => e[0] === 'renderStart').length;
   env.el('btn-chal-home').click();
   assert.strictEqual(env.el('overlay-chal-end').hidden, true);
   assert.strictEqual(env.I.state.phase, 'start');
   assert.strictEqual(env.el('screen-start').hidden, false);
-  assert.strictEqual(env.el('chal-sub').textContent, '내 최고 1,234점', '시작 화면 버튼에 최고점이 바로 보인다');
+  assert.strictEqual(env.events.filter((e) => e[0] === 'renderStart').length, renders + 1, '시작 화면으로 돌아오면 renderStart 이벤트가 나간다(ranking-ui 가 묶어 둔 최고점을 올리는 때)');
+  assert.strictEqual(env.I.state.startChoice, 'challenge', '도전을 마치고 돌아와도 4번째 칸이 켜져 있다');
+  assert.strictEqual(env.el('level-desc').textContent, '최고점 도전 모드 · 단계 없이 바로 2분! 내 최고 1,234점', '설명 줄에 최고점이 바로 보인다');
+  assert.strictEqual(env.el('btn-start').textContent, '도전 시작');
   await startChal(env);
   env.I.finishStage();
   env.el('btn-chal-hall').click();
@@ -621,27 +632,133 @@ test('반대 방향: 스테이지 판(클리어·실패)을 끝까지 해도 저
   env.dispose();
 });
 
-test('시작 화면 [최고점 도전]: renderStart 가 부제·추천 딱지를 그리고, 게이트가 막으면(프로필 안내 팝업) 시작하지 않으며 게이트에 "challenge" 를 알린다', async () => {
-  const env = createEnv(19);
+const LEAD = '최고점 도전 모드 · 단계 없이 바로 2분! ';
+const saved = (env) => (env.store['element-gems:v1'] === undefined ? null : JSON.parse(env.store['element-gems:v1']));
+
+test('난이도 줄 4번째 칸(spec §46.10): 고르면 설명 줄·[도전 시작]·aria-checked 가 바뀌고, 저장(save.level·localStorage)은 건드리지 않는다. 세 난이도는 지금처럼 저장한다', () => {
+  const env = createEnv(19, null, { chips: true });
+  const [easy, normal, hard, chal] = env.chips;
+  const on = () => env.chips.filter((c) => c.classList.contains('on')).map((c) => c.dataset.level);
+  assert.deepStrictEqual(on(), ['normal'], '처음: 중수');
+  assert.deepStrictEqual(env.chips.map((c) => c.getAttribute('aria-checked')), ['false', 'true', 'false', 'false']);
+  assert.deepStrictEqual(env.chips.map((c) => c.tabIndex), [-1, 0, -1, -1], 'roving tabindex: 켜진 칸만 0');
+  assert.strictEqual(env.el('btn-start').textContent, '시작');
+  assert.strictEqual(env.el('btn-start').classList.contains('is-chal'), false);
+  assert.strictEqual(env.el('level-desc').textContent, env.CONFIG.difficulty.normal.desc);
+  const before = JSON.stringify(env.store);
+  chal.click();
+  assert.strictEqual(env.I.state.startChoice, 'challenge');
+  assert.deepStrictEqual(on(), ['challenge']);
+  assert.deepStrictEqual(env.chips.map((c) => c.getAttribute('aria-checked')), ['false', 'false', 'false', 'true']);
+  assert.deepStrictEqual(env.chips.map((c) => c.tabIndex), [-1, -1, -1, 0]);
+  assert.strictEqual(env.el('level-desc').textContent, LEAD + '아직 기록이 없어요');
+  assert.strictEqual(env.el('btn-start').textContent, '도전 시작');
+  assert.strictEqual(env.el('btn-start').classList.contains('is-chal'), true);
+  assert.strictEqual(env.I.save.level, 'normal', '4번째 칸은 save.level 을 바꾸지 않는다');
+  assert.strictEqual(JSON.stringify(env.store), before, '4번째 칸은 저장도 하지 않는다(새로고침하면 마지막 난이도)');
+  env.I.save.challenge.best = 12340;
   env.I.renderStart();
-  assert.strictEqual(env.el('chal-sub').textContent, '2분 동안 최고 점수에 도전!');
-  assert.strictEqual(env.el('chal-badge').hidden, true);
-  env.I.save.progress = { easy: 10, normal: 10, hard: 10 };
-  env.I.renderStart();
-  assert.strictEqual(env.el('chal-sub').textContent, '모두 깼다면 도전해 봐요!');
-  assert.strictEqual(env.el('chal-badge').hidden, false);
+  const d = env.el('level-desc');
+  assert.strictEqual(d.textContent, LEAD + '내 최고 12,340점');
+  assert.deepStrictEqual(d.children.map((c) => [c.tagName, c.textContent]), [['B', '12,340점']], '점수만 굵게(b)');
+  hard.click();                                                // 세 난이도는 저장한다
+  assert.strictEqual(env.I.save.level, 'hard');
+  assert.strictEqual(saved(env).level, 'hard');
+  assert.deepStrictEqual(on(), ['hard']);
+  assert.strictEqual(env.el('btn-start').textContent, '시작');
+  assert.strictEqual(env.el('btn-start').classList.contains('is-chal'), false);
+  assert.strictEqual(env.el('level-desc').textContent, env.CONFIG.difficulty.hard.desc);
+  assert.strictEqual(env.el('level-desc').children.length, 0, '난이도 설명에는 굵은 글이 없다');
+  chal.click();
+  easy.click();
+  assert.strictEqual(saved(env).level, 'easy');
+  // 새로고침(같은 저장소로 다시 시작): 4번째 칸은 기억하지 않고 마지막 난이도가 켜진다
+  chal.click();
+  const again = createEnv(19, null, { chips: true, store: env.store });
+  assert.deepStrictEqual(again.chips.filter((c) => c.classList.contains('on')).map((c) => c.dataset.level), ['easy'], '새로고침하면 마지막 난이도');
+  assert.strictEqual(again.I.state.startChoice, null);
+  assert.strictEqual(again.el('btn-start').textContent, '시작');
+  env.dispose(); again.dispose();
+});
+
+test('난이도 줄 키보드: 방향키가 4칸을 순환하고(초보→중수→고수→최고점 도전 모드→초보), 4번째 칸에서도 aria-checked·tabindex 가 4칸 기준으로 따라온다', () => {
+  const env = createEnv(24, null, { chips: true });
+  const key = (k) => { let prevented = false; (env.el('level-select')._ls.keydown || []).forEach((fn) => fn({ key: k, preventDefault() { prevented = true; } })); return prevented; };
+  const cur = () => env.chips.filter((c) => c.classList.contains('on')).map((c) => c.dataset.level)[0];
+  assert.strictEqual(cur(), 'normal');
+  assert.strictEqual(key('ArrowRight'), true);
+  assert.strictEqual(cur(), 'hard');
+  key('ArrowDown');
+  assert.strictEqual(cur(), 'challenge');
+  assert.strictEqual(env.chips[3].getAttribute('aria-checked'), 'true');
+  assert.strictEqual(env.chips[3].tabIndex, 0);
+  assert.strictEqual(env.I.save.level, 'hard', '4번째 칸에 닿아도 저장된 난이도는 그대로');
+  key('ArrowRight');
+  assert.strictEqual(cur(), 'easy', '끝에서 처음으로 돈다');
+  key('ArrowLeft');
+  assert.strictEqual(cur(), 'challenge', '처음에서 끝으로 돈다');
+  key('ArrowUp');
+  assert.strictEqual(cur(), 'hard');
+  assert.strictEqual(key('Enter'), false, '방향키가 아니면 건드리지 않는다');
+  env.dispose();
+});
+
+test('[시작]/[도전 시작]: 4번째 칸이 켜져 있으면 도전(게이트에 "challenge")으로, 세 난이도면 지금처럼 레벨 선택으로(게이트에 인자 없음). 게이트가 막으면 시작하지 않는다', async () => {
+  const env = createEnv(25, null, { chips: true });
   const asked = [];
   let allow = false;
   env.host.setStartGate((kind) => { asked.push(kind); return allow; });
-  env.el('btn-challenge').click();
+  env.chips[3].click();
+  env.el('btn-start').click();
   assert.deepStrictEqual(asked, ['challenge']);
-  assert.strictEqual(env.I.state.phase, 'start', '게이트가 false 면 멈춘다');
+  assert.strictEqual(env.I.state.phase, 'start', '게이트가 false 면 멈춘다(프로필 안내 팝업)');
   allow = true;
-  env.el('btn-challenge').click();
+  env.el('btn-start').click();
+  assert.deepStrictEqual(asked, ['challenge', 'challenge']);
   assert.strictEqual(env.I.state.phase, 'countdown');
   assert.ok(env.I.state.challenge);
   await env.runUntil(() => env.I.state.phase === 'playing', 30000);
+  env.I.leaveChallenge();
+  assert.strictEqual(env.I.state.phase, 'start');
+  assert.strictEqual(env.chips[3].classList.contains('on'), true, '돌아와도 4번째 칸이 켜져 있다');
+  env.chips[1].click();                                        // 중수로
+  env.el('btn-start').click();
+  assert.deepStrictEqual(asked, ['challenge', 'challenge', undefined], '[시작]의 게이트는 인자 없이 그대로');
+  assert.strictEqual(env.I.state.phase, 'stages', '레벨 선택으로');
+  assert.strictEqual(env.I.state.challenge, null);
   env.dispose();
+});
+
+test('시작 화면에서 [도전 시작]을 누르면 <html data-chal-intro> 가 잠깐 켜져(CONFIG.anim.camIntroMs 뒤 걷힘) 배경이 아래로 부드럽게 내려간다. [다시 도전]·스테이지 시작·움직임 줄이기에서는 켜지지 않는다', async () => {
+  const env = createEnv(26, null, { motion: true });          // 움직임 줄이기가 꺼진 기기
+  const html = env.doc.documentElement;
+  const ms = env.CONFIG.anim.camIntroMs;
+  assert.strictEqual(ms, 1000);
+  assert.strictEqual(html.getAttribute('data-chal-intro'), null);
+  env.host.enterChallenge();
+  await env.runUntil(() => env.el('overlay-count').hidden === false, 30000);       // showScreen('game') 바로 뒤
+  assert.strictEqual(env.el('screen-start').hidden, true);
+  assert.strictEqual(html.getAttribute('data-chal-intro'), '', '게임 화면으로 바뀌는 순간 켜진다');
+  await env.runFor(ms - 50);
+  assert.strictEqual(html.getAttribute('data-chal-intro'), '', '전환(.9초) 동안은 유지');
+  await env.runFor(100);
+  assert.strictEqual(html.getAttribute('data-chal-intro'), null, '약 1초 뒤 걷힌다');
+  await env.runUntil(() => env.I.state.phase === 'playing', 30000);          // 카운트다운은 그대로(시작이 늦어지지 않는다)
+  env.I.state.score = 100;
+  env.I.finishStage();
+  env.el('btn-chal-again').click();                           // 결과 화면에서 [다시 도전] — 이미 게임 화면이다
+  await env.runUntil(() => env.el('overlay-count').hidden === false, 30000);
+  assert.strictEqual(html.getAttribute('data-chal-intro'), null, '시작 화면에서 들어온 것이 아니면 켜지 않는다');
+  await env.runUntil(() => env.I.state.phase === 'playing', 30000);
+  env.I.leaveChallenge();
+  await startStageAndWait(env, 'easy', 1);                     // 스테이지 시작은 배경 동작이 그대로(속성 없음)
+  assert.strictEqual(html.getAttribute('data-chal-intro'), null);
+  env.dispose();
+  const still = createEnv(27);                                 // 기본 시험 환경 = 움직임 줄이기 켜짐
+  still.host.enterChallenge();
+  await still.runUntil(() => still.el('overlay-count').hidden === false, 30000);
+  assert.strictEqual(still.doc.documentElement.getAttribute('data-chal-intro'), null, '움직임 줄이기면 속성을 달지 않는다');
+  still.dispose();
 });
 
 test('enterChallenge 는 시작 화면에서만 쓸 수 있고(게임 중·레벨 선택 중에는 무시), 게이트를 거치지 않는다. [시작]의 게이트는 인자 없이 그대로 불린다', async () => {
@@ -1011,13 +1128,18 @@ test('순위표: 행의 score(최고점)와 내 순위의 score 를 읽는다(�
 const START = HTML.slice(HTML.indexOf('<section id="screen-start"'), HTML.indexOf('<section id="screen-stages"'));
 const OVERLAY = HTML.slice(HTML.indexOf('<div id="overlay-chal-end"'), HTML.indexOf('<!-- 프로필 안내 팝업'));
 
-test('index.html 시작 화면: [시작] 바로 아래 [최고점 도전] 버튼(난이도·설명·시작과 같은 묶음 안, 아이콘은 인라인 SVG·장식), 규칙 줄 하나가 더 있다', () => {
-  const i = START.indexOf('id="btn-start"'), j = START.indexOf('id="btn-challenge"'), k = START.indexOf('id="btn-hall"');
-  assert.ok(i > 0 && j > i && k > j, '[시작] → [최고점 도전] → [명예의 전당] 순서');
-  assert.ok(/class="sc-cta">\s*<div id="level-select"[\s\S]*?id="btn-start"[\s\S]*?id="btn-challenge"[\s\S]*?<\/div>\s*<button id="btn-hall"/.test(START), '버튼은 .sc-cta 묶음 안');
-  assert.match(START, /<button id="btn-challenge" class="btn chal-btn" type="button"><span class="chal-ic" aria-hidden="true"><svg [^>]*focusable="false">/);
-  assert.ok(START.includes('<b class="chal-t">최고점 도전</b>') && START.includes('id="chal-sub"') && /<i id="chal-badge" class="chal-badge" hidden>추천<\/i>/.test(START));
-  assert.ok(START.includes('<li class="rule-chal"><b>최고점 도전</b> 2분 동안 점수를 최대한 모아요. 별이 같을 때 최고점이 높은 사람이 위에 올라요.</li>'));
+test('index.html 시작 화면(spec §46.10): 난이도 줄의 4번째 칸 "최고점 도전 모드"(radiogroup 의 네 번째 radio, 두 줄 라벨), 별도 [최고점 도전] 버튼·추천 딱지·부제는 없고, [시작]은 그대로, 규칙 줄 하나가 더 있다', () => {
+  const group = /<div id="level-select" class="level-select" role="radiogroup" aria-label="난이도">([\s\S]*?)<\/div>/.exec(START)[1];
+  const radios = group.match(/<button [^>]*role="radio"[^>]*>[\s\S]*?<\/button>/g);
+  assert.strictEqual(radios.length, 4, '난이도 세 칸 + 4번째 칸');
+  assert.deepStrictEqual(radios.map((r) => /data-level="(\w+)"/.exec(r)[1]), ['easy', 'normal', 'hard', 'challenge']);
+  assert.strictEqual(radios[3], '<button class="level-btn lv-challenge" type="button" role="radio" aria-checked="false" data-level="challenge" tabindex="-1" aria-label="최고점 도전 모드">최고점<br>도전 모드</button>');
+  assert.strictEqual(radios.filter((r) => /aria-checked="true"/.test(r)).length, 1, '처음에는 한 칸(중수)만 켜져 있다');
+  ['btn-challenge', 'chal-sub', 'chal-badge', 'chal-btn', 'chal-ic', '추천'].forEach((w) => assert.ok(START.indexOf(w) === -1, '별도 버튼의 흔적이 없다: ' + w));
+  const i = START.indexOf('id="level-select"'), d = START.indexOf('id="level-desc"'), j = START.indexOf('id="btn-start"'), k = START.indexOf('id="btn-hall"');
+  assert.ok(i > 0 && d > i && j > d && k > j, '난이도 → 설명 → [시작] → [명예의 전당] 순서');
+  assert.ok(/class="sc-cta">\s*<div id="level-select"[\s\S]*?id="btn-start"[^>]*>시작<\/button>\s*<\/div>\s*<button id="btn-hall"/.test(START), '난이도·설명·[시작]이 .sc-cta 묶음 안, 그 밖의 버튼은 없다');
+  assert.ok(START.includes('<li class="rule-chal"><b>최고점 도전 모드</b> 2분 동안 점수를 최대한 모아요. 별이 같을 때 최고점이 높은 사람이 위에 올라요.</li>'));
   assert.ok(START.includes('<li><b>콤보</b> 쉬지 않고 계속 맞추면 콤보! 점수 배수가 올라가요(최대 ×3).</li>'), '기존 규칙 줄은 그대로');
   assert.strictEqual((HTML.match(/menu-screen/g) || []).length, 4, 'menu-screen 은 네 화면에만');
   assert.strictEqual((HTML.match(/<div\b/g) || []).length, (HTML.match(/<\/div>/g) || []).length, 'div 여닫음');
@@ -1036,11 +1158,11 @@ test('index.html 결과 오버레이: 대화상자 접근성(role·aria-modal·a
 });
 
 test('새 마크업·글에 피하는 말(폭력·도박·보상·외부 링크)이 없다', () => {
-  const added = START.slice(START.indexOf('<button id="btn-challenge"'), START.indexOf('id="btn-hall"')) + OVERLAY;
+  const added = START.slice(START.indexOf('<button class="level-btn lv-challenge"'), START.indexOf('</button>', START.indexOf('<button class="level-btn lv-challenge"'))) + START.slice(START.indexOf('<li class="rule-chal">'), START.indexOf('</li>', START.indexOf('<li class="rule-chal">'))) + OVERLAY;
   ['폭발', '대결', '공격', '싸움', '전투', '처치', '패배', '졌', '도박', '뽑기', '확률', '결제', '구매', '코인', 'http://', 'https://', '<a '].forEach((w) => assert.ok(added.indexOf(w) === -1, w));
 });
 
-test('style.css: 도전 블록이 정령 블록 앞에 하나 있고(:root·보드 크기식 없음), 버튼·결과 버튼 높이 44px 이상, 글자 11px 이상, 감소 모션 "screen and" 형식', () => {
+test('style.css: 도전 블록이 정령 블록 앞에 하나 있고(:root·보드 크기식 없음), 4번째 칸은 칸 높이를 키우지 않고(높이는 .level-btn 의 44px 이상 그대로)·결과 버튼은 44px 이상, 글자 11px 이상, 감소 모션 "screen and" 형식', () => {
   const m = CSS.indexOf('최고점 도전 (spec §46)');
   const sp = CSS.indexOf('정령 특별 레벨 (spec §27.6, M4)');
   assert.ok(m > 0 && CSS.indexOf('최고점 도전 (spec §46)', m + 1) === -1, '블록 하나');
@@ -1050,8 +1172,14 @@ test('style.css: 도전 블록이 정령 블록 앞에 하나 있고(:root·보�
   assert.ok(!/^\s*:root/m.test(code) && !/--board\s*:|--ui-h\s*:|--cell\s*:/.test(code));
   assert.ok(!/https?:\/\/|url\(|@font-face|backdrop-filter|blur\(|infinite/.test(code), '외부 주소·새 파일·글꼴·무한 반복 없음');
   const minH = (sel) => { const r = new RegExp('(?:^|\\n)' + sel.replace(/[.#[\]]/g, '\\$&') + ' \\{[^}]*?min-height:\\s*(\\d+)px').exec(code); return r && +r[1]; };
-  assert.ok(minH('#btn-challenge') >= 44 && minH('.panel .chal-buttons .btn') >= 44);
-  (code.match(/#btn-challenge \{ min-height: (\d+)px/g) || []).forEach((d) => assert.ok(+/(\d+)px/.exec(d)[1] >= 44, d));
+  assert.ok(minH('.panel .chal-buttons .btn') >= 44);
+  assert.ok(!/btn-challenge|chal-btn|chal-ic|chal-txt|chal-badge/.test(code), '별도 [최고점 도전] 버튼의 규칙은 없다(spec §46.10)');
+  const chipRules = (code.match(/\.level-select \.level-btn\.lv-challenge[^{]*\{[^}]*\}/g) || []).filter((r) => !/::before/.test(r.split('{')[0]));
+  assert.ok(chipRules.length >= 3, '4번째 칸 규칙(기본·켜짐·좁은 화면 글자 크기)');
+  chipRules.forEach((r) => assert.ok(!/(^|[^-])height\s*:|min-height|max-height/.test(r), '칸 높이를 건드리지 않는다(두 줄 라벨은 줄 높이·안쪽 여백으로 맞춘다): ' + r));
+  assert.ok(/\.level-select \.level-btn\.lv-challenge \{[^}]*padding: 0 2px;[^}]*line-height: 1\.08;/.test(code), '두 줄 라벨: 안쪽 위아래 여백 0, 줄 높이 1.08');
+  assert.ok(/\.level-select \.level-btn\.lv-challenge\.on \{[^}]*linear-gradient\(180deg, #d9f9ff 0%, #5fd3e8 46%, #2aa4c6 54%, #5fd3e8 100%\)/.test(code), '켜지면 하늘색 3단 그라데이션(위 하이라이트·가운데 띠)');
+  assert.ok(/\.level-select \.level-btn\.lv-challenge::before \{[^}]*position: absolute;[^}]*width: 2px;/.test(code), '고수와의 사이에 가는 구분선');
   (code.match(/font-size:\s*[^;]+;/g) || []).forEach((d) => { const r = d.match(/(\d*\.?\d+)rem/); assert.ok(/max\(11px/.test(d) || (r && parseFloat(r[1]) * 16 >= 11), d); });
   assert.ok(/@media screen and \(prefers-reduced-motion: reduce\)/.test(block) && !/@media \(prefers-reduced-motion: reduce\)/.test(block));
   const red = code.match(/#[0-9a-f]{6}/gi) || [];
@@ -1062,9 +1190,9 @@ test('style.css: 도전 화면의 글자색·바탕색 짝이 WCAG AA(4.5:1) 이
   const lum = (hex) => { const v = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).map((c) => (c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4))); return 0.2126 * v[0] + 0.7152 * v[1] + 0.0722 * v[2]; };
   const cr = (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
   const pairs = [
-    ['#04323f', '#a6eef8'], ['#04323f', '#5ad0e6'], ['#04323f', '#38bad6'],      // 버튼 제목: 그라디언트 세 지점
-    ['#05404f', '#a6eef8'], ['#05404f', '#5ad0e6'], ['#05404f', '#38bad6'],      // 버튼 부제
-    ['#4a2600', '#ffd23f'],                                                      // 추천 딱지
+    ['#04323f', '#d9f9ff'], ['#04323f', '#5fd3e8'], ['#04323f', '#2aa4c6'],      // 4번째 칸(켜짐) 글자: 그라디언트 세 지점(가장 진한 띠 #2aa4c6 에서 4.71)
+    ['#ffffff', '#0a4f6b'],                                                      // [도전 시작] 흰 글자와 그 가장자리(진한 청록)
+    ['#04323f', '#a6eef8'], ['#04323f', '#5ad0e6'], ['#04323f', '#38bad6'],      // 결과 화면 [다시 도전] 버튼 글자
     ['#04323f', '#cdf1f8'], ['#05404f', '#c9f0f8'],                              // 규칙 줄 머리글자·도전 칩
     ['#ffffff', '#5b3df5'], ['#ffffff', '#6f57f7'],                              // 결과 리본
     ['#2a2160', '#ece6ff'],                                                      // 결과 한 줄
@@ -1072,14 +1200,14 @@ test('style.css: 도전 화면의 글자색·바탕색 짝이 WCAG AA(4.5:1) 이
     ['#4a2600', '#fff1a3'], ['#4a2600', '#ffc531'], ['#4a2600', '#ffd23f']       // 내 줄·내 순위 바
   ];
   pairs.forEach(([f, b]) => assert.ok(cr(f, b) >= 4.5, f + ' on ' + b + ' = ' + cr(f, b).toFixed(2)));
-  ['#04323f', '#05404f', '#075468', '#cdf1f8', '#c9f0f8', '#a6eef8', '#5ad0e6', '#38bad6'].forEach((h) => assert.ok(CSS.includes(h), h + ' 가 style.css 에 쓰였다'));
+  ['#04323f', '#05404f', '#075468', '#cdf1f8', '#c9f0f8', '#a6eef8', '#5ad0e6', '#38bad6', '#d9f9ff', '#5fd3e8', '#2aa4c6', '#0a4f6b'].forEach((h) => assert.ok(CSS.includes(h), h + ' 가 style.css 에 쓰였다'));
 });
 
 test('ranking-ui.js: 순위표 규칙 문구·하단 안내·행 최고점·도전 이벤트 연결, 도전 모드가 없는 빌드(host.enterChallenge 없음)에서는 기존 동작 그대로', () => {
   assert.ok(UI.includes("'점수가 같으면 최고점이 높은 순 (그다음 남은 시간)' : '별이 같으면 최고점이 높은 순 (그다음 남은 시간)'"));
   assert.ok(UI.includes('보이는 정보는 닉네임·그림·별 수·최고점·순위뿐이에요.'));
   assert.ok(!UI.includes('남은 시간이 많은 순'));
-  assert.ok(UI.includes("mk('small', 'bs', R.bestText(best))") && UI.includes('R.bestLabel(r.score)') && UI.includes('R.bestLabel(me.score)'));
+  assert.ok(UI.includes('sc.appendChild(bestEl(best))') && UI.includes('R.bestText(best)') && UI.includes('R.bestLabel(r.score)') && UI.includes('R.bestLabel(me.score)'));
   assert.ok(UI.includes("host.on('challengeResult', onChallengeResult)") && UI.includes("host.on('openHall'"));
   assert.ok(UI.includes('client.flushScore()') && UI.includes('client.onHidden()') && UI.includes('client.markScore()'));
   assert.ok(UI.includes("typeof host.enterChallenge === 'function'"), '도전 이동은 host.enterChallenge 가 있을 때만');
@@ -1089,7 +1217,8 @@ test('ranking-ui.js: 순위표 규칙 문구·하단 안내·행 최고점·도�
 });
 
 /** 가짜 DOM 으로 ranking-ui.js 를 실제로 돌린다: 게이트(kind)·이어가기·순위표 글 */
-function loadUi(withChallenge, fetchFn) {
+function loadUi(withChallenge, fetchFn, o) {
+  const opt = o || {};
   const ids = {};
   const mkEl = () => {
     const e = new FakeEl('div');
@@ -1112,24 +1241,30 @@ function loadUi(withChallenge, fetchFn) {
   const host = {
     CONFIG: JSON.parse(JSON.stringify(G.CONFIG)), calls,
     on(n, fn) { (host._l[n] = host._l[n] || []).push(fn); }, _l: {},
-    getSave: () => G.defaultSave(), showScreen: (n) => calls.push(['showScreen', n]), goHome: () => calls.push(['goHome']),
+    getSave: () => opt.save || G.defaultSave(), showScreen: (n) => calls.push(['showScreen', n]), goHome: () => calls.push(['goHome']),
     setStartGate: (fn) => { host.gate = fn; }, enterStages: () => calls.push(['enterStages']), getPhase: () => 'start', writeSave() {}
   };
   host.CONFIG.ranking.apiBase = 'http://x.test';
   if (withChallenge) host.enterChallenge = () => calls.push(['enterChallenge']);
   else delete host.CONFIG.challenge;
+  const timers = [];                                          // opt.manualTimers: setTimeout 은 쌓아 두기만 한다(눌러 줄 때만 실행) — 5분 뒤 제출 예약이 저절로 실행되지 않게
+  if (opt.profile) {
+    lsData['element-gems:profile:v1'] = JSON.stringify({ pid: UUID, pub: 'ABCD1234', nick: '별빛냥', tag: 427, avatar: 3 });
+    lsData['element-gems:sync:v1'] = JSON.stringify({ dirty: false, lastOkAt: 1700000000000, fails: 0, nextTryAt: 0, blocked: false, blockedCode: '', sdirty: false, sat: 0 });   // 이미 한 번 동기화한 상태: start() 가 아무것도 예약하지 않는다
+  }
   const win = {
     document: doc, ElementGemsHost: host, ElementGemsRanking: R, navigator: { onLine: true }, crypto: {}, location: { reload() {} },
     localStorage: { getItem: (k) => (k in lsData ? lsData[k] : null), setItem: (k, v) => { lsData[k] = String(v); }, removeItem: (k) => { delete lsData[k]; } },
     sessionStorage: { getItem: () => null, setItem() {}, removeItem() {} },
-    addEventListener() {}, setTimeout: (fn) => { fn(); return 1; }, clearTimeout() {}, scrollTo() {}, fetch: fetchFn || (async () => jsonRes(200, { ok: true, v: 1, rows: [], of: 0, asOf: 1 })),
+    addEventListener() {}, setTimeout: opt.manualTimers ? (fn, ms) => { timers.push({ fn, ms }); return timers.length; } : (fn) => { fn(); return 1; }, clearTimeout() {}, scrollTo() {}, fetch: fetchFn || (async () => jsonRes(200, { ok: true, v: 1, rows: [], of: 0, asOf: 1 })),
     console
   };
   win.window = win;
   vm.createContext(win);
+  if (opt.realRanking) vm.runInContext(read(root, 'ranking.js'), win, { filename: 'ranking.js' });     // ranking.js 도 같은 가짜 창 안에서 실행(타이머·저장소가 이 창의 것)
   vm.runInContext(UI, win, { filename: 'ranking-ui.js' });
   (host._l.init || []).forEach((fn) => fn());
-  return { host, doc, win, ids };
+  return { host, doc, win, ids, timers, lsData };
 }
 
 test('ranking-ui 실행: 프로필이 없을 때 [최고점 도전]의 안내 팝업은 "도전"을 기억하고, [프로필 없이 시작]이면 도전으로 이어간다(도전 없는 빌드는 레벨 선택)', () => {
@@ -1167,6 +1302,110 @@ test('ranking-ui 실행: [프로필 만들기]로 가면 저장 뒤 원래 가�
   assert.strictEqual(u.doc.getElementById('hall-rule').textContent, '점수가 같으면 최고점이 높은 순 (그다음 남은 시간)');
   assert.match(u.doc.getElementById('hall-foot').textContent, /닉네임·그림·별 수·최고점·순위뿐이에요\./);
   assert.ok(txt(list.children[0]).length > 0);
+});
+
+/* ---- Review R-C 후속 3건(spec §46.10): 429 대기 · 320px 순위표 줄 · 시작 화면 복귀 시 flushScore ---- */
+test('429(rate_limited): 대기는 Retry-After 값만 쓴다 — 연달아 429 를 받아도 실패 횟수 백오프(5초→…→15분)로 늘어나지 않는다. 헤더가 없으면 쓰기 간격. 네트워크·5xx 실패의 백오프는 그대로', async () => {
+  const body429 = { ok: false, v: 1, error: { code: 'rate_limited', message: 'x' } };
+  const t = setup({ best: 5000, handler: () => jsonRes(429, body429, { 'Retry-After': '20' }) });
+  t.client.markScore();
+  await t.clock.advance(301000);                               // 5분 뒤 첫 제출
+  assert.strictEqual(syncCalls(t).length, 1);
+  const lastAt = (x) => syncCalls(x).slice(-1)[0].t;          // 마지막 제출을 보낸 가상 시각
+  for (let i = 1; i <= 7; i++) {                               // 옛 코드는 6번째부터 max(20초, 백오프 5분·15분)을 기다렸다
+    const n = syncCalls(t).length, at = lastAt(t);
+    await t.clock.advance(at + 19500 - t.clock.now());
+    assert.strictEqual(syncCalls(t).length, n, i + '번째 연속 429 뒤 20초 전에는 다시 보내지 않는다');
+    await t.clock.advance(1000);
+    assert.strictEqual(syncCalls(t).length, n + 1, i + '번째 연속 429 뒤 20초가 지나면 다시 보낸다(Retry-After 값만)');
+  }
+  assert.strictEqual(t.client.status().fails, 0, '429 는 실패 횟수를 올리지 않는다');
+  assert.strictEqual(t.client.status().sdirty, true, '점수는 이 기기에 남아 있고 대기 표시도 그대로');
+  const gap = G.CONFIG.ranking.minSubmitGapMs;                 // 헤더가 없는 429 는 서버 쓰기 간격만 기다린다
+  const noHeader = setup({ best: 5000, handler: () => jsonRes(429, body429) });
+  noHeader.client.markScore();
+  await noHeader.clock.advance(301000);
+  for (let i = 1; i <= 6; i++) {
+    const n = syncCalls(noHeader).length, at = lastAt(noHeader);
+    await noHeader.clock.advance(at + gap - 500 - noHeader.clock.now());
+    assert.strictEqual(syncCalls(noHeader).length, n);
+    await noHeader.clock.advance(1000);
+    assert.strictEqual(syncCalls(noHeader).length, n + 1, '헤더 없는 429 ' + i + '번째: 쓰기 간격(' + gap + 'ms) 뒤');
+  }
+  // 5xx 는 백오프(5초 → 15초 → 60초)가 그대로다
+  const srv = setup({ best: 5000, handler: () => jsonRes(500, { ok: false, v: 1, error: { code: 'server_error', message: 'x' } }) });
+  srv.client.markScore();
+  await srv.clock.advance(301000);
+  assert.strictEqual(syncCalls(srv).length, 1);
+  for (const [i, wait] of [[2, 5000], [3, 15000], [4, 60000]]) {
+    await srv.clock.advance(lastAt(srv) + wait - 500 - srv.clock.now());
+    assert.strictEqual(syncCalls(srv).length, i - 1, '실패 ' + (i - 1) + '번째 뒤 ' + wait + 'ms 전');
+    await srv.clock.advance(1000);
+    assert.strictEqual(syncCalls(srv).length, i, '실패 ' + (i - 1) + '번째 뒤 ' + wait + 'ms 뒤');
+  }
+  assert.strictEqual(srv.client.status().fails, 4, '5xx 는 실패 횟수를 올린다(네 번 실패)');
+  // 429 와 5xx 가 섞여도 429 는 횟수를 올리지 않는다
+  let k = 0;
+  const mix = setup({ best: 5000, handler: () => (++k === 2 ? jsonRes(429, body429, { 'Retry-After': '30' }) : jsonRes(500, { ok: false, v: 1, error: { code: 'server_error', message: 'x' } })) });
+  mix.client.markScore();
+  await mix.clock.advance(301000);                             // 500 (fails 1)
+  await mix.clock.advance(lastAt(mix) + 5500 - mix.clock.now());   // 5초 뒤 429
+  assert.strictEqual(syncCalls(mix).length, 2);
+  assert.strictEqual(mix.client.status().fails, 1, '429 는 횟수를 올리지 않는다');
+  await mix.clock.advance(lastAt(mix) + 29500 - mix.clock.now());
+  assert.strictEqual(syncCalls(mix).length, 2);
+  await mix.clock.advance(1000);
+  assert.strictEqual(syncCalls(mix).length, 3, '429 뒤에는 Retry-After(30초)');
+});
+
+test('순위표 줄의 "최고점 N"은 최고·점·숫자 세 조각이고(글은 R.bestText 와 같다), 폭 340px 이하에서만 "점"을 감춘다(style.css). 넓은 화면의 순위표 규칙은 그대로다', async () => {
+  const rows = [{ rank: 4, nick: '반짝반짝별빛곰돌', tag: 90, avatar: 4, stars: 174, score: 21450 }, { rank: 5, nick: '숲속요정', tag: 5521, avatar: 2, stars: 170 }];
+  const u = loadUi(true, async (url) => jsonRes(200, /leaderboard/.test(url) ? { ok: true, v: 1, rows, of: 2, asOf: 1700000000 } : { ok: true, v: 1 }));
+  u.host.gate('challenge');
+  u.doc.getElementById('pa-create').click();
+  u.doc.getElementById('btn-hall').click();
+  await settle();
+  const list = u.doc.getElementById('hall-list');
+  const bsOf = (li) => li.children[li.children.length - 1].children.find((c) => c.className === 'bs');
+  const a = bsOf(list.children[0]);
+  assert.deepStrictEqual(a.children.map((c) => [c.tagName, c.className, c.textContent]), [['DIV', '', '최고'], ['I', 'bj', '점'], ['DIV', '', ' 21,450']].map(([tag, cls, txt]) => (tag === 'DIV' ? ['DIV', cls, txt] : [tag, cls, txt])));
+  assert.strictEqual(a.textContent, R.bestText(21450), '조각을 이어 붙이면 예전과 같은 글이다(낭독은 줄의 aria-label)');
+  assert.strictEqual(bsOf(list.children[1]).textContent, R.bestText(0));
+  assert.deepStrictEqual(bsOf(list.children[1]).children.map((c) => c.textContent), ['최고', '점', ' —']);
+  // CSS: 340px 이하에서만 .bj 를 감춘다. 다른 폭의 .bs 규칙은 그대로(글자 크기 .7rem·줄 바꿈 없음)
+  assert.ok(/@media \(max-width: 340px\) \{\s*\.hr \.sc \.bs \.bj, \.myrank \.sc \.bs \.bj \{ display: none; \}\s*\}/.test(CSS));
+  assert.strictEqual((CSS.replace(/\/\*[\s\S]*?\*\//g, '').match(/\.bj\b/g) || []).length, 2, '.bj 규칙은 그 한 곳뿐');
+  assert.ok(/\.hr \.sc \.bs, \.myrank \.sc \.bs \{ margin: 0; font-size: \.7rem; font-weight: 800; line-height: 1\.2; white-space: nowrap;/.test(CSS), '.bs 기본 규칙은 그대로');
+});
+
+test('실행(ranking-ui + ranking): 새 기록은 5분 타이머로 예약만 되고, 시작 화면으로 돌아오면(renderStart 이벤트) flushScore() 가 바로 불려 제출 본문에 s 가 실린다. 새 기록이 없으면 아무것도 보내지 않는다', async () => {
+  const calls = [];
+  const fetchFn = async (url, init) => { calls.push({ url, body: init && init.body ? JSON.parse(init.body) : null }); return jsonRes(200, okMe({ score: init && init.body ? JSON.parse(init.body).s || 0 : 0 })); };
+  const sv = G.defaultSave();
+  const u = loadUi(true, fetchFn, { realRanking: true, manualTimers: true, profile: true, save: sv });
+  assert.ok(u.host._l.renderStart && u.host._l.challengeResult, 'ranking-ui 가 두 이벤트에 연결됐다');
+  assert.strictEqual(u.timers.length, 0, '시작 직후 예약된 것이 없다');
+  sv.challenge.best = 7777;                                    // game.js 가 applyChallengeResult 로 저장하는 값
+  u.host._l.challengeResult.forEach((fn) => fn({ score: 7777, prev: 0, best: 7777, newBest: true, first: true }));
+  await settle();
+  assert.strictEqual(calls.length, 0, '새 기록은 곧바로 보내지 않는다');
+  assert.ok(u.timers.some((x) => x.ms >= 300000), '5분(submitDelaySec) 뒤로 예약만 됐다');
+  u.host._l.renderStart.forEach((fn) => fn());                 // 도전을 나가 시작 화면으로 돌아왔다(game.js 의 goHome 이 내는 이벤트)
+  await settle();
+  assert.strictEqual(calls.length, 1, 'flushScore() 가 불려 지금 한 번 올렸다');
+  assert.match(calls[0].url, /\/api\/sync$/);
+  assert.strictEqual(calls[0].body.s, 7777, '제출 본문에 최고점 s');
+  assert.strictEqual(calls[0].body.pid, UUID);
+  assert.strictEqual(JSON.parse(u.lsData['element-gems:sync:v1']).sdirty, false, '올렸으니 대기 표시가 꺼졌다');
+  u.host._l.renderStart.forEach((fn) => fn());
+  await settle();
+  assert.strictEqual(calls.length, 1, '또 돌아와도 더 보내지 않는다(대기 중인 것이 없다)');
+  const none = [];
+  const idle = loadUi(true, async (url, init) => { none.push(url); return jsonRes(200, okMe()); }, { realRanking: true, manualTimers: true, profile: true, save: G.defaultSave() });
+  idle.host._l.challengeResult.forEach((fn) => fn({ score: 100, prev: 500, best: 500, newBest: false, first: false }));   // 못 넘은 판
+  idle.host._l.renderStart.forEach((fn) => fn());
+  await settle();
+  assert.strictEqual(none.length, 0, '새 기록이 없으면 시작 화면으로 돌아와도 아무것도 보내지 않는다');
 });
 
 test('두 앱 동기화: ranking-ui.js·style.css 는 교육용과 바이트가 같고, ranking.js 는 동기화 키 한 줄([EDU] 주석 포함)만 다르다', () => {

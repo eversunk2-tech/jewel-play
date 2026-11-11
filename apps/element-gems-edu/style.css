@@ -711,7 +711,7 @@ body::before {
 /* =====================================================================
  * 3차 Build: 난이도 선택 / 뱃지
  * ===================================================================== */
-.level-select { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 4px 0 6px; }
+.level-select { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 4px 0 6px; }
 .level-btn {
   min-height: 48px;
   min-width: 0;
@@ -1731,57 +1731,43 @@ body::after {
 }
 
 /* =====================================================================
- * 최고점 도전 (spec §46) — 시작 화면 [최고점 도전] 버튼 · 도전 중 막대(#goal 자리) · 도전 결과 화면 · 명예의 전당 "최고점" 줄.
- * 새 규칙은 #btn-challenge · .chal-* · .level-chip.lv-challenge · .goal[data-chal] · .rule-chal · .bs(순위표 최고점)로만 걸린다: 도전을 하지 않는 화면에는 아무것도 달라지지 않는다.
+ * 최고점 도전 (spec §46) — 시작 화면 난이도 줄의 4번째 칸 "최고점 도전 모드"(§46.10) · 도전 중 막대(#goal 자리) · 도전 결과 화면 · 명예의 전당 "최고점" 줄.
+ * 새 규칙은 .level-btn.lv-challenge · #btn-start.is-chal · html[data-chal-intro] · .chal-* · .level-chip.lv-challenge · .goal[data-chal] · .rule-chal · .bs(순위표 최고점)로만 걸린다: 도전을 하지 않는 화면에는 아무것도 달라지지 않는다.
  * 도전 막대는 점수형 목표 바(#goal)를 그대로 쓰므로 높이·위치·보드 크기식을 건드리지 않는다. 글자는 11px 아래로 내려가지 않고 잉크색 계열 + 밝은 바탕이라 4.5:1 이상이다.
- * 색에만 의존하지 않는다: 새 기록·추천은 글자("새 기록!", "추천", "신기록!")와 ★ 모양으로도 알린다. 연출은 기존 목표 바 반짝임(goalHit) 하나뿐이고 감소 모션에서는 JS 가 켜지 않는다.
- * 빨간색 · "TIME UP" · 실패 표현 없음. 새 이미지·글꼴 0개(아이콘은 index.html 의 인라인 SVG).
- * 이 블록은 정령 블록 앞에 놓는다(앞 단계 블록 시험이 "블록 시작 ~ 파일 끝쪽 메뉴 블록 앞"을 읽으므로). 시작 화면 버튼은 id 선택자(#btn-challenge)로 메뉴 V1 의 .menu-screen 규칙보다 앞선다.
+ * 색에만 의존하지 않는다: 새 기록은 글자("새 기록!", "신기록!")와 ★ 모양으로도 알린다. 연출은 기존 목표 바 반짝임(goalHit) 하나뿐이고 감소 모션에서는 JS 가 켜지지 않는다.
+ * 빨간색 · "TIME UP" · 실패 표현 없음. 새 이미지·글꼴 0개.
+ * 이 블록은 정령 블록 앞에 놓는다(앞 단계 블록 시험이 "블록 시작 ~ 파일 끝쪽 메뉴 블록 앞"을 읽으므로). 그래서 메뉴 V1 의 .menu-screen 규칙보다 앞서는 선택자는 .level-select · #btn-start.is-chal 처럼 구체성(specificity)으로 이긴다.
  * ===================================================================== */
-/* ---------- 시작 화면: [시작] 바로 아래 하늘색 청록 버튼 ---------- */
-#btn-challenge {
-  position: relative; display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; min-height: 60px; margin: 0; padding: 6px 16px;
-  border: 3px solid #fff; border-radius: 20px; text-align: left;
-  background: linear-gradient(180deg, #a6eef8 0%, #5ad0e6 55%, #38bad6 100%); color: #04323f; text-shadow: none;
-  box-shadow: inset 0 -4px 0 rgba(0, 80, 110, .2), 0 5px 0 #0f7f9c, 0 10px 14px rgba(0, 70, 100, .28);
-  transition: transform .08s, box-shadow .08s;
+/* ---------- 시작 화면: 난이도 줄의 4번째 칸 "최고점 도전 모드"(spec §46.10) ----------
+ * 선택 전에는 초보·중수·고수의 선택 안 된 칸과 똑같이 보이고(색 없음) 고수 칸과의 사이에 가는 구분선만 있다. 고르면 하늘색(위·아래 하이라이트가 있는 3단 그라데이션)으로 켜진다.
+ * 두 줄 라벨("최고점 / 도전 모드")이 칸 높이를 키우지 않게 줄 높이·안쪽 여백만 줄였다(칸 높이는 .level-btn 의 min-height 가 그대로 정한다). 구분선의 위치는 칸 사이 간격(gap) 가운데: 간격이 6px 이면 left -6px, 4px 이면 -5px(칸의 2px 투명 테두리 안쪽 기준). */
+.level-select .level-btn.lv-challenge { position: relative; padding: 0 2px; font-size: .95rem; line-height: 1.08; }
+.level-select .level-btn.lv-challenge::before { content: ""; position: absolute; left: -6px; top: 10px; bottom: 10px; width: 2px; background: rgba(90, 70, 200, .28); pointer-events: none; }
+.level-select .level-btn.lv-challenge.on { background: linear-gradient(180deg, #d9f9ff 0%, #5fd3e8 46%, #2aa4c6 54%, #5fd3e8 100%); color: #04323f; text-shadow: 0 1px 0 rgba(255, 255, 255, .5); border-color: #e6fcff; }
+@media (max-width: 440px), (orientation: landscape) and (max-width: 700px) {
+  .level-select .level-btn.lv-challenge { font-size: .84rem; }
 }
-#btn-challenge:hover { background: linear-gradient(180deg, #a6eef8 0%, #5ad0e6 55%, #38bad6 100%); filter: brightness(1.04); }
-#btn-challenge:active { transform: translateY(4px); box-shadow: inset 0 -3px 0 rgba(0, 80, 110, .2), 0 1px 0 #0f7f9c; }
-#btn-challenge:focus-visible { outline: 4px solid var(--focus); outline-offset: 3px; box-shadow: 0 0 0 7px #fff, 0 5px 0 #0f7f9c; }
-.chal-ic { flex: none; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; background: #fff; box-shadow: 0 2px 0 rgba(0, 80, 110, .3); }
-.chal-ic svg { display: block; width: 26px; height: 26px; }
-.chal-txt { display: flex; flex-direction: column; min-width: 0; line-height: 1.15; }
-.chal-t { font-size: 1.2rem; font-weight: 900; letter-spacing: .02em; }
-.chal-s { font-size: .8rem; font-weight: 800; color: #05404f; }
-.chal-badge { flex: none; margin-left: 2px; padding: 1px 10px; border-radius: 999px; background: #ffd23f; color: #4a2600; font-style: normal; font-size: .78rem; font-weight: 900; box-shadow: 0 2px 0 #d9830a; }
-.rules li.rule-chal b { background: #cdf1f8; color: #04323f; }
-@media (orientation: portrait) and (max-height: 700px) {
-  #btn-challenge { min-height: 50px; padding: 3px 14px; border-radius: 20px; }
-  .chal-ic { width: 34px; height: 34px; }
-  .chal-ic svg { width: 22px; height: 22px; }
-  .chal-t { font-size: 1.08rem; }
-  .chal-s { font-size: .74rem; }
+@media (max-width: 349px), (orientation: landscape) and (max-width: 600px) {
+  .level-select .level-btn.lv-challenge { font-size: .78rem; }
 }
-@media (orientation: portrait) and (max-height: 600px) {
-  #btn-challenge { min-height: 46px; padding-top: 2px; padding-bottom: 2px; }
-  .chal-s { display: none; }
+@media (min-width: 800px) and (min-height: 501px) and (max-height: 700px) and (orientation: landscape), (orientation: landscape) and (max-height: 500px), (orientation: landscape) and (min-height: 501px) and (max-width: 799px) {
+  .level-select .level-btn.lv-challenge::before { left: -5px; }
+}
+/* ---------- 시작 화면: 4번째 칸을 고르면 [시작]이 하늘색 [도전 시작]으로(같은 모양·크기·위치, 받침 색만 하늘색 계열) ---------- */
+#btn-start.is-chal { background: linear-gradient(180deg, #a6eef8 0%, #4fc9e6 52%, #1f9fc2 100%); border-color: #e6fcff; box-shadow: inset 0 -3px 0 rgba(0, 80, 110, .22), 0 5px 0 #137a9c, 0 9px 14px rgba(0, 70, 100, .3); }
+@media (min-width: 800px) and (min-height: 501px) and (orientation: landscape), (orientation: portrait) {
+  .menu-screen #btn-start.is-chal { --mn-cta-edge: #0a4f6b; background: linear-gradient(180deg, #a6eef8 0%, #4fc9e6 52%, #1f9fc2 100%); box-shadow: inset 0 -6px 0 rgba(0, 70, 105, .28), 0 8px 0 #137a9c, 0 16px 22px rgba(0, 60, 90, .35); }
+  .menu-screen #btn-start.is-chal:active { box-shadow: inset 0 -4px 0 rgba(0, 70, 105, .28), 0 3px 0 #137a9c; }
+  .menu-screen #btn-start.is-chal:focus-visible { box-shadow: 0 0 0 8px #fff, 0 8px 0 #137a9c; }
 }
 @media (orientation: landscape) and (max-height: 500px), (orientation: landscape) and (min-height: 501px) and (max-width: 799px) {
-  #btn-challenge { min-height: 52px; padding: 3px 12px; }
-  .chal-ic { width: 34px; height: 34px; }
-  .chal-ic svg { width: 22px; height: 22px; }
-  .chal-t { font-size: 1.08rem; }
-  .chal-s { font-size: .74rem; }
+  .menu-screen #btn-start.is-chal { --mn-cta-edge: #0a4f6b; background: linear-gradient(180deg, #a6eef8 0%, #4fc9e6 52%, #1f9fc2 100%); box-shadow: inset 0 -6px 0 rgba(0, 70, 105, .28), 0 6px 0 #137a9c, 0 12px 16px rgba(0, 60, 90, .3); }
+  .menu-screen #btn-start.is-chal:active { box-shadow: inset 0 -4px 0 rgba(0, 70, 105, .28), 0 2px 0 #137a9c; }
+  .menu-screen #btn-start.is-chal:focus-visible { box-shadow: 0 0 0 8px #fff, 0 6px 0 #137a9c; }
 }
-@media (orientation: landscape) and (max-height: 400px) {
-  #btn-challenge { min-height: 46px; }
-  .chal-s { display: none; }
-}
-@media (min-width: 800px) and (min-height: 501px) and (max-height: 700px) and (orientation: landscape) {
-  #btn-challenge { min-height: 52px; }
-  .chal-s { font-size: .74rem; }
-}
+/* ---------- 시작 화면 → 도전 판: 배경이 아래로 부드럽게 내려간다(레벨 선택으로 갈 때의 배경 이동과 같은 느낌). 게임 화면에는 원래 전환이 없어서 game.js 가 잠깐 이 속성을 단다(CONFIG.anim.camIntroMs) ---------- */
+html[data-chal-intro]::before { transition: background-position .9s ease; }
+.rules li.rule-chal b { background: #cdf1f8; color: #04323f; }
 
 /* ---------- 도전 중: 점수 칸의 "도전" 칩 · "내 최고까지" 막대(#goal 자리, 주황 선 = 내 최고) ---------- */
 .level-chip.lv-challenge { background: #c9f0f8; color: #05404f; }
@@ -1835,12 +1821,16 @@ body::after {
 .myrank .sc .sl::before { content: "\2605"; color: #ffb703; -webkit-text-stroke: 1.5px #b86b00; paint-order: stroke fill; font-size: 1.15rem; }
 .hr .sc .bs, .myrank .sc .bs { margin: 0; font-size: .7rem; font-weight: 800; line-height: 1.2; white-space: nowrap; color: #075468; font-variant-numeric: tabular-nums; }
 .hr.me .sc .bs, .myrank .sc .bs { color: #4a2600; }
+/* 폭 340px 이하(예 320×568·340×640): "최고점 N" 때문에 오른쪽 칸이 넓어져 닉네임이 보이는 폭이 줄지 않게 "점"(.bj)만 감춰 "최고 N"으로 줄인다(ranking-ui.js 의 bestEl, Review R-C 후속). 넓은 화면은 그대로 */
+@media (max-width: 340px) {
+  .hr .sc .bs .bj, .myrank .sc .bs .bj { display: none; }
+}
 @media (min-width: 800px) and (min-height: 501px) and (orientation: landscape), (orientation: portrait) {
   .hf-list > .hr:nth-child(-n+3) .sc { align-items: center; }
 }
 /* 감소 모션. "screen and" 형식으로 쓴 이유: 앞 단계 블록 시험이 "screen and" 없는 감소 모션 미디어 쿼리를 막아 둔다 */
 @media screen and (prefers-reduced-motion: reduce) {
-  #btn-challenge { transition: none; }
+  html[data-chal-intro]::before { transition: none; }
   .goal[data-chal] .goal-fill { transition: none; }
 }
 

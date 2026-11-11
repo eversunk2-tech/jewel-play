@@ -430,6 +430,43 @@ test('rate_limited 는 Retry-After 를 지켜 재시도', async () => {
   assert.strictEqual(t.calls.length, 2);
 });
 
+test('rate_limited(429): 연달아 받아도 대기는 Retry-After 값만이다(실패 횟수 백오프 5초→…→15분을 섞지 않고 횟수도 올리지 않는다). 헤더가 없으면 쓰기 간격. 5xx 백오프는 그대로', async () => {
+  const lastAt = (x) => x.calls[x.calls.length - 1].t;
+  const t = setup({ store: registeredStore(), handler: () => jsonRes(429, errJson('rate_limited'), { 'Retry-After': '20' }) });
+  t.client.markDirty(0);
+  await t.clock.advance(1);
+  assert.strictEqual(t.calls.length, 1);
+  for (let i = 1; i <= 7; i++) {                              // 옛 코드는 6번째 연속 429 부터 max(20초, 백오프 5분·15분)을 기다렸다
+    const n = t.calls.length;
+    await t.clock.advance(lastAt(t) + 19500 - t.clock.now());
+    assert.strictEqual(t.calls.length, n, i + '번째 연속 429 뒤 20초 전에는 다시 보내지 않는다');
+    await t.clock.advance(1000);
+    assert.strictEqual(t.calls.length, n + 1, i + '번째 연속 429 뒤 20초가 지나면 다시 보낸다');
+  }
+  assert.strictEqual(t.client.status().fails, 0, '429 는 실패 횟수를 올리지 않는다');
+  const gap = G.CONFIG.ranking.minSubmitGapMs;
+  const nh = setup({ store: registeredStore(), handler: () => jsonRes(429, errJson('rate_limited')) });
+  nh.client.markDirty(0);
+  await nh.clock.advance(1);
+  for (let i = 1; i <= 6; i++) {
+    const n = nh.calls.length;
+    await nh.clock.advance(lastAt(nh) + gap - 500 - nh.clock.now());
+    assert.strictEqual(nh.calls.length, n);
+    await nh.clock.advance(1000);
+    assert.strictEqual(nh.calls.length, n + 1, '헤더 없는 429 ' + i + '번째: 쓰기 간격(' + gap + 'ms) 뒤');
+  }
+  const srv = setup({ store: registeredStore(), handler: () => jsonRes(500, errJson('server_error')) });
+  srv.client.markDirty(0);
+  await srv.clock.advance(1);
+  for (const [i, wait] of [[2, 5000], [3, 15000], [4, 60000]]) {
+    await srv.clock.advance(lastAt(srv) + wait - 500 - srv.clock.now());
+    assert.strictEqual(srv.calls.length, i - 1, '실패 ' + (i - 1) + '번째 뒤 ' + wait + 'ms 전');
+    await srv.clock.advance(1000);
+    assert.strictEqual(srv.calls.length, i, '실패 ' + (i - 1) + '번째 뒤 ' + wait + 'ms 뒤');
+  }
+  assert.strictEqual(srv.client.status().fails, 4, '5xx 는 실패 횟수를 올린다');
+});
+
 test('start(): 대기 중이거나 처음 동기화 전이면 시작 직후 제출, visibilitychange 는 백오프 전엔 무시', async () => {
   const t = setup({ store: registeredStore() });
   t.client.start();

@@ -22,7 +22,7 @@
     ],
     // 아래 types[].max / time / timeBonus / hint / skills 는 applyDifficulty()가 선택 난이도 값으로 덮어쓰는 "활성 값" 위치다.
     time: { start: 120, max: 145 },
-    anim: { swapMs: 150, removeMs: 220, fallMsPerCell: 80, fallMsMax: 400, shuffleMs: 420 },
+    anim: { swapMs: 150, removeMs: 220, fallMsPerCell: 80, fallMsMax: 400, shuffleMs: 420, camIntroMs: 1000 },   // camIntroMs: 시작 화면에서 [도전 시작]을 눌렀을 때 배경 이동 전환(.9초)을 켜 두는 시간(spec §46.10)
     countdown: { stepMs: 600, goMs: 300 },
     input: { dragThreshold: 0.35 },
     // spec §28.5·§28.8(사용자 승인 2026-11-08, "강 R4"): 한 매치 점수 = 기본 × min(연쇄 배수 × 콤보 배수, multCap) × 어둠(×2) × 난이도 배율. 연쇄(step)와 콤보(r)는 따로 센다.
@@ -675,6 +675,7 @@
   /** 칭찬 등급: 한 행동에서 가장 높은 하나 */
   /* ---------- 스테이지 (spec §17) 순수 함수 ---------- */
   const LEVELS = ['easy', 'normal', 'hard'];
+  const CHOICES = LEVELS.concat(['challenge']);      // 시작 화면 난이도 줄의 칸 순서(spec §46.10: 4번째 칸 = 최고점 도전 모드)
 
   /** 타이머 표기: 60초 이상이면 m:ss(120 -> 2:00, 61 -> 1:01, 60 -> 1:00), 미만은 숫자만 */
   function fmtTime(sec) {
@@ -1138,13 +1139,13 @@
 
   function koInt(n) { return Math.max(0, Math.round(n)).toLocaleString('ko-KR'); }
 
-  /** 시작 화면 [최고점 도전] 버튼의 글: 기록이 있으면 "내 최고 N점", 세 난이도를 모두 깼는데 도전은 처음이면 "모두 깼다면 도전해 봐요!" + 추천 딱지, 아니면 기본 안내 */
+  /** 시작 화면에서 난이도 줄의 4번째 칸(최고점 도전 모드)이 켜졌을 때 설명 줄(#level-desc)의 글(spec §46.10).
+   *  기록이 있으면 "… 내 최고 N점"(점수 bold 만 굵게 그린다), 없으면 "… 아직 기록이 없어요". text = 이어 붙인 전체 글(낭독·시험용) */
   function challengeStartInfo(sv) {
     const c = sv && sv.challenge ? sv.challenge : defaultChallenge();
-    const allClear = LEVELS.every(function (k) { return sv && sv.progress && sv.progress[k] >= CONFIG.stages.count; });
-    if (c.best > 0) return { sub: '내 최고 ' + koInt(c.best) + '점', badge: false, state: 'best' };
-    if (allClear && c.plays === 0) return { sub: '모두 깼다면 도전해 봐요!', badge: true, state: 'recommend' };
-    return { sub: '2분 동안 최고 점수에 도전!', badge: false, state: 'new' };
+    const lead = '최고점 도전 모드 · 단계 없이 바로 2분! ';
+    if (c.best > 0) return { pre: lead + '내 최고 ', bold: koInt(c.best) + '점', text: lead + '내 최고 ' + koInt(c.best) + '점', state: 'best' };
+    return { pre: lead + '아직 기록이 없어요', bold: '', text: lead + '아직 기록이 없어요', state: 'new' };
   }
 
   /** 도전 중 막대(#goal 자리)의 글·채움. best = 이번 판을 시작할 때의 내 최고(0 이면 첫 기록 도전), score = 지금 점수.
@@ -1256,6 +1257,7 @@
     cutinActive: false,
     warnSec: 99,
     level: 'normal',
+    startChoice: null,   // 시작 화면 난이도 줄에서 고른 칸(spec §46.10). 'challenge' = 4번째 칸 최고점 도전 모드(저장하지 않는다), 그 밖에는 save.level 을 따른다
     stage: 1,         // 현재(또는 마지막) 스테이지 레벨 1~10
     board: null,      // 이번 스테이지의 보드 구조 등급 손잡이(boardParams, spec §26). null = 균등 무작위(기존 경로)
     target: 0,        // 이번 스테이지 목표 점수(미션형 레벨에서는 점수 폴백·참고값)
@@ -1285,7 +1287,7 @@
       'end-matches', 'combo-chip', 'combo-run', 'combo-mult', 'combo-max', 'combo-bar', 'combo-live', 'btn-again', 'btn-home', 'mission', 'mission-list', 'mission-live',
       'stage-detail', 'sd-title', 'sd-tag', 'sd-goal', 'sd-hint', 'sd-time', 'btn-stage-go',
       'sp-wrap', 'spirit', 'sp-art', 'sp-img', 'sp-zz', 'sp-title', 'sp-gauge', 'sp-count', 'sp-live', 'sp-note', 'end-spirit', 'sp-roster', 'sp-roster-art', 'sp-roster-text', 'sp-roster-sr',
-      'btn-challenge', 'chal-sub', 'chal-badge', 'overlay-chal-end', 'chal-end-score', 'chal-end-new', 'chal-end-line', 'chal-end-cheer', 'chal-end-combo', 'chal-end-chain', 'chal-end-skills',
+      'overlay-chal-end', 'chal-end-score', 'chal-end-new', 'chal-end-line', 'chal-end-cheer', 'chal-end-combo', 'chal-end-chain', 'chal-end-skills',
       'chal-end-rank', 'btn-chal-again', 'btn-chal-hall', 'btn-chal-home'
     ].forEach(function (id) { el[id] = $(id); });
   }
@@ -3036,17 +3038,33 @@
     return save.stages[lv].reduce(function (sum, e) { return sum + e.stars; }, 0);
   }
 
-  /** 시작 화면의 난이도 선택 상태·설명·진행도·스테이지 안내 문구를 선택값 기준으로 갱신 */
+  /** 시작 화면 난이도 줄에서 지금 켜진 칸: 'challenge'(4번째 칸) 또는 save.level('easy'|'normal'|'hard') */
+  function startChoice() { return state.startChoice === 'challenge' ? 'challenge' : save.level; }
+
+  /** 시작 화면의 난이도 선택 상태·설명·진행도·스테이지 안내 문구를 선택값 기준으로 갱신. 4번째 칸(최고점 도전 모드)이 켜지면 설명 줄과 [시작] 버튼 글만 달라진다(spec §46.10) */
   function renderLevelUi() {
     const lv = save.level;
+    const choice = startChoice();
     const btns = el['level-select'].querySelectorAll('.level-btn');
     Array.prototype.forEach.call(btns, function (b) {
-      const on = b.dataset.level === lv;
+      const on = b.dataset.level === choice;
       b.setAttribute('aria-checked', on ? 'true' : 'false');
       b.tabIndex = on ? 0 : -1;
       b.classList.toggle('on', on);
     });
-    el['level-desc'].textContent = CONFIG.difficulty[lv].desc;
+    if (choice === 'challenge') {
+      const info = challengeStartInfo(save);
+      el['level-desc'].textContent = info.pre;
+      if (info.bold) {           // 기록이 있으면 점수만 굵게
+        const b = document.createElement('b');
+        b.textContent = info.bold;
+        el['level-desc'].appendChild(b);
+      }
+    } else {
+      el['level-desc'].textContent = CONFIG.difficulty[lv].desc;
+    }
+    el['btn-start'].textContent = choice === 'challenge' ? '도전 시작' : '시작';
+    el['btn-start'].classList.toggle('is-chal', choice === 'challenge');
     el['start-clear'].textContent = clearedCount(lv) + '/' + CONFIG.stages.count;
     el['start-stars'].textContent = String(starTotal(lv));
     const d = CONFIG.difficulty;
@@ -3058,9 +3076,13 @@
   }
 
   function selectLevel(lv, focus) {
-    if (state.phase !== 'start' || !CONFIG.difficulty[lv]) return;   // 난이도는 시작 화면에서만 변경
-    save.level = lv;
-    writeSave();
+    if (state.phase !== 'start') return;   // 난이도는 시작 화면에서만 변경
+    if (lv !== 'challenge' && !CONFIG.difficulty[lv]) return;
+    state.startChoice = lv;
+    if (lv !== 'challenge') {              // 세 난이도는 저장한다. 4번째 칸(최고점 도전 모드)은 저장하지 않는다 — 새로고침하면 마지막 난이도가 켜진다(spec §46.10)
+      save.level = lv;
+      writeSave();
+    }
     renderLevelUi();
     if (focus) {
       const b = el['level-select'].querySelector('[data-level="' + lv + '"]');
@@ -3071,7 +3093,6 @@
   function renderStart() {
     renderLevelUi();
     el.tutorial.hidden = save.tutorialSeen;
-    renderChallengeBtn();             // spec §46: [최고점 도전] 버튼의 부제("내 최고 N점" 등)
     emit('renderStart');
   }
 
@@ -3242,19 +3263,11 @@
   }
 
   /* =====================================================================
-   * 최고점 도전 (spec §46) — 시작 화면 버튼 · 판 시작/끝 · 막대(#goal 자리) · 결과 화면
+   * 최고점 도전 (spec §46) — 시작 화면 4번째 칸(§46.10) · 판 시작/끝 · 막대(#goal 자리) · 결과 화면
    * 규칙·점수 함수는 스테이지와 같은 것을 그대로 쓴다(applyChallenge 가 활성 값만 바꾼다). 이 판은 목표·미션·정령이 없고(state.target = 0, goalMet() 은 항상 거짓) 시계가 0 이 될 때 끝난다.
    * 중간에 나가면 그 판은 기록하지 않는다. 서버가 없어도 이 기기의 최고점으로 완전히 동작한다(서버 제출은 ranking-ui.js 가 'challengeResult' 이벤트로 맡는다).
    * ===================================================================== */
   const hudChal = { f: -1, best: '', gap: '', kind: '' };
-
-  /** 시작 화면 [최고점 도전] 버튼의 부제·추천 딱지를 저장 기록에서 그린다(renderStart 가 부른다) */
-  function renderChallengeBtn() {
-    if (!el['btn-challenge']) return;      // (캐시된 옛 index.html 과 새 game.js 가 잠깐 섞여도 시작 화면이 멈추지 않게)
-    const info = challengeStartInfo(save);
-    el['chal-sub'].textContent = info.sub;
-    el['chal-badge'].hidden = !info.badge;
-  }
 
   /** 도전 막대: #goal 을 "내 최고까지" 막대로 쓴다(진행 바·글·접근성 값만 바꾼다. 위치·크기는 점수형 목표 바 그대로라 레이아웃이 변하지 않는다) */
   function setupChallengeHud() {
@@ -3331,8 +3344,21 @@
     return true;
   }
 
+  /** spec §46.10: 시작 화면에서 [도전 시작]을 누르면 뒤 배경이 아래로 부드럽게 내려간다(레벨 선택으로 갈 때의 배경 이동과 같은 느낌).
+   *  메뉴 화면 사이의 배경 이동(style.css 의 data-cam 규칙)은 그대로 두고, 게임 화면으로 바뀌는 이 순간에만 잠깐 <html data-chal-intro> 로 같은 .9초 전환을 켠다(게임 화면에는 원래 전환이 없다). 움직임 줄이기면 하지 않는다 */
+  let camIntroTimer = 0;
+  function cameraIntro() {
+    if (reduceMotion) return;
+    const root = document.documentElement;
+    if (!root || !root.setAttribute) return;
+    root.setAttribute('data-chal-intro', '');
+    clearTimeout(camIntroTimer);
+    camIntroTimer = setTimeout(function () { root.removeAttribute('data-chal-intro'); }, CONFIG.anim.camIntroMs);
+  }
+
   async function startChallenge() {
     audio.init();
+    const fromMenu = !el['screen-start'].hidden;      // 시작 화면에서 들어왔을 때만 배경 이동을 켠다([다시 도전]·[다시 시작]은 이미 게임 화면)
     state.gameId++;
     const id = state.gameId;
     cancelCutin();
@@ -3357,6 +3383,7 @@
     buildMissionHud();                 // state.mission·state.spirit 이 null 이라 목표 바(#goal)만 보이고 미션 칩·정령 패널은 숨는다
     buildSpiritHud();
     setupChallengeHud();
+    if (fromMenu) cameraIntro();
     showScreen('game');
     renderGauges();
     if (!save.tutorialSeen) { save.tutorialSeen = true; writeSave(); }
@@ -3391,7 +3418,7 @@
     el['chal-end-rank'].textContent = '';             // 서버 제출 상태 한 줄은 ranking-ui.js 가 채운다
     el['chal-end-rank'].hidden = true;
     applyDifficulty(save.level);                      // 활성 값을 고른 난이도로 되돌린다(도전 값은 이 판 동안만)
-    renderChallengeBtn();
+    renderLevelUi();                                  // 시작 화면 설명 줄의 "내 최고 N점"
     audio.bgmStop();
     sfx(res.newBest ? 'newbest' : 'end');
     showOverlay('overlay-chal-end', true);
@@ -3417,6 +3444,11 @@
   function enterChallenge() {      // 게이트를 거치지 않고 도전으로 (팝업·프로필 저장 뒤에 이어갈 때)
     if (state.phase !== 'start') return;
     startChallenge();
+  }
+  /** 시작 화면 [시작]/[도전 시작]: 4번째 칸(최고점 도전 모드)이 켜져 있으면 도전으로, 아니면 지금까지처럼 레벨 선택으로(spec §46.10) */
+  function onStartClick() {
+    if (startChoice() === 'challenge') openChallenge();
+    else openStages();
   }
   function onQuit() { if (state.challenge) leaveChallenge(); else goStages(); }
 
@@ -3634,7 +3666,7 @@
   }
 
   function bindUi() {
-    el['btn-start'].addEventListener('click', openStages);
+    el['btn-start'].addEventListener('click', onStartClick);
     el['btn-stages-back'].addEventListener('click', goHome);
     el['stage-grid'].addEventListener('click', function (e) {
       const b = e.target.closest && e.target.closest('.stage-card');
@@ -3671,11 +3703,11 @@
       b.addEventListener('click', function () { selectLevel(b.dataset.level, false); });
     });
     el['level-select'].addEventListener('keydown', function (e) {
-      const i = LEVELS.indexOf(save.level);
+      const i = CHOICES.indexOf(startChoice());
       let n = -1;
-      if (e.key === 'ArrowRight' || e.key === 'ArrowDown') n = (i + 1) % LEVELS.length;
-      else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') n = (i + LEVELS.length - 1) % LEVELS.length;
-      if (n >= 0) { e.preventDefault(); selectLevel(LEVELS[n], true); }
+      if (e.key === 'ArrowRight' || e.key === 'ArrowDown') n = (i + 1) % CHOICES.length;
+      else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') n = (i + CHOICES.length - 1) % CHOICES.length;
+      if (n >= 0) { e.preventDefault(); selectLevel(CHOICES[n], true); }
     });
     el['btn-sound-start'].addEventListener('click', toggleSound);
     el['btn-sound-pause'].addEventListener('click', toggleSound);
@@ -3701,8 +3733,7 @@
     el['btn-again'].addEventListener('click', restartStage);
     el['btn-next'].addEventListener('click', nextStage);
     el['btn-home'].addEventListener('click', goStages);
-    if (el['btn-challenge']) {       // spec §46: 최고점 도전 (캐시된 옛 index.html 과 섞여도 init 이 멈추지 않게 있을 때만 잇는다)
-      el['btn-challenge'].addEventListener('click', openChallenge);
+    if (el['btn-chal-again']) {       // spec §46: 최고점 도전 결과 화면 (캐시된 옛 index.html 과 섞여도 init 이 멈추지 않게 있을 때만 잇는다)
       el['btn-chal-again'].addEventListener('click', startChallenge);
       el['btn-chal-home'].addEventListener('click', leaveChallenge);
       el['btn-chal-hall'].addEventListener('click', function () { leaveChallenge(); emit('openHall'); });      // 명예의 전당 화면은 ranking-ui.js 가 연다

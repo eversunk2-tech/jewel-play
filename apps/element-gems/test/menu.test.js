@@ -177,7 +177,8 @@ test('⑥ 시작 화면: 기존 id 와 DOM(탭) 순서가 그대로이고, 새 �
   });
   // 버튼 id·역할 그대로
   assert.ok(/<button id="btn-start" class="btn primary big" type="button">시작<\/button>/.test(START));
-  assert.ok(/role="radiogroup" aria-label="난이도"/.test(START) && (START.match(/role="radio"/g) || []).length === 3);
+  assert.ok(/role="radiogroup" aria-label="난이도"/.test(START) && (START.match(/role="radio"/g) || []).length === 4, '난이도 세 칸 + 4번째 칸 "최고점 도전 모드"(spec §46.10)');
+  assert.deepStrictEqual(Array.from(START.matchAll(/role="radio"[^>]*data-level="(\w+)"/g)).map((m) => m[1]), ['easy', 'normal', 'hard', 'challenge']);
   assert.ok(/<button id="btn-hall" class="btn hall" type="button" hidden>/.test(START) && /<button id="btn-profile-chip" class="me-chip" type="button" hidden>/.test(START));
   // 새 래퍼: 위쪽 칩 묶음 · 난이도+[시작] 묶음 · 게임 방법
   ['sc-top', 'sc-cta', 'howto'].forEach((c) => assert.strictEqual((START.match(new RegExp('class="' + c + '"', 'g')) || []).length, 1, c));
