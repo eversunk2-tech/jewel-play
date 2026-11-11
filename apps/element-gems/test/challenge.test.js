@@ -1180,6 +1180,7 @@ test('style.css: 도전 블록이 정령 블록 앞에 하나 있고(:root·보�
   assert.ok(/\.level-select \.level-btn\.lv-challenge \{[^}]*padding: 0 2px;[^}]*line-height: 1\.08;/.test(code), '두 줄 라벨: 안쪽 위아래 여백 0, 줄 높이 1.08');
   assert.ok(/\.level-select \.level-btn\.lv-challenge\.on \{[^}]*linear-gradient\(180deg, #d9f9ff 0%, #5fd3e8 46%, #2aa4c6 54%, #5fd3e8 100%\)/.test(code), '켜지면 하늘색 3단 그라데이션(위 하이라이트·가운데 띠)');
   assert.ok(/\.level-select \.level-btn\.lv-challenge::before \{[^}]*position: absolute;[^}]*width: 2px;/.test(code), '고수와의 사이에 가는 구분선');
+  assert.ok(/(?:^|\n)\.level-select \{ display: grid; grid-template-columns: repeat\(4, 1fr\); gap: 6px; margin: 4px 0 6px; \}/.test(CSS), '난이도 줄 격자는 4등분이다(초보·중수·고수·최고점 도전 모드). 3등분이면 4번째 칸이 다음 줄로 밀린다(Review R-D 변이 시험에서 빠져 있던 단언)');
   (code.match(/font-size:\s*[^;]+;/g) || []).forEach((d) => { const r = d.match(/(\d*\.?\d+)rem/); assert.ok(/max\(11px/.test(d) || (r && parseFloat(r[1]) * 16 >= 11), d); });
   assert.ok(/@media screen and \(prefers-reduced-motion: reduce\)/.test(block) && !/@media \(prefers-reduced-motion: reduce\)/.test(block));
   const red = code.match(/#[0-9a-f]{6}/gi) || [];
