@@ -35,3 +35,6 @@
    2026-11-11 §45 Review R-E(review.md §37)가 통과·결함 0·수정 0으로 끝났고, 일반용 §43·§44·§46(+4번째 칸)이 교육용에 모두 반영됐다(별 기준 §44·최고점 도전 §46은 각 Build에서, 미션 표 §43은 §45 Build에서). **이 커밋부터 기준 태그는 `base-general-v7`**(메인 세션이 이 커밋에 만든다; 태그는 로컬이며 아직 원격에 올리지 않았다).
    2026-11-11 spec §47(교육용 선물상자 문제 양 기본 선택을 '보통'으로, 교육용 전용·일반용 변경 없음) — 교육용 `game.js`(`CONFIG.edu.defaultIntensity` 'normal'·`eduIntensity()` 마지막 안전 기본값 보통), `edu.js`(`EDU_UI.intensity.default` 'normal'), `index.html`(정적 첫 상태의 라디오·`#eg-unit-amount` 글도 보통 — Review R-F §38 D2), 시험 기대값. 기준 태그 변경 없음.
    2026-11-11 spec §48(교육용 출제 순서 개선) — `edu.js`의 `EDU_UI.bag`·`buildSpreadOrder`·`drawFromBag` 순서 만들기(교육용 전용, 일반용 변경 없음). 기준 태그 변경 없음.
+   2026-11-20 spec §49(UI 입체감 B-1 '맑은 유리', 일반용·교육용 동시 Build) — 두 앱에 **같게** 들어간 것: 새 파일 `ui-depth.css`(바이트 동일), `index.html` 링크 1줄(교육용은 `edu.css` 뒤 `[EDU]` 표식), 새 시험 `depth.test.js`(같은 내용). `style.css`·`edu.css`·`game.js` 등 기존 파일 변경 없음. 기준 태그 변경 없음(공용 `ui-depth.css`는 두 앱에서 바이트 동일 유지).
+
+   2026-11-21 spec §49(UI 입체감 B-1 "맑은 유리", 일반용·교육용 동시 Build, 상태 색 복원 블록·Review R-D 보충 포함) — 두 앱에 **같게** 들어간 것: 새 파일 `ui-depth.css`(바이트 동일, 시안 규칙 82덩어리 + 끝 "상태 색 복원" 블록 12규칙), `index.html` 링크 1줄(교육용은 `edu.css` 뒤 `[EDU]` 표식), 새 시험 `depth.test.js`(같은 내용). `style.css`·`edu.css`·`game.js` 등 기존 파일 변경 없음. 루트 `index.html`(선택 화면) 인라인 받침 4곳 수정. 기준 태그 변경 없음(공용 `ui-depth.css`는 두 앱에서 바이트 동일 유지).

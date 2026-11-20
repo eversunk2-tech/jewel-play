@@ -1,0 +1,177 @@
+/* ui-depth.css — spec §49 "B-1 맑은 유리": 아래·옆에 덧붙는 받침 없이, 깔끔하고 가볍게 떠 있는 UI.
+ * 이 파일은 style.css(교육용은 edu.css) 뒤에 "마지막 스타일시트"로 링크되어 원래 규칙을 덮어쓰며, 일반용·교육용에서 바이트까지 같아야 한다.
+ *
+ * 규칙 요약(depth.test.js 가 지킨다)
+ *   1. 받침 없음: 블러 0인 오프셋 그림자(0 Npx 0 색)·안쪽 아래 띠(inset 0 -Npx 0)·한쪽만 두꺼운 테두리를 쓰지 않는다.
+ *      허용은 사방이 같은 얇은 링(0 0 0 Npx), 위쪽 1px 하이라이트(--dp-hl), 블러가 큰 확산 그림자뿐이다.
+ *   2. 면은 전부 불투명(풍경이 면 안으로 번지지 않는다). 이 파일에는 배경을 흐리게 하는 속성도 필터 속성도 없다.
+ *   3. 링 강약: 정보 줄 .18 · 큰 패널 .22 · 누르는 것 .52 · 선택칩 .6~.8. 눌림은 면이 살짝 어두워지고(--dp-tint) scale(.97~.98), 움직임 줄이기에서는 크기 변화 없이 색·그림자만.
+ *   4. 레이아웃 불변: 크기·간격·위치 선언을 넣지 않는다(테두리는 두께를 그대로 두고 색만 투명으로, 그래서 background-origin: border-box 와 짝).
+ *      예외는 빛줄기·광택을 얹는 .level-btn.on · .hf-tab[aria-selected] · #btn-start 의 position: relative; overflow: hidden 과 그 ::after 뿐이다.
+ *   5. 우선순위는 :root 접두어로만 올리고 강제 선언은 쓰지 않는다. 외부 주소·이미지 주소·글꼴 선언 없음. 보드·타일·플레이 HUD에는 transition·무한 애니메이션 없음.
+ *   6. 위에서 오는 빛(면은 위가 순백, 아래가 연보라·연하늘로 가는 세로 그라데이션 + 윗 1px 하이라이트)과 큰 패널의 좌상단 반사광 1개로 공기감을 만든다.
+ *      윗 1px 하이라이트 --dp-hl 은 inset 0 1px 0 꼴이지만 받침이 아니라 면 위쪽의 빛이므로 허용되는 유일한 예외다.
+ *
+ * 규칙은 시안(B-1 "맑은 유리")과 같고, 파일 맨 끝의 "상태 색 복원" 블록만 추가됐다: 시안 규칙(:root .m-chip 등)이 원본의 상태 규칙(.m-chip.done 등)과 우선순위가 같고 나중에 읽혀서 덮어쓴 완료·클리어·펼침 색과
+ *   키보드 포커스의 흰 바깥 고리를 원본 값 그대로 되살린다(받침이 있던 원본 그림자는 복사하지 않고 이 파일의 링·확산 그림자로 쓴다).
+ * 재미 2개는 변수 한 줄로 끈다: --dp-fx-sweep(선택칩 빛줄기 1회) · --dp-fx-shine([시작] 광택 7초에 1회) 를 none 으로 바꾸면 꺼진다.
+ * 움직임 줄이기에서는 둘 다 정지한다. 눌림 어둡게 하기 --dp-tint 의 스프레드는 버튼 크기와 무관하게 면 전체를 덮도록 크게(999px) 둔다. */
+:root {
+  --dp-s: 50, 30, 140;                                                   /* 그림자 색조(남보라) */
+  --dp-face: linear-gradient(180deg, #ffffff 0%, #f3efff 100%);          /* 누르는 면(연보라 기운) */
+  --dp-info: linear-gradient(180deg, #ffffff 0%, #eef6ff 100%);          /* 정보 줄(연하늘 기운) */
+  --dp-trough: linear-gradient(180deg, #e6e0fa 0%, #f3f0fe 100%);        /* 파인 트랙(불투명 연보라) */
+  --dp-panel: linear-gradient(180deg, #fbf9ff 0%, #eee8fd 100%);         /* 큰 패널(연보라) */
+  --dp-glint: radial-gradient(120% 90% at 0% 0%, rgba(255, 255, 255, .55), transparent 55%); /* 좌상단 반사광(큰 패널만) */
+  --dp-hl: inset 0 1px 0 rgba(255, 255, 255, .95);                       /* 윗 1px 하이라이트 */
+  --dp-edge: inset 0 0 0 1px rgba(255, 255, 255, .7);                    /* 안쪽 흰 모서리(유리 단서) */
+  --dp-ring-i: 0 0 0 1px rgba(60, 40, 140, .18);                         /* 정보 줄 링 */
+  --dp-ring-p: 0 0 0 1px rgba(60, 40, 140, .22);                         /* 큰 패널 링 */
+  --dp-ring-c: 0 0 0 1px rgba(60, 40, 140, .52);                         /* 누르는 것 링 */
+  --dp-sh-a: 0 5px 24px rgba(var(--dp-s), .12);   /* 바탕에 놓인 정보 줄(링이 바닥 접촉을 대신해 1겹) */
+  --dp-sh-b: 0 1px 3px rgba(var(--dp-s), .14), 0 8px 26px rgba(var(--dp-s), .16);   /* 떠 있는 누르는 것 */
+  --dp-sh-bh: 0 2px 4px rgba(var(--dp-s), .16), 0 12px 32px rgba(var(--dp-s), .20); /* 잠깐 더 뜬 것(올림) */
+  --dp-sh-c: 0 2px 6px rgba(var(--dp-s), .10), 0 14px 40px rgba(var(--dp-s), .18);  /* 큰 패널 */
+  --dp-tint: inset 0 0 0 999px rgba(60, 40, 140, .07);                    /* 눌릴 때 면 전체가 살짝 어두워짐(스프레드를 크게 줘서 버튼 크기와 상관없이 면 전체를 덮는다) */
+  --dp-fx-sweep: dpSweep 300ms ease-out 1 both;                          /* 재미 ① 선택칩 빛줄기(끄기: none) */
+  --dp-fx-shine: dpShine 7s linear 1.5s infinite;                        /* 재미 ② [시작] 광택(끄기: none) */
+}
+
+/* ---------- 정보 줄·알약(누르지 않는 것): 연하늘 기운 불투명 면 + 윗 하이라이트 + 연한 링 + 바탕 그림자 ---------- */
+:root .best-line, :root .menu-screen .best-line, :root .level-desc, :root .menu-screen .level-desc,
+:root .menu-screen.stages .stages-sub, :root .menu-screen.stages .sp-roster, :root .menu-screen.stages .stages-time,
+:root .learn-chip, :root .scorebar:not(.dark), :root .gauge:not(.full):not(.aiming), :root .hr, :root .myrank.plain {
+  background: var(--dp-info); border-color: transparent; background-origin: border-box; box-shadow: var(--dp-hl), var(--dp-ring-i), var(--dp-sh-a);
+}
+:root .menu-screen.stages .stages-hint { background: var(--dp-info); border-color: transparent; background-origin: border-box; box-shadow: var(--dp-hl), var(--dp-ring-i); }
+
+/* ---------- 트랙(난이도 막대·탭·타이머·목표·미션 칩): 불투명 연보라 파인 면 ---------- */
+:root .level-select, :root .hf-tabs { background: var(--dp-trough); box-shadow: inset 0 2px 5px rgba(var(--dp-s), .14), var(--dp-ring-i); }
+:root .timer:not(.frozen), :root .goal, :root .m-chip { background: var(--dp-trough); border-color: transparent; background-origin: border-box; box-shadow: inset 0 2px 4px rgba(var(--dp-s), .14), var(--dp-ring-i); }
+
+/* ---------- 큰 패널·설명판: 연보라 면 + 좌상단 반사광 1개 + 윗 하이라이트 + 링 + 넓고 연한 확산 그림자 ---------- */
+:root .panel, :root .menu-screen .howto-panel, :root .eg-quiz, :root .menu-screen.stages .stage-detail, :root .eg-pick-card {
+  background: var(--dp-glint), var(--dp-panel); border-color: transparent; background-origin: border-box; box-shadow: var(--dp-hl), var(--dp-ring-p), var(--dp-sh-c);
+}
+:root .menu-screen.stages .stage-detail { box-shadow: var(--dp-hl), var(--dp-ring-p), 0 2px 5px rgba(var(--dp-s), .10), 0 10px 32px rgba(var(--dp-s), .16); }
+:root .board-wrap::before { box-shadow: 0 0 0 1px rgba(60, 40, 140, .28), var(--dp-sh-c); }
+
+/* ---------- 누르는 알약·보조 버튼: 연보라 기운 면 + 윗 하이라이트 + 안쪽 흰 모서리 + 진한 링 + 떠 있는 그림자 ---------- */
+:root .menu-screen .me-chip, :root .menu-screen .howto-btn, :root .btn.ghost { background: var(--dp-face); }
+:root .btn, :root .menu-screen .me-chip, :root .menu-screen .howto-btn, :root .menu-screen .btn.hall {
+  border-color: transparent; background-origin: border-box; box-shadow: var(--dp-hl), var(--dp-edge), var(--dp-ring-c), var(--dp-sh-b);
+}
+:root .btn:hover, :root .menu-screen .me-chip:hover, :root .menu-screen .howto-btn:hover { box-shadow: var(--dp-hl), var(--dp-edge), var(--dp-ring-c), var(--dp-sh-bh); }
+:root .btn:active, :root .menu-screen .me-chip:active, :root .menu-screen .howto-btn:active { transform: scale(.98); box-shadow: var(--dp-hl), var(--dp-tint), var(--dp-ring-c); }
+:root .btn.ghost { box-shadow: var(--dp-hl), var(--dp-edge), var(--dp-ring-c); }
+:root #btn-hint { box-shadow: var(--dp-hl), var(--dp-edge), 0 0 0 1px rgba(20, 120, 70, .62), 0 1px 3px rgba(20, 150, 80, .16), 0 8px 24px rgba(20, 150, 80, .22); }
+:root #btn-menu { box-shadow: var(--dp-hl), var(--dp-edge), 0 0 0 1px rgba(80, 50, 200, .6), 0 1px 3px rgba(var(--dp-s), .16), 0 8px 24px rgba(var(--dp-s), .22); }
+:root #btn-reset { box-shadow: var(--dp-hl), var(--dp-edge), 0 0 0 1px rgba(200, 60, 120, .58), 0 1px 3px rgba(230, 70, 140, .16), 0 8px 24px rgba(230, 70, 140, .22); }
+:root .btn.danger { box-shadow: var(--dp-hl), var(--dp-edge), 0 0 0 1px rgba(217, 48, 74, .6), 0 1px 3px rgba(230, 60, 90, .14), 0 8px 24px rgba(230, 60, 90, .2); }
+:root #btn-hint:active, :root #btn-menu:active, :root #btn-reset:active, :root .btn.danger:active { box-shadow: var(--dp-hl), var(--dp-tint), 0 0 0 1px rgba(60, 40, 140, .5); }
+:root .btn[disabled], :root .btn.cooling { box-shadow: 0 0 0 1px rgba(60, 40, 140, .14); }
+
+/* ---------- 선택칩: 채운 알약 + 면 색보다 한 단계 어두운 1px 링 + 색조 확산 그림자 ---------- */
+:root .level-btn.on, :root .hf-tab[aria-selected="true"] { position: relative; overflow: hidden; border-color: transparent; background-origin: border-box; box-shadow: var(--dp-hl), 0 0 0 1px rgba(60, 40, 140, .6), 0 2px 4px rgba(var(--dp-s), .16), 0 8px 24px rgba(var(--dp-s), .24); }
+:root .level-btn.lv-easy.on, :root .hf-tab.t-easy[aria-selected="true"] { box-shadow: var(--dp-hl), 0 0 0 1px rgba(20, 120, 65, .75), 0 2px 4px rgba(20, 150, 80, .2), 0 8px 24px rgba(20, 150, 80, .34); }
+:root .level-btn.lv-normal.on, :root .hf-tab.t-normal[aria-selected="true"] { box-shadow: var(--dp-hl), 0 0 0 1px rgba(170, 100, 0, .8), 0 2px 4px rgba(255, 150, 0, .2), 0 8px 24px rgba(255, 150, 0, .38); }
+:root .level-btn.lv-hard.on, :root .hf-tab.t-hard[aria-selected="true"] { box-shadow: var(--dp-hl), 0 0 0 1px rgba(190, 40, 80, .75), 0 2px 4px rgba(240, 60, 100, .2), 0 8px 24px rgba(240, 60, 100, .34); }
+:root .level-btn.lv-challenge.on { box-shadow: var(--dp-hl), 0 0 0 1px rgba(10, 110, 140, .8), 0 2px 4px rgba(10, 160, 200, .2), 0 8px 24px rgba(10, 160, 200, .36); }
+/* 재미 ①: 선택되는 순간 빛줄기가 한 번 지나간다(글자를 가리지 않게 얇고 연하게) */
+:root .level-btn.on::after, :root .hf-tab[aria-selected="true"]::after { content: ""; position: absolute; top: 0; bottom: 0; left: 0; width: 36%; background: linear-gradient(100deg, rgba(255, 255, 255, 0), rgba(255, 255, 255, .6), rgba(255, 255, 255, 0)); pointer-events: none; animation: var(--dp-fx-sweep); }
+@keyframes dpSweep { 0% { transform: translateX(-120%) skewX(-18deg); opacity: 0; } 20% { opacity: 1; } 100% { transform: translateX(320%) skewX(-18deg); opacity: 0; } }
+
+/* ---------- 주요 행동 버튼: 채운 그라데이션 + 윗 하이라이트 + 진한 앰버 링 + 주색 확산 그림자 ---------- */
+:root .btn.primary { border-color: transparent; background-origin: border-box; box-shadow: var(--dp-hl), 0 0 0 1px rgba(184, 110, 0, .78), 0 2px 5px rgba(255, 150, 0, .22), 0 10px 26px rgba(255, 150, 0, .40); }
+:root .btn.primary:active { transform: scale(.97); box-shadow: var(--dp-hl), var(--dp-tint), 0 0 0 1px rgba(184, 110, 0, .78), 0 3px 8px rgba(255, 150, 0, .4); }
+:root .menu-screen #btn-start { border-color: transparent; background-origin: border-box; box-shadow: var(--dp-hl), 0 0 0 1px rgba(160, 90, 0, .72), 0 2px 6px rgba(255, 140, 0, .24), 0 14px 34px rgba(255, 140, 0, .44); }
+:root .menu-screen #btn-start:active { transform: scale(.97); box-shadow: var(--dp-hl), var(--dp-tint), 0 0 0 1px rgba(160, 90, 0, .72), 0 4px 10px rgba(255, 140, 0, .42); }
+:root .menu-screen #btn-start:focus-visible { box-shadow: 0 0 0 8px #fff, 0 12px 28px rgba(255, 140, 0, .5); }
+:root .menu-screen #btn-start.is-chal { box-shadow: var(--dp-hl), 0 0 0 1px rgba(10, 100, 130, .78), 0 2px 6px rgba(10, 160, 200, .24), 0 14px 34px rgba(10, 160, 200, .44); }
+:root .menu-screen #btn-start.is-chal:focus-visible { box-shadow: 0 0 0 8px #fff, 0 12px 28px rgba(10, 160, 200, .5); }
+:root #btn-chal-again { border-color: transparent; background-origin: border-box; box-shadow: var(--dp-hl), 0 0 0 1px rgba(10, 100, 130, .78), 0 2px 5px rgba(10, 160, 200, .22), 0 10px 26px rgba(10, 160, 200, .40); }
+:root .menu-screen.stages .sd-go:focus-visible { box-shadow: 0 0 0 8px #fff, 0 8px 20px rgba(255, 150, 0, .5); }
+/* 재미 ②: [시작] 광택이 7초에 한 번 좌→우로 지나간다(가만히 있을 때는 보이지 않는다) */
+:root .menu-screen #btn-start { position: relative; overflow: hidden; }
+:root .menu-screen #btn-start::after { content: ""; position: absolute; top: 0; bottom: 0; left: 0; width: 14%; background: linear-gradient(100deg, rgba(255, 255, 255, 0), rgba(255, 255, 255, .5), rgba(255, 255, 255, 0)); pointer-events: none; transform: translateX(-160%); animation: var(--dp-fx-shine); }
+@keyframes dpShine { 0% { transform: translateX(-160%) skewX(-20deg); } 14% { transform: translateX(760%) skewX(-20deg); } 100% { transform: translateX(760%) skewX(-20deg); } }
+
+/* ---------- 카드·행·메달 ---------- */
+:root .menu-screen.stages .stage-card { --c-sh: 50, 30, 140; border-color: rgba(255, 255, 255, .9); background-origin: border-box; box-shadow: var(--c-inner), 0 0 0 1px rgba(var(--c-sh), .42), 0 2px 5px rgba(var(--c-sh), .14), 0 8px 24px rgba(var(--c-sh), .22); }
+:root .menu-screen.stages .stage-card.cleared { --c-sh: 20, 130, 75; }
+:root .menu-screen.stages .stage-card.current { --c-sh: 200, 120, 0; }
+:root .menu-screen.stages .stage-card.locked, :root .menu-screen.stages .stage-card:disabled { --c-sh: 70, 60, 140; border-color: rgba(236, 234, 251, .95); box-shadow: var(--c-inner), 0 0 0 1px rgba(var(--c-sh), .26), 0 6px 18px rgba(var(--c-sh), .12); }
+:root .menu-screen.stages .stage-card[data-kind="special"] { border-color: #ffb703; }
+:root .menu-screen.stages .stage-card:active:not(:disabled) { transform: scale(.98); }
+@keyframes stagePulse { 0%, 100% { box-shadow: 0 0 0 1px rgba(200, 120, 0, .5), 0 8px 24px rgba(230, 130, 0, .26), 0 0 0 0 rgba(255, 194, 26, .9); } 50% { box-shadow: 0 0 0 1px rgba(200, 120, 0, .5), 0 8px 24px rgba(230, 130, 0, .26), 0 0 14px 4px rgba(255, 194, 26, .9); } }
+:root .menu-screen.stages .stage-card.current::after { border-color: transparent; background-origin: border-box; box-shadow: 0 2px 8px rgba(120, 30, 20, .35); }
+:root .menu-screen.stages .stage-card.cleared::before { box-shadow: 0 2px 8px rgba(20, 83, 45, .4); }
+:root .menu-screen.stages .stage-card .sc-tag { border-color: transparent; background-origin: border-box; box-shadow: 0 2px 8px rgba(40, 20, 120, .35); }
+:root .menu-screen.stages .stages-title .level-chip { box-shadow: none; }
+:root .menu-screen.stages .stage-card .sc-stars, :root .stage-card .sc-stars, :root .gauge .count, :root .menu-screen .gauge .count { background: #ffffff; }
+:root #mult { box-shadow: 0 0 0 1px rgba(170, 100, 0, .45), 0 2px 8px rgba(255, 150, 0, .35); }
+:root .chal-new { box-shadow: 0 0 0 1px rgba(170, 100, 0, .45), 0 2px 8px rgba(255, 150, 0, .35); }
+:root .hr .rk.m1 { box-shadow: 0 0 0 2px #e0a21a; }
+:root .hr .rk.m2 { box-shadow: 0 0 0 2px #98a3c4; }
+:root .hr .rk.m3 { box-shadow: 0 0 0 2px #c0733a; }
+:root .hr.top1 { background: linear-gradient(180deg, #fffbe0, #ffeaa0); box-shadow: var(--dp-hl), 0 0 0 1px rgba(170, 120, 0, .42), var(--dp-sh-a); }
+:root .hr.me { border-color: transparent; background-origin: border-box; box-shadow: 0 0 0 3px rgba(255, 194, 26, .6), 0 0 0 4px rgba(170, 110, 0, .45), var(--dp-sh-a); }
+:root .myrank { border-color: transparent; background-origin: border-box; box-shadow: var(--dp-hl), 0 0 0 1px rgba(170, 110, 0, .55), 0 2px 5px rgba(200, 120, 0, .16), 0 8px 26px rgba(200, 120, 0, .26); }
+:root .menu-screen .hf-card.is-hall .hf-list > .hr:nth-child(1) { border-color: transparent; background-origin: border-box; box-shadow: var(--dp-hl), 0 0 0 1px rgba(170, 120, 0, .5), 0 2px 5px rgba(230, 150, 0, .16), 0 8px 26px rgba(230, 150, 0, .26); }
+:root .menu-screen .hf-card.is-hall .hf-list > .hr:nth-child(2) { border-color: transparent; background-origin: border-box; box-shadow: var(--dp-hl), 0 0 0 1px rgba(90, 110, 170, .45), var(--dp-sh-a); }
+:root .menu-screen .hf-card.is-hall .hf-list > .hr:nth-child(3) { border-color: transparent; background-origin: border-box; box-shadow: var(--dp-hl), 0 0 0 1px rgba(170, 100, 50, .45), var(--dp-sh-a); }
+:root .menu-screen .hf-card.is-hall .hf-list > .hr.me { box-shadow: 0 0 0 4px rgba(255, 194, 26, .7), 0 0 0 5px rgba(170, 110, 0, .45), var(--dp-sh-a); }
+:root .menu-screen .av-btn { border-color: rgba(255, 255, 255, .9); background-origin: border-box; box-shadow: 0 0 0 1px rgba(60, 40, 140, .42), 0 6px 18px rgba(var(--dp-s), .2); }
+:root .menu-screen .av-btn[aria-checked="true"] { border-color: var(--mn-gold); box-shadow: 0 0 0 3px #fff, 0 0 0 7px var(--mn-gold), 0 8px 18px rgba(255, 150, 0, .4); }
+
+/* ---------- 제목·리본 ---------- */
+:root .menu-screen .mn-ribbon, :root #overlay-profile-ask .pa-panel h2 { box-shadow: 0 6px 16px rgba(var(--dp-s), .32); }
+:root #end-title, :root #pause-title { background: var(--dp-info); box-shadow: var(--dp-hl), var(--dp-ring-i), var(--dp-sh-a); }
+:root #end-title.clear { box-shadow: var(--dp-hl), 0 0 0 1px rgba(170, 100, 0, .55), 0 8px 24px rgba(255, 150, 0, .36); }
+:root #chal-end-title { box-shadow: 0 6px 16px rgba(40, 20, 120, .35); }
+
+/* ---------- 교육용(edu.css) ---------- */
+:root .eg-unit, :root .menu-screen .eg-unit { background: linear-gradient(180deg, #fffdf2, #fff3c6); border-color: transparent; background-origin: border-box; box-shadow: var(--dp-hl), 0 0 0 1px rgba(170, 120, 0, .42), 0 2px 5px rgba(200, 140, 0, .12), 0 8px 26px rgba(200, 140, 0, .2); }
+:root .menu-screen .eg-ribbon { box-shadow: 0 2px 6px rgba(125, 15, 79, .4); }
+:root .eg-chip, :root .eg-amt { box-shadow: var(--dp-ring-c), var(--dp-sh-b); }
+:root .eg-chip.on, :root .eg-amt.on { box-shadow: 0 0 0 1px rgba(40, 20, 150, .8), 0 2px 4px rgba(91, 61, 245, .2), 0 8px 24px rgba(91, 61, 245, .34); }
+:root .eg-chip:active, :root .eg-amt:active { transform: scale(.97); box-shadow: var(--dp-ring-c); }
+:root .eg-sub, :root .menu-screen .eg-sub { box-shadow: var(--dp-ring-c), var(--dp-sh-b); }
+:root .eg-sub.on, :root .menu-screen .eg-sub.on { box-shadow: 0 0 0 3px rgba(255, 183, 3, .55), var(--dp-sh-a); }
+:root .eg-opt { box-shadow: var(--dp-ring-c), var(--dp-sh-b); }
+:root .eg-opt.right { box-shadow: 0 0 0 1px rgba(15, 122, 67, .6), 0 2px 4px rgba(15, 150, 80, .16), 0 8px 24px rgba(15, 150, 80, .24); }
+:root .eg-opt.mine-wrong { box-shadow: 0 0 0 1px rgba(192, 48, 58, .6), 0 2px 4px rgba(200, 50, 60, .16), 0 8px 24px rgba(200, 50, 60, .24); }
+:root .eg-home a { box-shadow: var(--dp-ring-i), var(--dp-sh-a); }
+
+/* ---------- 키보드 포커스: 원래의 윤곽선은 그대로 두고, 흰 바깥 고리(원래 값)만 다시 살려 어두운 풍경 위에서도 보이게 한다 ---------- */
+:root button:focus-visible, :root .gauge:focus-visible, :root #btn-hint:focus-visible, :root #btn-menu:focus-visible, :root #btn-reset:focus-visible { box-shadow: 0 0 0 6px #fff; }
+
+/* ---------- 움직임 줄이기: 빛줄기·광택 정지, 눌림은 크기 변화 없이 면 색·그림자만 ---------- */
+@media screen and (prefers-reduced-motion: reduce) {
+  :root .level-btn.on::after, :root .hf-tab[aria-selected="true"]::after, :root .menu-screen #btn-start::after { animation: none; opacity: 0; }
+  :root .btn:active, :root .btn.primary:active, :root .menu-screen #btn-start:active, :root .menu-screen .me-chip:active, :root .menu-screen .howto-btn:active,
+  :root .menu-screen.stages .stage-card:active:not(:disabled), :root .eg-chip:active, :root .eg-amt:active { transform: none; }
+}
+
+/* ---------- 상태 색 복원(spec §49.9 보충): 시안 규칙이 원본 상태 색을 덮은 곳을 되살림 ----------
+ * 값은 원본 style.css·edu.css 의 해당 상태 규칙 그대로(배경 문자열 일치는 depth.test.js 규칙 ⑬이 지킨다). 투명 테두리 면이라 background-origin: border-box 를 짝으로 둔다. */
+:root .m-chip.done { background: linear-gradient(180deg, #d4fbe6 0%, #a8f0c8 100%); background-origin: border-box; box-shadow: inset 0 2px 4px rgba(15, 122, 67, .14), 0 0 0 1px rgba(15, 122, 67, .35); }
+:root #end-title.clear { background: linear-gradient(180deg, #ffe97a, #ffb21a); background-origin: border-box; }
+:root .learn-chip.done { background: linear-gradient(180deg, #d4fbe6 0%, #a8f0c8 100%); background-origin: border-box; box-shadow: var(--dp-hl), 0 0 0 1px rgba(15, 122, 67, .35), var(--dp-sh-a); }
+:root .menu-screen .howto-btn[aria-expanded="true"] { background: #fff4cc; background-origin: border-box; }
+/* 키보드 포커스: 원본의 흰 바깥 고리(0 0 0 6px #fff)가 시안 그림자에 덮인 컨트롤을 되살린다(3px 윤곽선은 그대로). 고리는 면 가장자리의 1px 링 바로 바깥에 둔다 */
+:root .menu-screen .howto-btn:focus-visible { box-shadow: var(--dp-hl), var(--dp-edge), var(--dp-ring-c), 0 0 0 6px #fff, var(--dp-sh-bh); }
+:root .gauge:not(.full):not(.aiming):focus-visible { box-shadow: var(--dp-hl), var(--dp-ring-i), 0 0 0 6px #fff; }
+:root .eg-chip.on:focus-visible, :root .eg-amt.on:focus-visible { box-shadow: 0 0 0 1px rgba(40, 20, 150, .8), 0 0 0 6px #fff, 0 8px 24px rgba(91, 61, 245, .34); }
+/* 받침 잔존·비활성 복원(Review R-D, review.md §40 D1·D2·D3): 시안이 덮지 못했거나 순서 때문에 덮어쓴 원본 규칙을 시안 변수 그대로 정리한다(원본의 받침 그림자는 복사하지 않는다) */
+/* D1 정령 특별 레벨(5·10) HUD: 원본 .sp-art·.sp-info 의 0 3px 0 · inset 0 -3px 0 받침을 정보 줄 문법(윗 하이라이트 + 연한 링 + 바탕 그림자)으로. 면(배경)은 원본 그대로 */
+:root .sp-art, :root .sp-info { border-color: transparent; background-origin: border-box; box-shadow: var(--dp-hl), var(--dp-ring-i), var(--dp-sh-a); }
+/* D2 비활성·쿨다운 주요 버튼: :root .btn.primary 의 앰버 링·빛이 :root .btn[disabled] 보다 나중에 읽혀 비활성인데도 눌러도 되는 듯 빛나던 것을, 시안이 정한 비활성 값(위 :root .btn[disabled] 와 같은 값)으로 */
+:root .btn.primary[disabled], :root .btn.primary.cooling { box-shadow: 0 0 0 1px rgba(60, 40, 140, .14); }
+/* D3 교육용 문제 보기를 누르는 순간: 원본 edu.css 의 0 1px 0 받침을 눌림 문법(윗 하이라이트 + 면 어둡게 + 링)으로 */
+:root .eg-opt:not(:disabled):active { box-shadow: var(--dp-hl), var(--dp-tint), var(--dp-ring-c); }
+/* D9 교육용 선물상자 문제 칩의 기본 면을 원래 크림색으로(사용자 결정 2026-11-21, Review R-D D9): 시안 규칙 :root .learn-chip(정보 줄 그룹)이 덮어쓴 면 색을 되살린다. 완료 상태(:root .learn-chip.done, 초록)는 선택자가 더 구체적이라 계속 이긴다.
+ * 원본의 받침 그림자(0 3px 0)는 복사하지 않고, 교육용 단원 카드(.eg-unit)의 크림 규칙과 같은 링 색·강도로 쓴다 */
+:root .learn-chip { background: #fff1b8; background-origin: border-box; box-shadow: var(--dp-hl), 0 0 0 1px rgba(170, 120, 0, .42), var(--dp-sh-a); }
+/* D8 교육용 문제 수 안내 글자(#eg-amount-desc): 바로 위 고른 칩의 색조 확산 그림자가 글자 뒤 바탕을 어둡게 해 대비가 최악 4.32 였다(Review R-D D8). 같은 색상 계열로 한 단계 진하게(#5b5394 -> #514988, 최악 바탕 기준 5.05) */
+:root #eg-amount-desc { color: #514988; }
